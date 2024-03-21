@@ -1,0 +1,27 @@
+[tool.poetry]
+name = "blueprint"
+version = "0.1.0"
+description = "A library implement a variety of superconducting circuit models and the tools required to perform fast and detail simulations of their dynamics."
+authors = ["Boris Varbanov <Boris.Mihailov.Varbanov@USherbrooke.ca>", "Élie Genois <Elie.Genois@USherbrooke.ca>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.12"
+ipykernel = "^6.29.3"
+cython = "^3.0.9"
+pybind11 = "^2.11.1"
+numpy = "^1.26.4"
+scipy = "^1.12.0"
+torch = "^2.2.1"
+qutip = "^4.7.5"
+matplotlib = "^3.8.3"
+wheel = "^0.42.0"
+jax = {extras = ["cpu"], version = "^0.4.25"}
+dynamiqs = {git = "https://github.com/dynamiqs/dynamiqs.git"}
+
+[tool.poetry.group.dev.dependencies]
+black = "^24.2.0"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
