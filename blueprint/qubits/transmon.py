@@ -1,13 +1,14 @@
 import math
-from typing import Union
-from warnings import warn
+from typing import Union, Tuple
 
+from scipy.optimize import minimize
 from jax import numpy as jnp
 from jax import Array
 
 from ..base.systems import QuantumSystem
 
 # NOTE: Separate class for fixed-frequency transmon?
+
 
 class TunableTransmon(QuantumSystem):
     """
@@ -325,7 +326,6 @@ class TunableTransmon(QuantumSystem):
         native_op = self._get_sinphi_op()
         op = self.process_op(native_op)
         return op
-    
 
     def _get_kinetic_term(self) -> Array:
         """
@@ -397,12 +397,123 @@ class TunableTransmon(QuantumSystem):
         potential = -self._ej_eff * jnp.cos(phases)
         return potential
 
+    @staticmethod
+    def from_params(
+        label: str,
+        frequency: float,
+        anharmonicity: float,
+        ext_flux: float = 0.0,
+        offset_charge: float = 0.0,
+        asymmetry: float = 0.0,
+        charge_cutoff: int = 100,
+        relax_time: float | None = None,
+        deph_time: float | None = None,
+    ) -> "TunableTransmon":
+        """
+        from_params Create a TunableTransmon based on the qubit frequency and anharmonicity. This function also accepts other parameters, such as the external flux, offset charge, and junction asymmetry. The function will optimize the charging and Josephson energies to match the provided frequency and anharmonicity. The optimization is done using the scipy.optimize.minimize function. The optimization is done in the following way:
+        1. Calculate the initial guesses for the maximum Josephson energy and Charging energy based on the provided frequency and anharmonicity.
+        2. Define an objective function that calculates the difference between the provided frequency and anharmonicity and the calculated frequency and anharmonicity based on the charging and Josephson energies. The objective function is the sum of the squared differences between the provided and calculated values. The function constructs the the transmon Hamiltonian in the charge basis and calculates the frequency and anharmonicity based on the eigenvalues.
+        3. Optimize the objective function to find the charging and Josephson energies that best match the provided frequency and anharmonicity.
+
+        Parameters
+        ----------
+        label : str
+            The label of the transmon.
+        frequency : float
+            The frequency of the transmon.
+        anharmonicity : float
+            The anharmonicity of the transmon.
+        ext_flux : float, optional
+            The external flux applied to the transmon, by default 0.0
+        offset_charge : float, optional
+            The offset charge, by default 0.0
+        asymmetry : float, optional
+            The SQUID junction asymmetry, by default 0.0
+        charge_cutoff : int, optional
+            _description_, by default 100
+        relax_time : float | None, optional
+            The relaxation time of the transmon, by default None
+        deph_time : float | None, optional
+            The dephasing time of the transmon, by default None
+
+        Returns
+        -------
+        TunableTransmon
+            The TunableTransmon instance.
+
+        Raises
+        ------
+        ValueError
+            If the frequency is not a float.
+        ValueError
+            If the anharmonicity is not a float.
+        ValueError
+            If the anharmonicity is positive.
+        ValueError
+            If the optimization fails.
+        """
+        if not isinstance(frequency, float):
+            raise ValueError(
+                f"The maximum frequency expected to be a float, instead got type {type(frequency)}."
+            )
+        if not isinstance(anharmonicity, float):
+            raise ValueError(
+                f"The anharmonicity expected to be a float, instead got type {type(anharmonicity)}."
+            )
+        if anharmonicity > 0:
+            raise ValueError(
+                "The anharmonicity is expected to be negative for a transmon qubits. Instead a positive anharmonicity was provided."
+            )
+
+        init_ec = -anharmonicity
+        init_ej = (frequency + init_ec) / (8 * init_ec)
+
+        cos_term = math.cos(ext_flux)
+        sqrt_term = math.sqrt(1 + asymmetry**2 * math.tan(ext_flux) ** 2)
+        prefactor = abs(cos_term) * sqrt_term
+        max_ej = init_ej / prefactor
+
+        def objective_func(x: Tuple[float, float]) -> float:
+            charging_energy, josephson_energy = x
+            transmon = TunableTransmon(
+                label,
+                charging_energy,
+                josephson_energy,
+                offset_charge,
+                ext_flux,
+                asymmetry,
+                charge_cutoff,
+            )
+            freq = transmon.fundamental_frequency
+            anharm = transmon.abs_anharmonicity
+            return (frequency - freq) ** 2 + (anharmonicity - anharm) ** 2
+
+        init_guess = (max_ej, init_ec)
+
+        result = minimize(objective_func, init_guess)
+        if not result.success:
+            raise ValueError(f"Optimization failed with message: {result.message}.")
+
+        charging_energy, josephson_energy = result.x
+        return TunableTransmon(
+            label,
+            charging_energy,
+            josephson_energy,
+            offset_charge,
+            ext_flux,
+            asymmetry,
+            charge_cutoff,
+            relax_time,
+            deph_time,
+        )
+
 
 class AnharmonicOscillator(QuantumSystem):
     """
     AnharmonicOscillator An approximate trasmon model as an anharmonic oscillator.
 
     """
+
     def __init__(
         self,
         label: str,
@@ -426,7 +537,7 @@ class AnharmonicOscillator(QuantumSystem):
                 f"The anharmonicity expected to be a float, instead got type {type(anharmonicity)}."
             )
         if anharmonicity > 0:
-            warn("The anharmonicity is typically negative for transmon qubits. Instead a positive anharmonicity was provided.")
+            raise ValueError("The anharmonicity must be a negative value.")
         self._anharm = anharmonicity
 
         if not isinstance(ext_flux, float):
@@ -477,7 +588,7 @@ class AnharmonicOscillator(QuantumSystem):
         cos_term = math.cos(math.pi * self._ext_flux)
         shifted_freq = res_freq * math.sqrt(abs(cos_term))
         return shifted_freq + self._anharm
-    
+
     @property
     def max_frequency(self) -> float:
         """
@@ -489,7 +600,7 @@ class AnharmonicOscillator(QuantumSystem):
             The maximum frequency of the transmon.
         """
         return self._freq
-    
+
     @property
     def anharmonicity(self) -> float:
         """
@@ -501,7 +612,7 @@ class AnharmonicOscillator(QuantumSystem):
             The anharmonicity of the transmon.
         """
         return self._anharm
-    
+
     @property
     def ext_flux(self) -> float:
         """
@@ -513,7 +624,7 @@ class AnharmonicOscillator(QuantumSystem):
             The external flux.
         """
         return self._ext_flux
-    
+
     @property
     def charge_energy(self) -> float:
         """
@@ -542,7 +653,7 @@ class AnharmonicOscillator(QuantumSystem):
         cos_term = math.cos(math.pi * self.ext_flux)
         shifted_energy = joseph_energy * abs(cos_term)
         return shifted_energy
-        
+
     def _get_raise_op(self) -> Array:
         """
         _get_creation_op Returns the raising (creation) operator of the transmon.
@@ -555,7 +666,7 @@ class AnharmonicOscillator(QuantumSystem):
         offdiag = jnp.sqrt(jnp.arange(1, self.dim))
         op = jnp.diag(offdiag, k=-1)
         return op
-    
+
     def get_raise_op(self) -> Array:
         """
         get_creation_op Returns the raising (creation) operator of the transmon.
@@ -568,7 +679,7 @@ class AnharmonicOscillator(QuantumSystem):
         native_op = self._get_raise_op()
         op = self.process_op(native_op)
         return op
-    
+
     def _get_low_op(self) -> Array:
         """
         _get_low_op Returns the lowering (annihilaton) operator of the transmon.
@@ -581,7 +692,7 @@ class AnharmonicOscillator(QuantumSystem):
         offdiag = jnp.sqrt(jnp.arange(1, self.dim))
         op = jnp.diag(offdiag, k=1)
         return op
-    
+
     def get_low_op(self) -> Array:
         """
         get_low_op Returns the creation operator of the transmon.
@@ -594,7 +705,7 @@ class AnharmonicOscillator(QuantumSystem):
         native_op = self._get_low_op()
         op = self.process_op(native_op)
         return op
-    
+
     def _get_num_op(self) -> Array:
         """
         _get_num_op Returns the number operator of the transmon.
@@ -607,7 +718,7 @@ class AnharmonicOscillator(QuantumSystem):
         diagonal = jnp.arange(self._dim)
         op = jnp.diag(diagonal)
         return op
-    
+
     def get_num_op(self) -> Array:
         """
         get_num_op Returns the number operator of the transmon.
@@ -620,7 +731,7 @@ class AnharmonicOscillator(QuantumSystem):
         native_op = self._get_low_op()
         op = self.process_op(native_op)
         return op
-    
+
     def _get_hamiltonian(self) -> Array:
         """
         _get_hamiltonian Returns the Hamiltonian of the transmon in the charge basis.
@@ -656,7 +767,7 @@ class AnharmonicOscillator(QuantumSystem):
         """
         potential = -self.josephson_energy * jnp.cos(phases)
         return potential
-    
+
     @staticmethod
     def from_energies(
         label: str,
