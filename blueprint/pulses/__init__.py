@@ -1,3 +1,3 @@
-from .library import gaussian_square
+from . import flux_pulses, coupler_pulses
 
-__all__= ["gaussian_square"]
+__all__ = ["flux_pulses", "coupler_pulses"]

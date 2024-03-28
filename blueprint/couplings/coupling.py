@@ -6,7 +6,7 @@ from jax import Array
 from ..base.terms import TimeDependentTerm
 
 Numeric = Union[float, complex]
-GenNumeric = Union[Numeric, Callable[..., Numeric]]
+GenNumeric = Union[Numeric, Callable]
 
 
 class Coupling:
@@ -17,7 +17,8 @@ class Coupling:
         self,
         label: str,
         operator: Array,
-        prefactor: GenNumeric,
+        constant_prefactor: Numeric,
+        time_dep_prefactor: GenNumeric,
         dims: Tuple[int, int] | None = None,
         qubit_labels: Tuple[str, str] | None = None,
     ) -> None:
@@ -80,7 +81,8 @@ class Coupling:
         self._dims = dims
         self._qubit_labels = qubit_labels
 
-        self._prefactor = TimeDependentTerm(prefactor)
+        self._constant_prefactor = constant_prefactor # TODO: incorporate this
+        self._time_dep_prefactor = TimeDependentTerm(time_dep_prefactor) # TODO: incorporate this
 
     @property
     def label(self) -> str:
@@ -182,26 +184,45 @@ class Coupling:
 
         return prefactor * self._operator
 
-    def get_hamiltonian(self, *, exclude_prefactor: bool = False, **params) -> Array:
+    def get_hamiltonian(self, *, **params) -> Array:
         """
         get_hamiltonian Returns the Hamiltonian of the coupling term.
-
-        Parameters
-        ----------
-        exclude_prefactor : bool, optional
-            Whether to include the prefactor in front of the quantum operators, by default False
 
         Returns
         -------
         Array
             The coupling term Hamiltonian.
         """
-        hamiltonian = self._get_hamiltonian(
-            exclude_prefactor=exclude_prefactor, **params
-        )
+        hamiltonian = self._get_hamiltonian(**params)
         # TODO: consider if we want this term to also have operator processing methods, like transform or expand - in that case this would a subclass of QuantumSystem as well. If not, maybe merge this method with _get_hamiltonian.
 
         return hamiltonian
 
 
-    def get_time_dep_hamiltonian(self, )
+    def get_time_dep_hamiltonian(self, *, **params) -> Array:
+        pass
+
+    def decompose(
+        self, eval_prefactor: bool = False, **params
+    ) -> Tuple[TimeDependentTerm, Array]:
+        """
+        decompose Decomposes the Hamiltonian term associated with this drive 
+        into the operators and corresponding prefactors that express it.
+
+        Parameters
+        ----------
+        eval_prefactor : bool, optional
+            Whether to evaluate the prefactor using the provided 
+            parameters or to simply return the prefactors as they are stored, by default False
+
+        Yields
+        ------
+        Tuple[TimeDependentTerm, Array]
+            Tuple containing the prefactor and the operator of the drive term.
+        """
+        if eval_prefactor:
+            prefactor = self.eval_prefactor(**params)
+        else:
+            prefactor = self._prefactor
+        
+        return prefactor, self._operator

@@ -1,11 +1,13 @@
 import math
-from typing import Union, Tuple
+from typing import Union, Tuple, Callable
+from functools import wraps
 
 from scipy.optimize import minimize
 from jax import numpy as jnp
 from jax import Array
 
-from ..base.systems import QuantumSystem
+from ..base import QuantumSystem
+from ..drives import Drive
 
 # NOTE: Separate class for fixed-frequency transmon?
 
@@ -18,6 +20,7 @@ def check_if_float_and_positive(
         )
     if check_positivity and arg < min_value:
         raise ValueError(f"The {argname} must be bigger than {min_value}.")
+
 
 
 class TunableTransmon(QuantumSystem):
@@ -65,6 +68,7 @@ class TunableTransmon(QuantumSystem):
         check_if_float_and_positive(asymmetry, "asymmetry", min_value=1.)
         self._asymm = asymmetry
 
+
         # The number of charge states to consider when constructing the Hamiltonian/operators
         # in the native (charge) basis.
         if not isinstance(charge_cutoff, int):
@@ -76,10 +80,10 @@ class TunableTransmon(QuantumSystem):
             raise ValueError(
                 "The charge cutoff must be a non-negative integer or equal to zero."
             )
-        self._ncut = charge_cutoff
+        self._ncut: int = charge_cutoff
 
         # The dimension of the Hilbert space
-        dim = 2 * self._ncut + 1
+        dim: int = 2 * self._ncut + 1
         super().__init__(label, dim)
 
         # The relaxation and dephasing times
@@ -94,7 +98,7 @@ class TunableTransmon(QuantumSystem):
                     raise ValueError(
                         "The dephasing time must be less than or equal to two times the relaxation time."
                     )
-        self._deph_time = deph_time
+        self._deph_time: float = deph_time
 
     @property
     def charging_energy(self) -> float:
@@ -420,6 +424,62 @@ class TunableTransmon(QuantumSystem):
         """
         potential = -self._ej_eff * jnp.cos(phases)
         return potential
+
+    def add_flux_drive(self, label: str, flux_pulse: float | Callable) -> None:
+        """
+        add_flux_drive Applies a flux drive to the transmon.
+
+        Parameters
+        ----------
+        label : str
+            The label of the drive.
+        flux_pulse : float | Callable
+            The flux pulse applied to the transmon. This can be a constant value (float) or a function that returns the applied flux pulse as a function of time.
+
+
+        Raises
+        ------
+        ValueError
+            If a drive with the same label has already been
+        """
+        if label in self._drives:
+            raise ValueError(
+                f"A drive with the label '{label}' has alreadted been applied to the transmon."
+            )
+
+        if isinstance(flux_pulse, float):
+            cur_flux = self._ext_flux + flux_pulse
+            cos_prefactor = self._ej * (math.cos(cur_flux) - math.cos(self._ext_flux))
+            sin_prefactor = self._ej * (math.sin(cur_flux) - math.sin(self._ext_flux))
+
+        elif isinstance(flux_pulse, Callable):
+            @wraps(flux_pulse)
+            def cos_prefactor(*args, **kwargs) -> float:
+                applied_flux = flux_pulse(*args, **kwargs)
+                cur_flux = self._ext_flux + applied_flux
+                prefactor = self._ej * (math.cos(cur_flux) - math.cos(self._ext_flux))
+                return prefactor
+
+            @wraps(flux_pulse)
+            def sin_prefactor(*args, **kwargs) -> float:
+                applied_flux = flux_pulse(*args, **kwargs)
+                cur_flux = self._ext_flux + applied_flux
+                prefactor = self._ej * (math.sin(cur_flux) - math.sin(self._ext_flux))
+                return prefactor
+
+        else:
+            raise ValueError(
+                f"The flux pulse must be either a float or a Callable object, instead got type {type(flux_pulse)}."
+            )
+
+        cosphi_op = self._get_cosphi_op()
+        sinphi_op = self._get_sinphi_op()
+
+        prefactors = (cos_prefactor, sin_prefactor)
+        ops = (cosphi_op, sinphi_op)
+
+        drive = Drive(label, prefactors, ops)
+        self._drives[label] = drive
 
     @staticmethod
     def from_params(
