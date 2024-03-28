@@ -1,11 +1,12 @@
 from abc import ABCMeta, abstractmethod
-from typing import Tuple
+from typing import Tuple, Dict
 
 from jax import numpy as jnp
 from jax import scipy as jsp
 from jax import Array
 
 from ..util.linalg import embed_op, transform_op
+from ..drives import Drive
 
 
 class QuantumSystem(metaclass=ABCMeta):
@@ -24,6 +25,8 @@ class QuantumSystem(metaclass=ABCMeta):
             raise ValueError(
                 f"The dimension of the Hilbert space must be an integer, instead got type {type(dim)}."
             )
+
+        self._native_dim: int = dim
         self._dim: int = dim
 
         self._embedded: bool = False
@@ -34,6 +37,8 @@ class QuantumSystem(metaclass=ABCMeta):
         self._transform: Array = None
 
         self._eig_vals: Array = None
+
+        self._drives: dict[str, Drive] = {}
 
     @property
     def label(self) -> str:
@@ -64,6 +69,30 @@ class QuantumSystem(metaclass=ABCMeta):
         self._label = label
 
     @property
+    def num_drives(self) -> int:
+        """
+        num_drives Returns the number of drives applied to the transmon.
+
+        Returns
+        -------
+        int
+            The number of drives applied to the transmon.
+        """
+        return len(self._drives)
+
+    @property
+    def drives(self) -> Dict[str, Drive]:
+        """
+        drives Returns the dictionary of drive labels and corresponding drives that have been applied to the quantum system.
+
+        Returns
+        -------
+        Dict[str, Drive]
+            The dictionary of drive labels and corresponding to each applied drive.
+        """
+        return self._drives
+
+    @property
     def is_diagonalized(self) -> bool:
         """
         is_diagonalized Returns whether the quantum system has been diagonalized.
@@ -88,6 +117,30 @@ class QuantumSystem(metaclass=ABCMeta):
         return self._ind is not None
 
     @property
+    def is_driven(self) -> bool:
+        """
+        is_driven Returns whether the transmon is driven.
+
+        Returns
+        -------
+        bool
+            True if the transmon is driven, False otherwise.
+        """
+        return any(self._drives)
+
+    @property
+    def native_dim(self) -> int:
+        """
+        native_dim Returns the dimension of the Hilbert space of the quantum system in the native basis (excluding any truncation when it is diagonalized).
+
+        Returns
+        -------
+        int
+            The dimension of the Hilbert space of the quantum system in the native basis.
+        """
+        return self._native_dim
+
+    @property
     def dim(self) -> int:
         """
         hilbert_dim Returns the dimension of the Hilbert space of the quantum system.
@@ -99,20 +152,73 @@ class QuantumSystem(metaclass=ABCMeta):
         """
         return self._dim
 
+    def add_drive(self, label: str, drive: Drive) -> None:
+        """
+        add_drive Adds a drive to the transmon.
+
+        Parameters
+        ----------
+        label : str
+            The label of the drive.
+        drive : Drive
+            The drive to be applied to the transmon.
+
+        Raises
+        ------
+        ValueError
+            If a drive with the same label has already been applied to the transmon.
+        """
+        if label in self._drives:
+            raise ValueError(
+                f"A drive with the label '{label}' has already been applied to the transmon."
+            )
+
+        self._drives[label] = drive
+
     @abstractmethod
     def _get_hamiltonian(self) -> Array:
         pass
+
+    def _get_drive_hamiltonian(self, **params) -> Array:
+        """
+        _get_drive_hamiltonian Returns the sum of the Hamiltonian of each of the drives applied to the system.
+
+        Returns
+        -------
+        Array
+            The total drive Hamiltonian.
+        """
+        hamiltonian = jnp.zeros((self._native_dim, self._native_dim))
+
+        for drive in self._drives.values():
+            drive_hamiltonian = drive.get_hamiltonian(**params)
+
+            hamiltonian = jnp.add(hamiltonian, drive_hamiltonian)
+        return hamiltonian
+
+    def get_drive_hamiltonian(self, **params) -> Array:
+        """
+        get_drive_hamiltonian Returns the sum of the Hamiltonian of each of the drives applied to the system.
+
+        Returns
+        -------
+        Array
+            The total drive Hamiltonian.
+        """
+        native_hamiltonian = self._get_drive_hamiltonian(**params)
+        hamiltonian = self.process_op(native_hamiltonian)
+        return hamiltonian
 
     def _get_diagonal_hamiltonian(self, *, sub_ground_energy: bool = True) -> Array:
         if self._eig_vals is None:
             # Case where it was not diagonalized
             eig_vals = self.eigenvalues()
-            diagonal = eig_vals[:self._dim]
+            diagonal = eig_vals[: self._dim]
 
         else:
             # Case where the Hamiltonian was diagonalized or the eigenvalues were previously computed.
-            diagonal = self._eig_vals[:self._dim]
-        
+            diagonal = self._eig_vals[: self._dim]
+
         if sub_ground_energy:
             diagonal = diagonal - diagonal[0]
         hamiltonian = jnp.diag(diagonal)
@@ -131,10 +237,24 @@ class QuantumSystem(metaclass=ABCMeta):
             diag_hamiltonian = self._get_diagonal_hamiltonian()
             hamiltonian = self.process_op(diag_hamiltonian, diagonalize=False)
             return hamiltonian
-    
+
         native_hamil = self._get_hamiltonian()
         hamil = self.process_op(native_hamil)
         return hamil
+    
+    def get_full_hamiltonian(self, **params) -> Array:
+        """
+        get_full_hamiltonian Returns the full Hamiltonian of the quantum system, including the drives.
+
+        Returns
+        -------
+        Array
+            The full Hamiltonian of the quantum system.
+        """
+        hamiltonian = self.get_hamiltonian()
+        drive_hamiltonian = self.get_drive_hamiltonian(**params)
+        full_hamiltonian = jnp.add(hamiltonian, drive_hamiltonian)
+        return full_hamiltonian
 
     def eigenvalues(self, **kwargs) -> Array:
         """
@@ -190,7 +310,9 @@ class QuantumSystem(metaclass=ABCMeta):
             current dimension.
         """
         if self.is_diagonalized:
-            raise RuntimeError(f"QuantumSystem '{self._label}' has already been diagonalized.")
+            raise RuntimeError(
+                f"QuantumSystem '{self._label}' has already been diagonalized."
+            )
 
         if truncated_dim is not None:
             if not isinstance(truncated_dim, int):
@@ -201,7 +323,7 @@ class QuantumSystem(metaclass=ABCMeta):
             raise ValueError(
                 f"The Hilbert space dimension ('truncated_dim') must be greater than 0 and less than or equal to the current dimension ({self._dim})."
             )
-            
+
         eig_vals, eig_vecs = self.eigenstates()
         trunc_vals = eig_vals[:truncated_dim]
         if sub_ground_energy:
@@ -235,7 +357,9 @@ class QuantumSystem(metaclass=ABCMeta):
             subspace it is being embedded into.
         """
         if self.is_embedded:
-            raise RuntimeError(f"QuantumSystem '{self._label}' has already been embedded. Create a new QuantumSystem object to embed into another system.")
+            raise RuntimeError(
+                f"QuantumSystem '{self._label}' has already been embedded. Create a new QuantumSystem object to embed into another system."
+            )
 
         num_systems = len(dims)
         if not 0 <= ind < num_systems:
@@ -276,7 +400,7 @@ class QuantumSystem(metaclass=ABCMeta):
         """
         if self.is_diagonalized and diagonalize:
             # Handle the case where the qubit implements the operators in an already diagonalized basis.
-            if self._transform is not None: 
+            if self._transform is not None:
                 op = transform_op(op, self._transform)
 
         if self.is_embedded and embed:

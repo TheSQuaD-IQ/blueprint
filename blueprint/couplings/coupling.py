@@ -6,7 +6,7 @@ from jax import Array
 from ..base.terms import TimeDependentTerm
 
 Numeric = Union[float, complex]
-GenNumeric = Union[Numeric, Callable[..., Numeric]]
+GenNumeric = Union[Numeric, Callable]
 
 
 class Coupling:

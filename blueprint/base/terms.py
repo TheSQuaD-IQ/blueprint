@@ -64,6 +64,17 @@ class TimeDependentTerm:
                 raise KeyError(f"Parameter {param} not in found in the coefficient parameters")
             self._params[param] = val
 
+    def eval_prefactor(self, **params) -> Union[float, complex]:
+        """
+        eval_prefactor Another name for the __call__ method of the function.
+
+        Returns
+        -------
+        Union[float, complex]
+            The prefactor of the time-dependent term.
+        """
+        return self(**params)
+
     def __call__(self, **params) -> Union[float, complex]:
         """
         eval_prefactor Evaluates the prefactor of the time-dependent term.
