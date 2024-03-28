@@ -199,6 +199,9 @@ class Coupling:
         hamiltonian = self._get_hamiltonian(
             exclude_prefactor=exclude_prefactor, **params
         )
-        # TODO: consider if we want this term to also have operator processing methods, like transform or expand - in that case this would a subclass of QuantumSystem as well. If not, maybe merge this method with _get_hamilotinan.
+        # TODO: consider if we want this term to also have operator processing methods, like transform or expand - in that case this would a subclass of QuantumSystem as well. If not, maybe merge this method with _get_hamiltonian.
 
         return hamiltonian
+
+
+    def get_time_dep_hamiltonian(self, )

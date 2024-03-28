@@ -6,7 +6,7 @@ authors = ["Boris Varbanov <Boris.Mihailov.Varbanov@USherbrooke.ca>", "Élie Gen
 readme = "README.md"
 
 [tool.poetry.dependencies]
-python = "^3.12"
+python = "^3.11"
 ipykernel = "^6.29.3"
 cython = "^3.0.9"
 pybind11 = "^2.11.1"

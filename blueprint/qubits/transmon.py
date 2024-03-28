@@ -9,6 +9,16 @@ from ..base.systems import QuantumSystem
 
 # NOTE: Separate class for fixed-frequency transmon?
 
+def check_if_float_and_positive(
+    arg: float, argname: str, check_positivity: bool = True, min_value: float = 0.
+) -> None:
+    if not isinstance(arg, float):
+        raise ValueError(
+            f"The {argname} is expected to be a float, instead got type {type(arg)}."
+        )
+    if check_positivity and arg < min_value:
+        raise ValueError(f"The {argname} must be bigger than {min_value}.")
+
 
 class TunableTransmon(QuantumSystem):
     """
@@ -40,47 +50,23 @@ class TunableTransmon(QuantumSystem):
     ) -> None:
 
         # The transmon parameters (Josephson energy, charging energy, and gate charge)
-        if not isinstance(charging_energy, float):
-            raise ValueError(
-                f"The charging energy expected to be a float, instead got type {type(charging_energy)}."
-            )
-        if josephson_energy < 0:
-            raise ValueError("The Josephson energy must be a positive.")
+        check_if_float_and_positive(charging_energy, "charging_energy")
         self._ec = charging_energy
 
-        if not isinstance(josephson_energy, float):
-            raise ValueError(
-                f"The maximum Josephson energy expected to be a float, instead got type {type(josephson_energy)}."
-            )
-        if josephson_energy < 0:
-            raise ValueError("The maximum Josephson energy must be a positive.")
+        check_if_float_and_positive(josephson_energy, "josephson_energy")
         self._ej = josephson_energy
 
-        if not isinstance(offset_charge, float):
-            raise ValueError(
-                f"The offset charge expected to be a float, instead got type {type(offset_charge)}."
-            )
+        check_if_float_and_positive(offset_charge, "offset_charge", check_positivity=False)
         self._ng = offset_charge
 
-        if not isinstance(ext_flux, float):
-            raise ValueError(
-                f"The external flux expected to be a float, instead got type {type(ext_flux)}."
-            )
+        check_if_float_and_positive(ext_flux, "ext_flux", check_positivity=False)
         self._ext_flux = ext_flux
 
-        if not isinstance(asymmetry, float):
-            raise ValueError(
-                f"The asymmetry expected to be a float, instead got type {type(asymmetry)}."
-            )
-        if abs(asymmetry) > 1:
-            raise ValueError(
-                "The absolute value of the asymmetry must be less than or equal to one."
-            )
+        check_if_float_and_positive(asymmetry, "asymmetry", min_value=1.)
         self._asymm = asymmetry
 
-        # The number of charge states to consider
-        # when constructing the Hamiltonian/operators
-        # in the native (charge) basis
+        # The number of charge states to consider when constructing the Hamiltonian/operators
+        # in the native (charge) basis.
         if not isinstance(charge_cutoff, int):
             raise ValueError(
                 f"The charge cutoff expected to be an integer, "
@@ -98,21 +84,11 @@ class TunableTransmon(QuantumSystem):
 
         # The relaxation and dephasing times
         if relax_time is not None:
-            if not isinstance(relax_time, float):
-                raise ValueError(
-                    f"The relaxation time expected to be a float, instead got type {type(relax_time)}."
-                )
-            if relax_time < 0:
-                raise ValueError("The relaxation time must be a non-negative float.")
+            check_if_float_and_positive(relax_time, "relax_time")
         self._relax_time = relax_time
 
         if deph_time is not None:
-            if not isinstance(deph_time, float):
-                raise ValueError(
-                    f"The dephasing time expected to be a float, instead got type {type(deph_time)}."
-                )
-            if deph_time < 0:
-                raise ValueError("The dephasing time must be a non-negative float.")
+            check_if_float_and_positive(deph_time, "deph_time")
             if relax_time is not None:
                 if deph_time > 2 * relax_time:
                     raise ValueError(
@@ -143,35 +119,6 @@ class TunableTransmon(QuantumSystem):
             The Josephson energy of the transmon.
         """
         return self._ej
-
-    @property
-    def _ej_eff(self) -> float:
-        """
-        eff_josephson_energy Returns the effective Josephson energy of the transmon.
-        This is the Josephson energy modified by the external flux and the junction asymmetry.
-
-        Returns
-        -------
-        float
-            The effective Josephson energy
-        """
-        cos_term = math.cos(self._ext_flux)
-        sqrt_term = math.sqrt(1 + self._asymm**2 * math.tan(self._ext_flux) ** 2)
-
-        prefactor = abs(cos_term) * sqrt_term
-        return self._ej * prefactor
-
-    @property
-    def eff_josephson_energy(self) -> float:
-        """
-        eff_josephson_energy Returns the effective Josephson energy of the transmon. This is the Josephson energy modified by the external flux and the junction asymmetry.
-
-        Returns
-        -------
-        float
-            The effective Josephson energy.
-        """
-        return self._ej_eff
 
     @property
     def offset_charge(self) -> float:
@@ -220,6 +167,83 @@ class TunableTransmon(QuantumSystem):
             The number of charge states to consider.
         """
         return self._ncut
+
+    def compute_eff_josephson_energy(self, ext_flux: float) -> float:
+        """
+        compute_eff_josephson_energy Returns the effective Josephson energy of the transmon.
+        This is the Josephson energy modified by the external flux and the junction asymmetry.
+
+        Returns
+        -------
+        float
+            The effective Josephson energy
+        """
+        cos_term = math.cos(ext_flux)
+        sqrt_term = math.sqrt(1 + self._asymm**2 * math.tan(ext_flux) ** 2)
+
+        prefactor = abs(cos_term) * sqrt_term
+        return self._ej * prefactor
+
+    @property
+    def _ej_eff(self) -> float:
+        """
+        eff_josephson_energy Returns the effective Josephson energy of the transmon.
+        This is the Josephson energy modified by the external flux and the junction asymmetry.
+
+        Returns
+        -------
+        float
+            The effective Josephson energy
+        """
+        return self.compute_eff_josephson_energy(self._ext_flux)
+
+    @property
+    def eff_josephson_energy(self) -> float:
+        """
+        eff_josephson_energy Returns the effective Josephson energy of the transmon.
+        This is the Josephson energy modified by the external flux and the junction asymmetry.
+
+        Returns
+        -------
+        float
+            The effective Josephson energy.
+        """
+        return self._ej_eff
+
+    def ext_flux_to_approx_freq(self, ext_flux: float) -> float:
+        """
+        ext_flux_to_approx_freq Returns the approximate 0-1 frequency of the transmon.
+
+        Returns
+        -------
+        float
+            The approximate transmon 0-1 frequency.
+        """
+        return math.sqrt(8 * self._ec * self.compute_eff_josephson_energy(ext_flux)) - self._ec
+        
+    @property
+    def _wq_approx(self) -> float:
+        """
+        _wq_approx Returns the approximate 0-1 frequency of the transmon.
+
+        Returns
+        -------
+        float
+            The approximate transmon 0-1 frequency.
+        """
+        return self.ext_flux_to_approx_freq(self._ext_flux)
+
+    @property
+    def approximate_frequency(self) -> float:
+        """
+        approximate_frequency Returns the approximate 0-1 frequency of the transmon.
+
+        Returns
+        -------
+        float
+            The approximate transmon 0-1 frequency.
+        """
+        return self._wq_approx
 
     @property
     def flux_zpf(self) -> float:
