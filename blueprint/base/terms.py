@@ -41,15 +41,43 @@ class TimeDependentTerm:
         """
         params = [par for par, val in self._params.items() if val is None]
         return params
-    
+
     @property
     def params(self) -> List[str]:
+        """
+        params Returns the (both free and fixed) parameters of the time-dependent term.
+
+        Returns
+        -------
+        List[str]
+            The list of parameters of the time-dependent term.
+        """
         return list(self._params)
-    
+
     @property
     def param_vals(self) -> Dict[str, Any]:
+        """
+        param_vals Returns a dictionary of the term parameters and their respective values.
+
+        Returns
+        -------
+        Dict[str, Any]
+            The parameters of the time-dependent term.
+        """
         return self._params
-    
+
+    @property
+    def is_constant(self) -> bool:
+        """
+        is_constant Returns whether the time-dependent term is constant.
+
+        Returns
+        -------
+        bool
+            Whether the time-dependent term is constant.
+        """
+        return self._params is None
+
     def set_params(self, **params) -> None:
         """
         set_params Sets the parameters of the time-dependent term.

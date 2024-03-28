@@ -1,4 +1,4 @@
-from typing import Any, Union, Callable, Iterable, List, Iterator
+from typing import Any, Union, Callable, Iterable, List, Iterator, Tuple
 
 from jax import Array
 from jax import numpy as jnp
@@ -119,6 +119,18 @@ class Drive:
         return self._dim
 
     @property
+    def is_constant(self) -> bool:
+        """
+        is_constant Returns whether the time-dependent term is constant.
+
+        Returns
+        -------
+        bool
+            Whether the time-dependent term is constant.
+        """
+        return all(term.is_constant for term in self._prefactor_terms)
+
+    @property
     def free_params(self) -> List[str]:
         """
         free_params Returns the free parameters of the possibly time-dependent drive term.
@@ -187,7 +199,7 @@ class Drive:
         for term in self._prefactor_terms:
             yield term(**params)
 
-    def _get_hamiltonian(self, *, exclude_prefactor: bool = False, **params) -> Array:
+    def _get_hamiltonian(self, **params) -> Array:
         """
         _get_hamiltonian Evaluates the prefactor and returns the Hamiltonian of the coupling term.
 
@@ -206,13 +218,7 @@ class Drive:
         ValueError
             If the evaluated prefactor is not a number (float or complex).
         """
-        if exclude_prefactor:
-            if isinstance(self._op, list):
-                return jnp.sum(self._op, axis=0)
-            return self._op
-
         prefactors = list(self.eval_prefactors(**params))
-
 
         hamiltonian = jnp.zeros((self._dim, self._dim))
         if isinstance(self._op, list):
@@ -241,3 +247,33 @@ class Drive:
         # TODO: consider if we want this term to also have operator processing methods, like transform or expand. If not, maybe merge this method with _get_hamilotinan.
 
         return hamiltonian
+
+    def decompose(
+        self, eval_prefactors: bool = False, **params
+    ) -> Iterator[Tuple[TimeDependentTerm, Array]]:
+        """
+        decompose Decomposes the Hamiltonian term associated with this drive 
+        into the operators and corresponding prefactors that express it.
+
+        Parameters
+        ----------
+        eval_prefactors : bool, optional
+            Whether to evaluate the prefactor terms using the provided 
+            parameters or to simply return the prefactors as they are stored, by default False
+
+        Yields
+        ------
+        Iterator[Tuple[TimeDependentTerm, Array]]
+            An iterator of tuples containing the tuples of prefactor and the operator of the drive term.
+        """
+        if eval_prefactors:
+            prefactors = list(self.eval_prefactors(**params))
+        else:
+            prefactors = self._prefactor_terms
+
+        if isinstance(self._op, list):
+            for prefactor, op in zip(prefactors, self._op):
+                yield prefactor, op
+        else:
+            for prefactor in prefactors:
+                yield prefactor, self._op
