@@ -98,7 +98,7 @@ class TunableTransmon(QuantumSystem):
                     raise ValueError(
                         "The dephasing time must be less than or equal to two times the relaxation time."
                     )
-        self._deph_time: float = deph_time
+        self._deph_time = deph_time
 
     @property
     def charging_energy(self) -> float:
