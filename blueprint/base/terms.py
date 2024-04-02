@@ -1,3 +1,4 @@
+from abc import ABCMeta, abstractmethod
 from typing import Callable, Dict, Any, List, Union
 from copy import copy
 from warnings import warn
@@ -7,7 +8,25 @@ from inspect import signature
 Numeric = Union[float, complex]
 GenNumeric = Union[Numeric, Callable]
 
-class ConstantTerm:
+class Term(metaclass=ABCMeta):
+    """
+    Term A base class for the terms in the Hamiltonian.
+    """
+
+    @abstractmethod
+    def __copy__(self):
+        pass
+
+    @property
+    @abstractmethod
+    def is_constant(self) -> bool:
+        pass
+
+    @abstractmethod
+    def __call__(self, **params) -> Numeric:
+        pass
+
+class ConstantTerm(Term):
     def __init__(self, prefactor: Numeric) -> None:
         self._prefactor : Numeric = prefactor
 
@@ -31,7 +50,7 @@ class ConstantTerm:
     def __call__(self, **params) -> Numeric:
         return self._prefactor
 
-class TimeDependentTerm:
+class TimeDependentTerm(Term):
     """
     A base class for time-dependent (or fixed) prefactors in the
     Hamiltonian.
