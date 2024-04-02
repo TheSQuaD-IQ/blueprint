@@ -39,6 +39,9 @@ class TimeDependentTerm:
         Dict[str, Any]
             The free parameters of the time-dependent term.
         """
+        if self._params is None:
+            return []
+
         params = [par for par, val in self._params.items() if val is None]
         return params
 
@@ -52,6 +55,9 @@ class TimeDependentTerm:
         List[str]
             The list of parameters of the time-dependent term.
         """
+        if self._params is None:
+            return []
+
         return list(self._params)
 
     @property
@@ -64,6 +70,9 @@ class TimeDependentTerm:
         Dict[str, Any]
             The parameters of the time-dependent term.
         """
+        if self._params is None:
+            return {}
+
         return self._params
 
     @property
