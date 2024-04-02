@@ -28,7 +28,7 @@ class Drive:
 
         if isinstance(operator, Array):
             op_dims = len(operator.shape)
-            if len(operator.shape) != 2:
+            if op_dims != 2:
                 raise ValueError(
                     f"The operator must be a 2D array, instead got a {op_dims}-dimensional array."
                 )
@@ -45,10 +45,12 @@ class Drive:
             dim, _ = operators[0].shape
 
             for operator in operators:
-                if len(operator.shape) != 2:
+                op_dims = len(operator.shape)
+                if op_dims != 2:
                     raise ValueError(
                         f"The operator must be a 2D array, instead got a {op_dims}-dimensional array."
                     )
+
 
                 op_dim, other_dim = operator.shape
                 if dim != other_dim:
@@ -71,6 +73,7 @@ class Drive:
         self._dim = dim
 
         self._prefactor_terms: List[TimeDependentTerm] = []
+
         if isinstance(prefactor, GenNumeric):
             prefactor_term = TimeDependentTerm(prefactor)
             self._prefactor_terms.append(prefactor_term)
