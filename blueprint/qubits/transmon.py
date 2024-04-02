@@ -12,42 +12,31 @@ from ..drives import Drive
 # NOTE: Separate class for fixed-frequency transmon?
 
 
-def check_float(arg: float, argname: str) -> None:
+def check_var_validity(
+    arg: float,
+    argname: str,
+    min_value: float | None = None,
+    max_value: float | None = None,
+) -> None:
+    """
+    check_valid_variable Checks if the provided variable is a valid numeric variable.
+
+    """
     if not isinstance(arg, float):
         raise ValueError(
             f"The {argname} is expected to be a float, instead got type {type(arg)}."
         )
 
-
-def check_positive(arg: float) -> None:
-    if arg < 0:
-        raise ValueError("The value must be positive.")
-
-
-def check_bounded(
-    arg: float, min_value: float | None = None, max_value: float | None = None
-) -> bool:
-    """
-    is_bounded Checks if the argument is within the specified bounds.
-
-    Parameters
-    ----------
-    arg : float
-        The argument to check.
-    min_value : float | None, optional
-        The optional lower bound, by default None
-    max_value : float | None, optional
-        The optional higher bound, by default None
-
-    Returns
-    -------
-    bool
-        _description_
-    """
-    lower_bounded = arg >= min_value if min_value is not None else True
-    uppper_bounded = arg <= max_value if max_value is not None else True
-
-    return lower_bounded and uppper_bounded
+    if min_value is not None:
+        if arg < min_value:
+            raise ValueError(
+                f"The {argname} must be greater than or equal to {min_value}."
+            )
+    if max_value is not None:
+        if arg > max_value:
+            raise ValueError(
+                f"The {argname} must be less than or equal to {max_value}."
+            )
 
 
 class TunableTransmon(QuantumSystem):
@@ -80,22 +69,19 @@ class TunableTransmon(QuantumSystem):
     ) -> None:
 
         # The transmon parameters (Josephson energy, charging energy, and gate charge)
-        check_float(charging_energy, "charging_energy")
-        check_positive(charging_energy)
+        check_var_validity(charging_energy, "charging_energy", min_value=0.0)
         self._ec = charging_energy
 
-        check_float(charging_energy, "charging_energy")
-        check_positive(charging_energy)
+        check_var_validity(josephson_energy, "josephson_energy", min_value=0.0)
         self._ej = josephson_energy
 
-        check_float(offset_charge, "offset_charge")
+        check_var_validity(offset_charge, "offset_charge")
         self._ng = offset_charge
 
-        check_float(ext_flux, "ext_flux")
+        check_var_validity(ext_flux, "ext_flux")
         self._ext_flux = ext_flux
 
-        check_float(asymmetry, "asymmetry")
-        check_bounded(asymmetry, min_value=0.0, max_value=1.0)
+        check_var_validity(asymmetry, "asymmetry", min_value=0.0, max_value=1.0)
         self._asymm = asymmetry
 
         # The number of charge states to consider when constructing the Hamiltonian/operators
@@ -117,11 +103,11 @@ class TunableTransmon(QuantumSystem):
 
         # The relaxation and dephasing times
         if relax_time is not None:
-            check_if_float_and_positive(relax_time, "relax_time")
+            check_var_validity(relax_time, "relax_time", min_value=0.0)
         self._relax_time = relax_time
 
         if deph_time is not None:
-            check_if_float_and_positive(deph_time, "deph_time")
+            check_var_validity(deph_time, "deph_time", min_value=0.0)
             if relax_time is not None:
                 if deph_time > 2 * relax_time:
                     raise ValueError(
