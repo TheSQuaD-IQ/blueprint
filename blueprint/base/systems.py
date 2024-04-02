@@ -34,9 +34,9 @@ class QuantumSystem(metaclass=ABCMeta):
         self._dims: Tuple[int] | None = None
 
         self._diagonalized: bool = False
-        self._transform: Array = None
+        self._transform: Array | None = None
 
-        self._eig_vals: Array = None
+        self._eig_vals: Array | None = None
 
         self._drives: dict[str, Drive] = {}
 
@@ -241,7 +241,7 @@ class QuantumSystem(metaclass=ABCMeta):
         native_hamil = self._get_hamiltonian()
         hamil = self.process_op(native_hamil)
         return hamil
-    
+
     def get_full_hamiltonian(self, **params) -> Array:
         """
         get_full_hamiltonian Returns the full Hamiltonian of the quantum system, including the drives.
@@ -319,10 +319,12 @@ class QuantumSystem(metaclass=ABCMeta):
                 raise ValueError(
                     "The dimension of the Hilbert space must be an integer."
                 )
-        if truncated_dim <= 0 or truncated_dim > self._dim:
-            raise ValueError(
-                f"The Hilbert space dimension ('truncated_dim') must be greater than 0 and less than or equal to the current dimension ({self._dim})."
-            )
+            if truncated_dim <= 0 or truncated_dim > self._dim:
+                raise ValueError(
+                    f"The Hilbert space dimension ('truncated_dim') must be greater than 0 and less than or equal to the current dimension ({self._dim})."
+                )
+
+            self._dim = truncated_dim
 
         eig_vals, eig_vecs = self.eigenstates()
         trunc_vals = eig_vals[:truncated_dim]
@@ -334,7 +336,6 @@ class QuantumSystem(metaclass=ABCMeta):
 
         self._diagonalized = True
         self._transform = trunc_vecs
-        self._dim = truncated_dim
 
     def embed(self, ind: int, dims: Tuple[int]) -> None:
         """
@@ -398,17 +399,18 @@ class QuantumSystem(metaclass=ABCMeta):
         Array
             _description_
         """
-        if self.is_diagonalized and diagonalize:
+        if diagonalize:
             # Handle the case where the qubit implements the operators in an already diagonalized basis.
             if self._transform is not None:
                 op = transform_op(op, self._transform)
 
-        if self.is_embedded and embed:
-            op = embed_op(op, self._ind, self._dims)
+        if embed:
+            if self._ind is not None and self._dims is not None:
+                op = embed_op(op, self._ind, self._dims)
 
         return op
 
-    def get_freq_difference(self, low_ind: int, high_ind: int) -> float:
+    def get_freq_difference(self, low_ind: int, high_ind: int) -> Array:
         """
         get_freq_difference Returns the frequency difference between two energy levels.
 
@@ -427,14 +429,11 @@ class QuantumSystem(metaclass=ABCMeta):
         Raises
         ------
         ValueError
-
-        ValueError
             If any of the two indices are not integers.
         ValueError
             If any of the two indices are not between 0 and the dimension of the Hilbert space.
         """
         inds = (low_ind, high_ind)
-
         for ind in inds:
             if not isinstance(ind, int):
                 raise ValueError(
@@ -450,7 +449,7 @@ class QuantumSystem(metaclass=ABCMeta):
         return freq_diff
 
     @property
-    def abs_anharmonicity(self) -> float:
+    def abs_anharmonicity(self) -> Array:
         """
         anharmonicity Returns the anharmonicity of the qubit.
 
@@ -466,7 +465,7 @@ class QuantumSystem(metaclass=ABCMeta):
         return anharmonicity
 
     @property
-    def fundamental_frequency(self) -> float:
+    def fundamental_frequency(self) -> Array:
         """
         fundamental_freq Returns the fundamental frequency of the qubit.
 
