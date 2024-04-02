@@ -452,32 +452,35 @@ class TunableTransmon(QuantumSystem):
             cos_prefactor = self._ej * (math.cos(cur_flux) - math.cos(self._ext_flux))
             sin_prefactor = self._ej * (math.sin(cur_flux) - math.sin(self._ext_flux))
 
+            prefactors = (cos_prefactor, sin_prefactor)
+
         elif isinstance(flux_pulse, Callable):
             @wraps(flux_pulse)
-            def cos_prefactor(*args, **kwargs) -> float:
+            def cos_prefactor_func(*args, **kwargs) -> float:
                 applied_flux = flux_pulse(*args, **kwargs)
                 cur_flux = self._ext_flux + applied_flux
                 prefactor = self._ej * (math.cos(cur_flux) - math.cos(self._ext_flux))
                 return prefactor
 
             @wraps(flux_pulse)
-            def sin_prefactor(*args, **kwargs) -> float:
+            def sin_prefactor_func(*args, **kwargs) -> float:
                 applied_flux = flux_pulse(*args, **kwargs)
                 cur_flux = self._ext_flux + applied_flux
                 prefactor = self._ej * (math.sin(cur_flux) - math.sin(self._ext_flux))
                 return prefactor
 
+            prefactors = (cos_prefactor_func, sin_prefactor_func)
+
         else:
             raise ValueError(
                 f"The flux pulse must be either a float or a Callable object, instead got type {type(flux_pulse)}."
             )
-
+        
         cosphi_op = self._get_cosphi_op()
         sinphi_op = self._get_sinphi_op()
-
-        prefactors = (cos_prefactor, sin_prefactor)
+        
         ops = (cosphi_op, sinphi_op)
-
+            
         drive = Drive(label, prefactors, ops)
         self._drives[label] = drive
 
