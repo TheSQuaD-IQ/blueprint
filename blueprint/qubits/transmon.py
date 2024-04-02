@@ -11,16 +11,43 @@ from ..drives import Drive
 
 # NOTE: Separate class for fixed-frequency transmon?
 
-def check_if_float_and_positive(
-    arg: float, argname: str, check_positivity: bool = True, min_value: float = 0.
-) -> None:
+
+def check_float(arg: float, argname: str) -> None:
     if not isinstance(arg, float):
         raise ValueError(
             f"The {argname} is expected to be a float, instead got type {type(arg)}."
         )
-    if check_positivity and arg < min_value:
-        raise ValueError(f"The {argname} must be bigger than {min_value}.")
 
+
+def check_positive(arg: float) -> None:
+    if arg < 0:
+        raise ValueError("The value must be positive.")
+
+
+def check_bounded(
+    arg: float, min_value: float | None = None, max_value: float | None = None
+) -> bool:
+    """
+    is_bounded Checks if the argument is within the specified bounds.
+
+    Parameters
+    ----------
+    arg : float
+        The argument to check.
+    min_value : float | None, optional
+        The optional lower bound, by default None
+    max_value : float | None, optional
+        The optional higher bound, by default None
+
+    Returns
+    -------
+    bool
+        _description_
+    """
+    lower_bounded = arg >= min_value if min_value is not None else True
+    uppper_bounded = arg <= max_value if max_value is not None else True
+
+    return lower_bounded and uppper_bounded
 
 
 class TunableTransmon(QuantumSystem):
@@ -53,21 +80,23 @@ class TunableTransmon(QuantumSystem):
     ) -> None:
 
         # The transmon parameters (Josephson energy, charging energy, and gate charge)
-        check_if_float_and_positive(charging_energy, "charging_energy")
+        check_float(charging_energy, "charging_energy")
+        check_positive(charging_energy)
         self._ec = charging_energy
 
-        check_if_float_and_positive(josephson_energy, "josephson_energy")
+        check_float(charging_energy, "charging_energy")
+        check_positive(charging_energy)
         self._ej = josephson_energy
 
-        check_if_float_and_positive(offset_charge, "offset_charge", check_positivity=False)
+        check_float(offset_charge, "offset_charge")
         self._ng = offset_charge
 
-        check_if_float_and_positive(ext_flux, "ext_flux", check_positivity=False)
+        check_float(ext_flux, "ext_flux")
         self._ext_flux = ext_flux
 
-        check_if_float_and_positive(asymmetry, "asymmetry", min_value=1.)
+        check_float(asymmetry, "asymmetry")
+        check_bounded(asymmetry, min_value=0.0, max_value=1.0)
         self._asymm = asymmetry
-
 
         # The number of charge states to consider when constructing the Hamiltonian/operators
         # in the native (charge) basis.
@@ -223,8 +252,11 @@ class TunableTransmon(QuantumSystem):
         float
             The approximate transmon 0-1 frequency.
         """
-        return math.sqrt(8 * self._ec * self.compute_eff_josephson_energy(ext_flux)) - self._ec
-        
+        return (
+            math.sqrt(8 * self._ec * self.compute_eff_josephson_energy(ext_flux))
+            - self._ec
+        )
+
     @property
     def _wq_approx(self) -> float:
         """
@@ -455,6 +487,7 @@ class TunableTransmon(QuantumSystem):
             prefactors = (cos_prefactor, sin_prefactor)
 
         elif isinstance(flux_pulse, Callable):
+
             @wraps(flux_pulse)
             def cos_prefactor_func(*args, **kwargs) -> float:
                 applied_flux = flux_pulse(*args, **kwargs)
@@ -475,12 +508,12 @@ class TunableTransmon(QuantumSystem):
             raise ValueError(
                 f"The flux pulse must be either a float or a Callable object, instead got type {type(flux_pulse)}."
             )
-        
+
         cosphi_op = self._get_cosphi_op()
         sinphi_op = self._get_sinphi_op()
-        
+
         ops = (cosphi_op, sinphi_op)
-            
+
         drive = Drive(label, prefactors, ops)
         self._drives[label] = drive
 
