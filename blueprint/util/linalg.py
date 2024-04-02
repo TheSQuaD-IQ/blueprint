@@ -31,7 +31,7 @@ def transform_op(op: Array, trans_mat: Array) -> Array:
 def embed_op(
     op: Array,
     ind: int,
-    qubit_dims: int,
+    qubit_dims: Iterable[int],
 ) -> Array:
     """
     embed_operator Embeds an operator into a larger Hilbert space.
