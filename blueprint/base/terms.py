@@ -1,3 +1,4 @@
+from __future__ import annotations
 from abc import ABCMeta, abstractmethod
 from typing import Callable, Dict, Any, List, Union
 from copy import copy
@@ -8,47 +9,48 @@ from inspect import signature
 Numeric = Union[float, complex]
 GenNumeric = Union[Numeric, Callable]
 
+
 class Term(metaclass=ABCMeta):
     """
     Term A base class for the terms in the Hamiltonian.
     """
 
-    @abstractmethod
-    def __copy__(self):
-        pass
+    _is_constant: bool = True
 
-    @property
-    @abstractmethod
-    def is_constant(self) -> bool:
-        pass
-
-    @abstractmethod
-    def __call__(self, **params) -> Numeric:
-        pass
-
-class ConstantTerm(Term):
-    def __init__(self, prefactor: Numeric) -> None:
-        self._prefactor : Numeric = prefactor
-
-    def __copy__(self):
-        term_copy = self.__class__(
-            self._prefactor,
-        )
-        return term_copy
-    
     @property
     def is_constant(self) -> bool:
         """
-        is_constant Returns whether the time-dependent term is constant.
+        is_constant Whether the term is constant or time-dependent.
 
         Returns
         -------
         bool
-            Whether the time-dependent term is constant.
+            Whether the term is constant or time-dependent.
         """
-        return True
-    def __call__(self, **params) -> Numeric:
+        return self._is_constant
+
+    @abstractmethod
+    def __copy__(self):
+        pass
+
+
+class ConstantTerm(Term):
+    """
+    ConstantTerm A class representing a constant prefactor in the Hamiltonian.
+    """
+
+    def __init__(self, prefactor: Numeric) -> None:
+        self._prefactor: Numeric = prefactor
+
+    def __copy__(self) -> ConstantTerm:
+        term_copy = self.__class__(
+            self._prefactor,
+        )
+        return term_copy
+
+    def __call__(self) -> Numeric:
         return self._prefactor
+
 
 class TimeDependentTerm(Term):
     """
@@ -56,26 +58,21 @@ class TimeDependentTerm(Term):
     Hamiltonian.
     """
 
-    def __init__(self, prefactor: GenNumeric) -> None:
-        self._params = None
-
-        if not isinstance(prefactor, GenNumeric):
+    def __init__(self, prefactor: Callable) -> None:
+        if not isinstance(prefactor, Callable):
             raise ValueError(
-                "pulse expected to be a function (callable) or a number (float or complex), "
-                f"instead got {type(prefactor)}"
+                f"The prefactor expected to be a function (callable), instead got {type(prefactor)}"
             )
 
-        if isinstance(prefactor, Callable):
-            params = get_func_params(prefactor)
-            self._params = params
-        
-        self._prefactor: GenNumeric = prefactor
+        self._params = get_func_params(prefactor)
+        self._prefactor: Callable = prefactor
+
+        # Set the is_constant flag
+        self._is_constant = False
 
     def __copy__(self):
-        term_copy = self.__class__(
-            self._prefactor,
-        )
-        term_copy._params = self._params
+        term_copy = self.__class__(self._prefactor)
+        term_copy.set_params(**self._params)
         return term_copy
 
     @property
@@ -88,9 +85,6 @@ class TimeDependentTerm(Term):
         Dict[str, Any]
             The free parameters of the time-dependent term.
         """
-        if self._params is None:
-            return []
-
         params = [par for par, val in self._params.items() if val is None]
         return params
 
@@ -104,9 +98,6 @@ class TimeDependentTerm(Term):
         List[str]
             The list of parameters of the time-dependent term.
         """
-        if self._params is None:
-            return []
-
         return list(self._params)
 
     @property
@@ -119,22 +110,7 @@ class TimeDependentTerm(Term):
         Dict[str, Any]
             The parameters of the time-dependent term.
         """
-        if self._params is None:
-            return {}
-
         return self._params
-
-    @property
-    def is_constant(self) -> bool:
-        """
-        is_constant Returns whether the time-dependent term is constant.
-
-        Returns
-        -------
-        bool
-            Whether the time-dependent term is constant.
-        """
-        return self._params is None
 
     def set_params(self, **params) -> None:
         """
@@ -145,11 +121,6 @@ class TimeDependentTerm(Term):
         KeyError
             If a parameter is not found in the time-dependent term.
         """
-        if self._params is None:
-            raise ValueError(
-                "The prefactor is a constant number and has no parameters."
-            )
-
         for param, val in params.items():
             if param not in self._params:
                 raise KeyError(
@@ -157,18 +128,7 @@ class TimeDependentTerm(Term):
                 )
             self._params[param] = val
 
-    def eval_prefactor(self, **params) -> Numeric:
-        """
-        eval_prefactor Another name for the __call__ method of the function.
-
-        Returns
-        -------
-        Union[float, complex]
-            The prefactor of the time-dependent term.
-        """
-        return self(**params)
-
-    def __call__(self, **params) -> Numeric:
+    def __call__(self, **kwargs) -> Numeric:
         """
         eval_prefactor Evaluates the prefactor of the time-dependent term.
 
@@ -177,22 +137,11 @@ class TimeDependentTerm(Term):
         float
             The prefactor of the time-dependent term.
         """
-        # Handle the case where the prefactor is a constant number
-        if self._params is None:
-            return self._prefactor
-
-        if not isinstance(self._prefactor, Callable):
-            raise ValueError(
-                f"The prefactor expected to be a function (callable), but instead it is type {type(self._prefactor)}."
-            )
-
-        # Handle the case where the prefactor is a function
         free_params = set(self.free_params)  # Get the free parameters
-        set_params = (
-            set(self.params) - free_params
-        )  # Get the parameters that have default values.
+        # Get the parameters that have default values.
+        set_params = set(self.params) - free_params
 
-        if not params:  # No parameters were given
+        if not kwargs:  # No parameters were given
             if free_params:
                 raise ValueError(
                     f"The prefactor has undefined parameters {tuple(free_params)}."
@@ -202,7 +151,7 @@ class TimeDependentTerm(Term):
 
         merged_params = copy(self._params)
 
-        for param, val in params.items():
+        for param, val in kwargs.items():
             if param in set_params:
                 default_val = self._params[param]
                 warning_message = f"Over-writing the parameter {param} with a default value {default_val} with a value of: {val}."
