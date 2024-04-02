@@ -1,5 +1,4 @@
 from __future__ import annotations
-from abc import ABCMeta, abstractmethod
 from typing import Callable, Dict, Any, List, Union
 from copy import copy
 from warnings import warn
@@ -10,37 +9,37 @@ Numeric = Union[float, complex]
 GenNumeric = Union[Numeric, Callable]
 
 
-class Term(metaclass=ABCMeta):
-    """
-    Term A base class for the terms in the Hamiltonian.
-    """
-
-    _is_constant: bool = True
-
-    @property
-    def is_constant(self) -> bool:
-        """
-        is_constant Whether the term is constant or time-dependent.
-
-        Returns
-        -------
-        bool
-            Whether the term is constant or time-dependent.
-        """
-        return self._is_constant
-
-    @abstractmethod
-    def __copy__(self):
-        pass
-
-
-class ConstantTerm(Term):
+class ConstantTerm:
     """
     ConstantTerm A class representing a constant prefactor in the Hamiltonian.
     """
 
     def __init__(self, prefactor: Numeric) -> None:
         self._prefactor: Numeric = prefactor
+
+    @property
+    def prefactor(self) -> Numeric:
+        """
+        prefactor Returns the prefactor of the constant term.
+
+        Returns
+        -------
+        float
+            The prefactor of the constant term.
+        """
+        return self._prefactor
+
+    @property
+    def is_constant(self) -> bool:
+        """
+        is_constant Returns whether the term is constant.
+
+        Returns
+        -------
+        bool
+            True if the term is constant, False otherwise.
+        """
+        return True
 
     def __copy__(self) -> ConstantTerm:
         term_copy = self.__class__(
@@ -52,7 +51,7 @@ class ConstantTerm(Term):
         return self._prefactor
 
 
-class TimeDependentTerm(Term):
+class TimeDependentTerm:
     """
     A base class for time-dependent (or fixed) prefactors in the
     Hamiltonian.
@@ -70,7 +69,7 @@ class TimeDependentTerm(Term):
         # Set the is_constant flag
         self._is_constant = False
 
-    def __copy__(self):
+    def __copy__(self) -> TimeDependentTerm:
         term_copy = self.__class__(self._prefactor)
         term_copy.set_params(**self._params)
         return term_copy
@@ -112,6 +111,18 @@ class TimeDependentTerm(Term):
         """
         return self._params
 
+    @property
+    def is_constant(self) -> bool:
+        """
+        is_constant Returns whether the term is constant.
+
+        Returns
+        -------
+        bool
+            True if the term is constant, False otherwise.
+        """
+        return False
+
     def set_params(self, **params) -> None:
         """
         set_params Sets the parameters of the time-dependent term.
@@ -128,7 +139,7 @@ class TimeDependentTerm(Term):
                 )
             self._params[param] = val
 
-    def __call__(self, **kwargs) -> Numeric:
+    def eval_prefactor(self, **params) -> Numeric:
         """
         eval_prefactor Evaluates the prefactor of the time-dependent term.
 
@@ -141,7 +152,7 @@ class TimeDependentTerm(Term):
         # Get the parameters that have default values.
         set_params = set(self.params) - free_params
 
-        if not kwargs:  # No parameters were given
+        if not params:  # No parameters were given
             if free_params:
                 raise ValueError(
                     f"The prefactor has undefined parameters {tuple(free_params)}."
@@ -151,7 +162,7 @@ class TimeDependentTerm(Term):
 
         merged_params = copy(self._params)
 
-        for param, val in kwargs.items():
+        for param, val in params.items():
             if param in set_params:
                 default_val = self._params[param]
                 warning_message = f"Over-writing the parameter {param} with a default value {default_val} with a value of: {val}."
@@ -166,6 +177,17 @@ class TimeDependentTerm(Term):
             merged_params[param] = val
 
         return self._prefactor(**merged_params)
+
+    def __call__(self, **params) -> Numeric:
+        """
+        __call__ Evaluates the prefactor of the time-dependent term.
+
+        Returns
+        -------
+        Numeric
+            The prefactor of the time-dependent term.
+        """
+        return self.eval_prefactor(**params)
 
 
 def get_func_params(func: Callable) -> Dict[str, Any]:
