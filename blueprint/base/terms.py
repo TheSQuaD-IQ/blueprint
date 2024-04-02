@@ -4,23 +4,53 @@ from warnings import warn
 
 from inspect import signature
 
+Numeric = Union[float, complex]
+GenNumeric = Union[Numeric, Callable]
+
+class ConstantTerm:
+    def __init__(self, prefactor: Numeric) -> None:
+        self._prefactor : Numeric = prefactor
+
+    def __copy__(self):
+        term_copy = self.__class__(
+            self._prefactor,
+        )
+        return term_copy
+    
+    @property
+    def is_constant(self) -> bool:
+        """
+        is_constant Returns whether the time-dependent term is constant.
+
+        Returns
+        -------
+        bool
+            Whether the time-dependent term is constant.
+        """
+        return True
+    def __call__(self, **params) -> Numeric:
+        return self._prefactor
+
 class TimeDependentTerm:
     """
-     A base class for time-dependent (or fixed) prefactors in the 
-     Hamiltonian.
+    A base class for time-dependent (or fixed) prefactors in the
+    Hamiltonian.
     """
-    def __init__(self, prefactor: float = 1.0) -> None:
+
+    def __init__(self, prefactor: GenNumeric) -> None:
         self._params = None
 
-        if isinstance(prefactor, Callable):
-            params = get_func_params(prefactor)
-            self._params = params
-        elif not isinstance(prefactor, (float, complex)):
+        if not isinstance(prefactor, GenNumeric):
             raise ValueError(
                 "pulse expected to be a function (callable) or a number (float or complex), "
                 f"instead got {type(prefactor)}"
             )
-        self._prefactor = prefactor
+
+        if isinstance(prefactor, Callable):
+            params = get_func_params(prefactor)
+            self._params = params
+        
+        self._prefactor: GenNumeric = prefactor
 
     def __copy__(self):
         term_copy = self.__class__(
@@ -96,12 +126,19 @@ class TimeDependentTerm:
         KeyError
             If a parameter is not found in the time-dependent term.
         """
+        if self._params is None:
+            raise ValueError(
+                "The prefactor is a constant number and has no parameters."
+            )
+
         for param, val in params.items():
             if param not in self._params:
-                raise KeyError(f"Parameter {param} not in found in the coefficient parameters")
+                raise KeyError(
+                    f"Parameter {param} not in found in the coefficient parameters"
+                )
             self._params[param] = val
 
-    def eval_prefactor(self, **params) -> Union[float, complex]:
+    def eval_prefactor(self, **params) -> Numeric:
         """
         eval_prefactor Another name for the __call__ method of the function.
 
@@ -112,7 +149,7 @@ class TimeDependentTerm:
         """
         return self(**params)
 
-    def __call__(self, **params) -> Union[float, complex]:
+    def __call__(self, **params) -> Numeric:
         """
         eval_prefactor Evaluates the prefactor of the time-dependent term.
 
@@ -124,12 +161,19 @@ class TimeDependentTerm:
         # Handle the case where the prefactor is a constant number
         if self._params is None:
             return self._prefactor
-        
-        # Handle the case where the prefactor is a function
-        free_params = set(self.free_params) # Get the free parameters
-        set_params = set(self.params) - free_params # Get the parameters that have default values.
 
-        if not params: # No parameters were given
+        if not isinstance(self._prefactor, Callable):
+            raise ValueError(
+                f"The prefactor expected to be a function (callable), but instead it is type {type(self._prefactor)}."
+            )
+
+        # Handle the case where the prefactor is a function
+        free_params = set(self.free_params)  # Get the free parameters
+        set_params = (
+            set(self.params) - free_params
+        )  # Get the parameters that have default values.
+
+        if not params:  # No parameters were given
             if free_params:
                 raise ValueError(
                     f"The prefactor has undefined parameters {tuple(free_params)}."
@@ -147,10 +191,12 @@ class TimeDependentTerm:
             if param in free_params:
                 free_params.remove(param)
             else:
-                warn(f"Given parameter {param} does not parameterize the prefactor, but a value of {val} was provided for the evaluation.")
-           
+                warn(
+                    f"Given parameter {param} does not parameterize the prefactor, but a value of {val} was provided for the evaluation."
+                )
+
             merged_params[param] = val
- 
+
         return self._prefactor(**merged_params)
 
 
