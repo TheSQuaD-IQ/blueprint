@@ -1,5 +1,5 @@
 from abc import ABCMeta, abstractmethod
-from typing import Tuple, Dict
+from typing import Tuple, Dict, Iterator
 
 from jax import numpy as jnp
 from jax import scipy as jsp
@@ -7,6 +7,7 @@ from jax import Array
 
 from ..util.linalg import embed_op, transform_op
 from ..drives import Drive
+from .terms import TimeDependentTerm
 
 
 class QuantumSystem(metaclass=ABCMeta):
@@ -31,7 +32,7 @@ class QuantumSystem(metaclass=ABCMeta):
 
         self._embedded: bool = False
         self._ind: int | None = None
-        self._dims: Tuple[int] | None = None
+        self._dims: Tuple[int, ...] | None = None
 
         self._diagonalized: bool = False
         self._transform: Array | None = None
@@ -152,29 +153,6 @@ class QuantumSystem(metaclass=ABCMeta):
         """
         return self._dim
 
-    def add_drive(self, label: str, drive: Drive) -> None:
-        """
-        add_drive Adds a drive to the transmon.
-
-        Parameters
-        ----------
-        label : str
-            The label of the drive.
-        drive : Drive
-            The drive to be applied to the transmon.
-
-        Raises
-        ------
-        ValueError
-            If a drive with the same label has already been applied to the transmon.
-        """
-        if label in self._drives:
-            raise ValueError(
-                f"A drive with the label '{label}' has already been applied to the transmon."
-            )
-
-        self._drives[label] = drive
-
     @abstractmethod
     def _get_hamiltonian(self) -> Array:
         pass
@@ -196,7 +174,9 @@ class QuantumSystem(metaclass=ABCMeta):
             hamiltonian = jnp.add(hamiltonian, drive_hamiltonian)
         return hamiltonian
 
-    def get_drive_hamiltonian(self, **params) -> Array:
+    def get_drive_hamiltonian(
+        self, decompose: bool = False, **params
+    ) -> Array | Iterator[Tuple[TimeDependentTerm, Array]]:
         """
         get_drive_hamiltonian Returns the sum of the Hamiltonian of each of the drives applied to the system.
 
@@ -205,9 +185,14 @@ class QuantumSystem(metaclass=ABCMeta):
         Array
             The total drive Hamiltonian.
         """
-        native_hamiltonian = self._get_drive_hamiltonian(**params)
-        hamiltonian = self.process_op(native_hamiltonian)
-        return hamiltonian
+        if decompose:
+            for drive in self._drives.values():
+                for prefactor, op in drive.decompose(**params):
+                    yield prefactor, self.process_op(op)
+
+        else:
+            drive_hamiltonian = self._get_drive_hamiltonian(**params)
+            return self.process_op(drive_hamiltonian)
 
     def _get_diagonal_hamiltonian(self, *, sub_ground_energy: bool = True) -> Array:
         if self._eig_vals is None:
@@ -238,23 +223,9 @@ class QuantumSystem(metaclass=ABCMeta):
             hamiltonian = self.process_op(diag_hamiltonian, diagonalize=False)
             return hamiltonian
 
-        native_hamil = self._get_hamiltonian()
-        hamil = self.process_op(native_hamil)
-        return hamil
-
-    def get_full_hamiltonian(self, **params) -> Array:
-        """
-        get_full_hamiltonian Returns the full Hamiltonian of the quantum system, including the drives.
-
-        Returns
-        -------
-        Array
-            The full Hamiltonian of the quantum system.
-        """
-        hamiltonian = self.get_hamiltonian()
-        drive_hamiltonian = self.get_drive_hamiltonian(**params)
-        full_hamiltonian = jnp.add(hamiltonian, drive_hamiltonian)
-        return full_hamiltonian
+        native_hamiltonian = self._get_hamiltonian()
+        hamiltonian = self.process_op(native_hamiltonian)
+        return hamiltonian
 
     def eigenvalues(self, **kwargs) -> Array:
         """
@@ -327,7 +298,7 @@ class QuantumSystem(metaclass=ABCMeta):
             self._dim = truncated_dim
 
         eig_vals, eig_vecs = self.eigenstates()
-        trunc_vals = eig_vals[:truncated_dim]
+        trunc_vals = eig_vals[: self._dim]
         if sub_ground_energy:
             trunc_vals = trunc_vals - trunc_vals[0]
 
@@ -337,7 +308,7 @@ class QuantumSystem(metaclass=ABCMeta):
         self._diagonalized = True
         self._transform = trunc_vecs
 
-    def embed(self, ind: int, dims: Tuple[int]) -> None:
+    def embed(self, ind: int, dims: Tuple[int, ...]) -> None:
         """
         embed Embeds the quantum system into a larger Hilbert space.
 
@@ -401,8 +372,9 @@ class QuantumSystem(metaclass=ABCMeta):
         """
         if diagonalize:
             # Handle the case where the qubit implements the operators in an already diagonalized basis.
-            if self._transform is not None:
-                op = transform_op(op, self._transform)
+            if self._transform is None:
+                raise ValueError("The transform matrix is not set.")
+            op = transform_op(op, self._transform)
 
         if embed:
             if self._ind is not None and self._dims is not None:

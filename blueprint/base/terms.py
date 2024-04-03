@@ -6,49 +6,6 @@ from warnings import warn
 from inspect import signature
 
 Numeric = Union[float, complex]
-GenNumeric = Union[Numeric, Callable]
-
-
-class ConstantTerm:
-    """
-    ConstantTerm A class representing a constant prefactor in the Hamiltonian.
-    """
-
-    def __init__(self, prefactor: Numeric) -> None:
-        self._prefactor: Numeric = prefactor
-
-    @property
-    def prefactor(self) -> Numeric:
-        """
-        prefactor Returns the prefactor of the constant term.
-
-        Returns
-        -------
-        float
-            The prefactor of the constant term.
-        """
-        return self._prefactor
-
-    @property
-    def is_constant(self) -> bool:
-        """
-        is_constant Returns whether the term is constant.
-
-        Returns
-        -------
-        bool
-            True if the term is constant, False otherwise.
-        """
-        return True
-
-    def __copy__(self) -> ConstantTerm:
-        term_copy = self.__class__(
-            self._prefactor,
-        )
-        return term_copy
-
-    def __call__(self) -> Numeric:
-        return self._prefactor
 
 
 class TimeDependentTerm:

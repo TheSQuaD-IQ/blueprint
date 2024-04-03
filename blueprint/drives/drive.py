@@ -3,11 +3,9 @@ from typing import Any, Union, Callable, Iterable, List, Iterator, Tuple
 from jax import Array
 from jax import numpy as jnp
 
-from ..base.terms import TimeDependentTerm, ConstantTerm
+from ..base.terms import TimeDependentTerm
 
 Numeric = Union[float, complex]
-GenNumeric = Union[Numeric, Callable]
-Term = Union[TimeDependentTerm, ConstantTerm]
 
 
 class Drive:
@@ -18,7 +16,7 @@ class Drive:
     def __init__(
         self,
         label: str,
-        prefactor: GenNumeric | Iterable[GenNumeric],
+        prefactor: Callable | Iterable[Callable],
         operator: Array | Iterable[Array],
     ) -> None:
         if not isinstance(label, str):
@@ -72,15 +70,11 @@ class Drive:
 
         self._dim = dim
 
-        self._prefactor_terms: List[Term] = []
+        self._prefactor_terms: List[TimeDependentTerm] = []
 
-        if isinstance(prefactor, Numeric):
-            prefactor_term = ConstantTerm(prefactor)
-            self._prefactor_terms.append(prefactor_term)
-        elif isinstance(prefactor, Callable):
+        if isinstance(prefactor, Callable):
             prefactor_term = TimeDependentTerm(prefactor)
             self._prefactor_terms.append(prefactor_term)
-
         elif isinstance(prefactor, Iterable):
             prefactors = list(prefactor)
             if isinstance(self._op, list):
@@ -89,22 +83,19 @@ class Drive:
 
                 if num_ops != num_prefactors:
                     raise ValueError(
-                        f"The number of prefactors must match the number of operators, instead got {num_prefactors} prefactors and {num_ops} operators."
+                        "The number of prefactors must match the number of operators, "
+                        f"instead got {num_prefactors} prefactors and {num_ops} operators."
                     )
 
             for single_prefactor in prefactors:
-                if isinstance(single_prefactor, Numeric):
-                    prefactor_term = ConstantTerm(single_prefactor)
-                elif isinstance(single_prefactor, Callable):
-                    prefactor_term = TimeDependentTerm(single_prefactor)
-                else:
-                    raise ValueError(
-                        "Each prefactor in the iterable must be a number (complex or float) or a callable."
-                    )
+                if not isinstance(single_prefactor, Callable):
+                    raise ValueError("Each prefactor in prefactors must be a callable.")
+
+                prefactor_term = TimeDependentTerm(single_prefactor)
                 self._prefactor_terms.append(prefactor_term)
         else:
             raise ValueError(
-                "The prefactor must be a number, a callable, or an iterable of numbers or callables."
+                "The prefactor must be a callable, or an iterable of callables."
             )
 
     @property
@@ -130,18 +121,6 @@ class Drive:
             The dimension of the time-dependent term.
         """
         return self._dim
-
-    @property
-    def is_constant(self) -> bool:
-        """
-        is_constant Returns whether the time-dependent term is constant.
-
-        Returns
-        -------
-        bool
-            Whether the time-dependent term is constant.
-        """
-        return all(term.is_constant for term in self._prefactor_terms)
 
     @property
     def free_params(self) -> List[str]:
@@ -219,10 +198,7 @@ class Drive:
             The evaluated prefactor.
         """
         for term in self._prefactor_terms:
-            if isinstance(term, TimeDependentTerm):
-                yield term.eval_prefactor(**params)
-            else:
-                yield term.prefactor
+            yield term.eval_prefactor(**params)
 
     def _get_hamiltonian(self, **params) -> Array:
         """
@@ -270,32 +246,19 @@ class Drive:
         """
         return self._get_hamiltonian(**params)
 
-    def decompose(
-        self, eval_prefactors: bool = False, **params
-    ) -> Iterator[Tuple[Term | Numeric, Array]]:
+    def decompose(self) -> Iterator[Tuple[TimeDependentTerm, Array]]:
         """
         decompose Decomposes the Hamiltonian term associated with this drive
         into the operators and corresponding prefactors that express it.
-
-        Parameters
-        ----------
-        eval_prefactors : bool, optional
-            Whether to evaluate the prefactor terms using the provided
-            parameters or to simply return the prefactors as they are stored, by default False
 
         Yields
         ------
         Iterator[Tuple[TimeDependentTerm, Array]]
             An iterator of tuples containing the tuples of prefactor and the operator of the drive term.
         """
-        if eval_prefactors:
-            prefactors = list(self.eval_prefactors(**params))
-        else:
-            prefactors = self._prefactor_terms
-
         if isinstance(self._op, list):
-            for prefactor, op in zip(prefactors, self._op):
+            for prefactor, op in zip(self._prefactor_terms, self._op):
                 yield prefactor, op
         else:
-            for prefactor in prefactors:
+            for prefactor in self._prefactor_terms:
                 yield prefactor, self._op

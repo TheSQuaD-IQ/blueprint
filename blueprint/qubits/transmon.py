@@ -268,7 +268,18 @@ class TunableTransmon(QuantumSystem):
         return self._wq_approx
 
     @property
-    def flux_zpf(self) -> float:
+    def charge_zpf(self) -> Array:
+        if not self.is_diagonalized:
+            raise ValueError(
+                "The charge zero-point fluctuations are only available in the diagonal basis."
+            )
+        charge_op = self._get_charge_op()
+        diag_op = self.process_op(charge_op, diagonalize=True, embed=False)
+        fluctuations = diag_op[0, 1]
+        return fluctuations
+
+    @property
+    def flux_zpf(self) -> Array:
         """
         flux_zpf Returns the zero-point fluctuations of the flux variable of the transmon.
 
@@ -277,19 +288,7 @@ class TunableTransmon(QuantumSystem):
         float
             The zero-point fluctuations of the flux variable.
         """
-        return (2 * self._ec / self._ej_eff) ** 0.25
-
-    @property
-    def charge_zpf(self) -> float:
-        """
-        charge_zpf Returns the zero-point fluctuations of the charge variable of the transmon.
-
-        Returns
-        -------
-        float
-            The zero-point fluctuations of the charge variable.
-        """
-        return (self._ej_eff / (32 * self._ec)) ** 0.25
+        return 1 / (2 * self.charge_zpf)
 
     def _get_charge_op(self) -> Array:
         """
@@ -423,7 +422,6 @@ class TunableTransmon(QuantumSystem):
         kinetic_term = self._get_kinetic_term()
         potential_term = self._get_potential_term()
         hamil = kinetic_term + potential_term
-
         return hamil
 
     def get_potential(self, phases: Union[float, Array]) -> Array:
@@ -443,7 +441,7 @@ class TunableTransmon(QuantumSystem):
         potential = -self._ej_eff * jnp.cos(phases)
         return potential
 
-    def add_flux_drive(self, label: str, flux_pulse: float | Callable) -> None:
+    def add_flux_drive(self, label: str, flux_pulse: Callable) -> None:
         """
         add_flux_drive Applies a flux drive to the transmon.
 
@@ -451,9 +449,9 @@ class TunableTransmon(QuantumSystem):
         ----------
         label : str
             The label of the drive.
-        flux_pulse : float | Callable
-            The flux pulse applied to the transmon. This can be a constant value (float) or a function that returns the applied flux pulse as a function of time.
-
+        flux_pulse : Callable
+            The time-dependent flux pulse applied to the transmon. This must be a
+            callable object that returns the applied flux pulse as a function of time.
 
         Raises
         ------
@@ -462,42 +460,32 @@ class TunableTransmon(QuantumSystem):
         """
         if label in self._drives:
             raise ValueError(
-                f"A drive with the label '{label}' has alreadted been applied to the transmon."
+                f"A drive with the label '{label}' has already been applied to the transmon."
             )
 
-        if isinstance(flux_pulse, float):
-            cur_flux = self._ext_flux + flux_pulse
-            cos_prefactor = self._ej * (math.cos(cur_flux) - math.cos(self._ext_flux))
-            sin_prefactor = self._ej * (math.sin(cur_flux) - math.sin(self._ext_flux))
-
-            prefactors = (cos_prefactor, sin_prefactor)
-
-        elif isinstance(flux_pulse, Callable):
-
-            @wraps(flux_pulse)
-            def cos_prefactor_func(*args, **kwargs) -> float:
-                applied_flux = flux_pulse(*args, **kwargs)
-                cur_flux = self._ext_flux + applied_flux
-                prefactor = self._ej * (math.cos(cur_flux) - math.cos(self._ext_flux))
-                return prefactor
-
-            @wraps(flux_pulse)
-            def sin_prefactor_func(*args, **kwargs) -> float:
-                applied_flux = flux_pulse(*args, **kwargs)
-                cur_flux = self._ext_flux + applied_flux
-                prefactor = self._ej * (math.sin(cur_flux) - math.sin(self._ext_flux))
-                return prefactor
-
-            prefactors = (cos_prefactor_func, sin_prefactor_func)
-
-        else:
+        if not isinstance(flux_pulse, Callable):
             raise ValueError(
                 f"The flux pulse must be either a float or a Callable object, instead got type {type(flux_pulse)}."
             )
 
+        @wraps(flux_pulse)
+        def cos_prefactor(*args, **kwargs) -> float:
+            applied_flux = flux_pulse(*args, **kwargs)
+            cur_flux = self._ext_flux + applied_flux
+            prefactor = self._ej * (math.cos(cur_flux) - math.cos(self._ext_flux))
+            return prefactor
+
+        @wraps(flux_pulse)
+        def sin_prefactor(*args, **kwargs) -> float:
+            applied_flux = flux_pulse(*args, **kwargs)
+            cur_flux = self._ext_flux + applied_flux
+            prefactor = self._ej * (math.sin(cur_flux) - math.sin(self._ext_flux))
+            return prefactor
+
+        prefactors = (cos_prefactor, sin_prefactor)
+
         cosphi_op = self._get_cosphi_op()
         sinphi_op = self._get_sinphi_op()
-
         ops = (cosphi_op, sinphi_op)
 
         drive = Drive(label, prefactors, ops)
@@ -579,7 +567,7 @@ class TunableTransmon(QuantumSystem):
         prefactor = abs(cos_term) * sqrt_term
         max_ej = init_ej / prefactor
 
-        def objective_func(x: Tuple[float, float]) -> float:
+        def objective_func(x: Tuple[float, float]) -> Array:
             charging_energy, josephson_energy = x
             transmon = TunableTransmon(
                 label,

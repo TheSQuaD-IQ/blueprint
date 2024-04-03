@@ -1,6 +1,5 @@
 import math
-from typing import Iterable, Tuple, Dict, List, Union, Callable
-from functools import reduce
+from typing import Iterable, Tuple, Dict, List, Union
 
 from jax import Array
 from jax import numpy as jnp
@@ -11,13 +10,11 @@ from ..couplings import Coupling
 from ..util.linalg import transform_op
 
 Numeric = Union[float, complex]
-GenNumeric = Union[Numeric, Callable[..., Numeric]]
 
 
 class Device:
     """
     Device Base device class.
-    #TODO: Both the Qubit and Device classes shouble be subclasses of some base class QuantumSystem, which implements eigenvalue/diagonalization functionality. However, I am not sure if it makes sense to have the Device support embed functionality. Keeping it as a separate class for now.
     """
 
     def __init__(self, qubits: Iterable[QuantumSystem]) -> None:
@@ -50,15 +47,19 @@ class Device:
             qubit.label: ind for ind, qubit in enumerate(qubits)
         }
 
-        self._dim: int = math.prod(self.qubit_dims)
+        dim = math.prod(self.qubit_dims)
+        self._dim: int = dim
+        self._native_dim: int = dim
 
         for ind, qubit in enumerate(self._qubits):
             qubit.embed(ind, self.qubit_dims)
 
-        self._couplings: List[Coupling] = []
-
         self._diagonalized: bool = False
-        self._transform: Array = None
+        self._transform: Array | None = None
+
+        self._eig_vals: Array | None = None
+
+        self._couplings: Dict[str, Coupling] = {}
 
     def __getitem__(self, label: str) -> QuantumSystem:
         if not isinstance(label, str):
@@ -121,19 +122,19 @@ class Device:
         return ind
 
     @property
-    def is_transformed(self) -> bool:
+    def is_diagonalized(self) -> bool:
         """
-        transformed Returns whether the device is transformed into a new basis.
+        is_diagonalized Returns whether the quantum system has been diagonalized.
 
         Returns
         -------
         bool
-            Whether the device is transformed into a new basis.
+            Whether the quantum system has been diagonalized.
         """
-        return self._transform is not None
+        return self._diagonalized
 
     @property
-    def qubits(self) -> Tuple[QuantumSystem]:
+    def qubits(self) -> Tuple[QuantumSystem, ...]:
         """
         qubits Returns the qubits in the device.
 
@@ -157,7 +158,7 @@ class Device:
         return len(self._qubits)
 
     @property
-    def qubit_dims(self) -> Tuple[int]:
+    def qubit_dims(self) -> Tuple[int, ...]:
         """
         qubit_dims Returns the dimensions of the qubits in the device.
 
@@ -170,7 +171,7 @@ class Device:
         return dims
 
     @property
-    def qubit_labels(self) -> Tuple[str]:
+    def qubit_labels(self) -> Tuple[str, ...]:
         """
         qubit_labels Returns the labels of the qubits in the device.
 
@@ -181,6 +182,18 @@ class Device:
         """
         labels = tuple(self._qubit_inds)
         return labels
+
+    @property
+    def native_dim(self) -> int:
+        """
+        _native_dim Returns the dimension of the Hilbert space of the device in the original basis (excluding any truncation when it is diagonalized).
+
+        Returns
+        -------
+        int
+            The dimension of the Hilbert space of the device in the original basis.
+        """
+        return self._native_dim
 
     @property
     def dim(self) -> int:
@@ -194,76 +207,62 @@ class Device:
         """
         return self._dim
 
-    @property
-    def is_diagonalized(self) -> bool:
-        """
-        is_diagonalized Returns whether the device Hamiltonian has been diagonalized.
-
-        Returns
-        -------
-        bool
-            Whether the device Hamiltonian has been diagonalized.
-        """
-        return self._diagonalized
-
     def add_capacative_coupling(
-        self, qubit_labels: Tuple[str, str], coupler_label: str, prefactor: GenNumeric
+        self, qubits: Tuple[str, str], label: str, prefactor: Numeric
     ) -> None:
         """
         add_capacative_coupling Adds a capacitive coupling between a pair of qubit (specified by their labels) to the device. The coupling is specified by a prefactor and couples the labels via their charge operators. For more information about the coupling prefactor, see the documentation of the `Coupling` class.
 
         Parameters
         ----------
-        qubit_labels : Tuple[str, str]
+        qubits : Tuple[str, str]
             The labels of the pair of qubits to be coupled.
-        coupler_label : str
+        label : str
             The label of the coupling term.
         prefactor : GenNumeric
             The prefactor of the coupling term. This can either be a constant factor (float or complext) or a callable that takes in parameters and returns a numeric value.
         """
 
-        if not isinstance(qubit_labels, tuple):
+        if not isinstance(qubits, tuple):
             raise ValueError(
-                f"The qubit labels 'qubit_labels' expeted as a tuple, instead got type {type(qubit_labels)}."
+                f"The qubit labels 'qubit_labels' expeted as a tuple, instead got type {type(qubits)}."
             )
-        if len(qubit_labels) != 2:
-            raise ValueError(
-                f"The qubit labels 'qubit_labels' expected as a tuple of length 2, instead got a tuple of length {len(qubit_labels)}."
-            )
-        for ind, label in enumerate(qubit_labels):
-            if not isinstance(label, str):
-                raise ValueError(
-                    f"Each qubit label 'qubit_labels' expected as a string, instead got a type {type(label)} for the label at index {ind}."
-                )
-            if label not in self._qubit_inds:
-                raise ValueError(f"Qubit {label} not found in the device.")
 
-        inds = tuple((self._qubit_inds[label] for label in qubit_labels))
+        if len(qubits) != 2:
+            raise ValueError(
+                f"The qubit labels 'qubit_labels' expected as a tuple of length 2, instead got a tuple of length {len(qubits)}."
+            )
+
         ops = []
+        for ind, qubit in enumerate(qubits):
+            if not isinstance(qubit, str):
+                raise ValueError(
+                    f"Each qubit label 'qubit_labels' expected as a string, instead got a type {type(qubit)} for the label at index {ind}."
+                )
+            if qubit not in self._qubit_inds:
+                raise ValueError(f"Qubit {qubit} not found in the device.")
 
-        for ind in inds:
+            qubit_ind = self._qubit_inds[qubit]
+
             try:
-                op = self._qubits[ind].get_charge_op()
+                op = self._qubits[qubit_ind].get_charge_op()
             except AttributeError as exc:
                 raise AttributeError(
-                    f"Qubit {qubit_labels[ind]} does not have a charge operator."
+                    f"Qubit {qubits[ind]} does not have a charge operator."
                 ) from exc
 
             ops.append(op)
 
-        operator = reduce(jnp.matmul, ops)
-
-        dims = tuple((self._qubits[ind].dim for ind in inds))
+        operator = jnp.matmul(ops[0], ops[1])
 
         coupling = Coupling(
-            label=coupler_label,
+            label=label,
             operator=operator,
             prefactor=prefactor,
-            dims=dims,
-            qubit_labels=qubit_labels,
+            qubit_labels=qubits,
         )
 
-        self._couplings.append(coupling)
+        self._couplings[label] = coupling
 
     def eigenvalues(self, **kwargs) -> Array:
         """
@@ -290,7 +289,22 @@ class Device:
         hamiltonian = self._get_bare_hamiltonian()
         eig_vals, eig_vecs = eigh(hamiltonian, eigvals_only=False, **kwargs)
         return eig_vals, eig_vecs
-    
+
+    def _get_diagonal_hamiltonian(self, *, sub_ground_energy: bool = True) -> Array:
+        if self._eig_vals is None:
+            # Case where it was not diagonalized
+            eig_vals = self.eigenvalues()
+            diagonal = eig_vals[: self._dim]
+
+        else:
+            # Case where the Hamiltonian was diagonalized or the eigenvalues were previously computed.
+            diagonal = self._eig_vals[: self._dim]
+
+        if sub_ground_energy:
+            diagonal = diagonal - diagonal[0]
+        hamiltonian = jnp.diag(diagonal)
+        return hamiltonian
+
     def _get_bare_hamiltonian(self) -> Array:
         """
         _get_bare_hamiltonian Computes the bare Hamiltonian of the device.
@@ -300,8 +314,11 @@ class Device:
         Array
             The bare Hamiltonian of the device.
         """
-        qubit_hamiltonians = (qubit.get_hamiltonian() for qubit in self._qubits)
-        bare_hamiltonian = reduce(jnp.add, qubit_hamiltonians)
+        bare_hamiltonian = jnp.zeros((self._native_dim, self._native_dim))
+
+        for qubit in self._qubits:
+            qubit_hamiltonian = qubit.get_hamiltonian()
+            bare_hamiltonian = jnp.add(bare_hamiltonian, qubit_hamiltonian)
         return bare_hamiltonian
 
     def get_bare_hamiltonian(self) -> Array:
@@ -315,12 +332,14 @@ class Device:
         """
         if self.is_diagonalized:
             diag_hamiltonian = self._get_diagonal_hamiltonian()
-            return diag_hamiltonian
+            hamiltonian = self.process_op(diag_hamiltonian, diagonalize=False)
+            return hamiltonian
 
         bare_hamiltonian = self._get_bare_hamiltonian()
+        hamiltonian = self.process_op(bare_hamiltonian)
         return bare_hamiltonian
 
-    def get_int_hamiltonian(self, **params) -> Array:
+    def _get_int_hamiltonian(self) -> Array:
         """
         get_int_hamiltonian Returns the interaction Hamiltonian of the device.
 
@@ -329,11 +348,31 @@ class Device:
         Array
             The interaction Hamiltonian of the device.
         """
-        int_hamiltonian = jnp.zeros((self._dim, self._dim), dtype=jnp.complex64)
-        for coupling in self._couplings:
-            coup_hamiltonian = coupling.get_hamiltonian(**params)
-            int_hamiltonian += coup_hamiltonian
+        int_hamiltonian = jnp.zeros((self._native_dim, self._native_dim))
+
+        for coupling in self._couplings.values():
+            coupling_hamiltonian = coupling.get_hamiltonian()
+            int_hamiltonian = jnp.add(int_hamiltonian, coupling_hamiltonian)
         return int_hamiltonian
+
+    def get_int_hamiltonian(self) -> Array:
+        """
+        get_int_hamiltonian Returns the interaction Hamiltonian of the device.
+
+        Returns
+        -------
+        Array
+            The interaction Hamiltonian of the device.
+        """
+        native_hamiltonian = self._get_int_hamiltonian()
+        hamiltonian = self.process_op(native_hamiltonian)
+        return hamiltonian
+
+    def _get_hamiltonian(self) -> Array:
+        bare_hamiltonian = self._get_bare_hamiltonian()
+        int_hamiltonian = self._get_int_hamiltonian()
+        hamiltonian = bare_hamiltonian + int_hamiltonian
+        return hamiltonian
 
     def get_hamiltonian(self) -> Array:
         """
@@ -344,9 +383,9 @@ class Device:
         Array
             The full Hamiltonian of the device.
         """
-        bare_hamil = self.get_bare_hamiltonian()
-
-        return bare_hamil
+        native_hamiltonian = self._get_hamiltonian()
+        hamiltonian = self.process_op(native_hamiltonian)
+        return hamiltonian
 
     def diagonalize(
         self, truncated_dim: int | None = None, *, sub_ground_energy: bool = True
@@ -376,13 +415,16 @@ class Device:
                 raise ValueError(
                     "The dimension of the Hilbert space must be an integer."
                 )
-        if truncated_dim <= 0 or truncated_dim > self._dim:
-            raise ValueError(
-                f"The Hilbert space dimension ('truncated_dim') must be greater than 0 and less than or equal to the current dimension ({self._dim})."
-            )
+            if truncated_dim <= 0 or truncated_dim > self._dim:
+                raise ValueError(
+                    f"The Hilbert space dimension ('truncated_dim') must be greater than 0 and less than or equal to the current dimension ({self._dim})."
+                )
+
+            self._dim = truncated_dim
 
         eig_vals, eig_vecs = self.eigenstates()
-        trunc_vals = eig_vals[:truncated_dim]
+        trunc_vals = eig_vals[: self._dim]
+
         if sub_ground_energy:
             trunc_vals = trunc_vals - trunc_vals[0]
 
@@ -390,7 +432,6 @@ class Device:
 
         self._diagonalized = True
         self._transform = trunc_vecs
-        self._dim = truncated_dim
 
     def process_op(self, op: Array, *, diagonalize: bool = True) -> Array:
         """
@@ -407,7 +448,7 @@ class Device:
             The operator in the transformed basis.
         """
         if self.is_diagonalized and diagonalize:
-            # Handle the case where the qubit implements the operators in an already diagonalized basis.
-            if self._transform is not None:
-                op = transform_op(op, self._transform)
+            if self._transform is None:
+                raise ValueError("The transform matrix is not set.")
+            op = transform_op(op, self._transform)
         return op
