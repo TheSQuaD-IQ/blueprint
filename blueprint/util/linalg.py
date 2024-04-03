@@ -27,6 +27,21 @@ def transform_op(op: Array, trans_mat: Array) -> Array:
     trans_op = jnp.conj(trans_mat).T @ op @ trans_mat
     return trans_op
 
+def tensor_product(ops: Iterable[Array]) -> Array:
+    """
+    tensor_product Returns the tensor product of a list of operators.
+
+    Parameters
+    ----------
+    ops : Iterable[Array]
+        The list of operators to tensor product.
+
+    Returns
+    -------
+    Array
+        The tensor product of the operators.
+    """
+    return reduce(jnp.kron, ops)
 
 def embed_op(
     op: Array,
@@ -53,7 +68,7 @@ def embed_op(
     expanded_ops = (
         op if i == ind else jnp.identity(dim) for i, dim in enumerate(qubit_dims)
     )
-    return reduce(jnp.kron, expanded_ops)
+    return tensor_product(expanded_ops)
 
 
 def embed_ops(
@@ -86,5 +101,4 @@ def embed_ops(
             expanded_ops.append(ops[idx])
         else:
             expanded_ops.append(jnp.identity(dim))
-
-    return reduce(jnp.kron, expanded_ops)
+    return tensor_product(expanded_ops)

@@ -38,6 +38,7 @@ class QuantumSystem(metaclass=ABCMeta):
         self._transform: Array | None = None
 
         self._eig_vals: Array | None = None
+        self._eig_vecs: Array | None = None
 
         self._drives: dict[str, Drive] = {}
 
@@ -248,11 +249,22 @@ class QuantumSystem(metaclass=ABCMeta):
         Array
             The eigenvalues of the quantum system Hamiltonian.
         """
-        hamiltonian = self._get_hamiltonian()
-        eig_vals = jsp.linalg.eigh(hamiltonian, eigvals_only=True, **kwargs)
+        if self._diagonalized:
+            if self._eig_vals is None:
+                raise ValueError(
+                    "The eigenvalues of the diagonalized Hamiltonian should have been computed."
+                )
+            return self._eig_vals[: self._dim]
+
         if self._eig_vals is None:
-            self._eig_vals = eig_vals
-        return eig_vals
+            hamiltonian = self._get_hamiltonian()
+            eig_vals, eig_vecs = jsp.linalg.eigh(hamiltonian, **kwargs)
+            norm_vals = eig_vals - eig_vals[0]
+            self._eig_vals = norm_vals
+            self._eig_vecs = eig_vecs
+            return norm_vals
+
+        return self._eig_vals
 
     def eigenstates(self, **kwargs) -> Tuple[Array, Array]:
         """
@@ -263,15 +275,28 @@ class QuantumSystem(metaclass=ABCMeta):
         Tuple[Array, Array]
             The eigenvalues and eigenvectors of the quantum system Hamiltonian.
         """
-        hamiltonian = self._get_hamiltonian()
-        eig_vals, eig_vecs = jsp.linalg.eigh(hamiltonian, eigvals_only=False, **kwargs)
-        if self._eig_vals is None:
-            self._eig_vals = eig_vals
-        return eig_vals, eig_vecs
+        if self._diagonalized:
+            if self._eig_vals is None:
+                raise ValueError(
+                    "The eigenvalues of the diagonalized Hamiltonian should have been computed."
+                )
+            eig_vecs = jnp.identity(self._dim)
+            return self._eig_vals[: self._dim], eig_vecs
 
-    def diagonalize(
-        self, truncated_dim: int | None = None, *, sub_ground_energy: bool = True
-    ) -> None:
+        if self._eig_vecs is None or self._eig_vals is None:
+            hamiltonian = self._get_hamiltonian()
+            eig_vals, eig_vecs = jsp.linalg.eigh(
+                hamiltonian, eigvals_only=False, **kwargs
+            )
+            norm_vals = eig_vals - eig_vals[0]
+            self._eig_vals = norm_vals
+            self._eig_vecs = eig_vecs
+            return eig_vals, eig_vecs
+
+        # NOTE: should this return just the first self._dim values?
+        return self._eig_vals, self._eig_vecs
+
+    def diagonalize(self, truncated_dim: int | None = None) -> None:
         """
         diagonalize Diagonalizes the quantum system Hamiltonian
         and truncates the Hilbert space to the specified dimension.
@@ -280,8 +305,6 @@ class QuantumSystem(metaclass=ABCMeta):
         ----------
         truncated_dim : int
             The dimension of the truncated Hilbert space.
-        sub_ground_energy : bool, optional
-            Whether to subtract the ground state energy from the eigenvalues, by default True
 
         Raises
         ------
@@ -309,10 +332,7 @@ class QuantumSystem(metaclass=ABCMeta):
 
             self._dim = truncated_dim
 
-        eig_vals, eig_vecs = self.eigenstates()
-        trunc_vals = eig_vals[: self._dim]
-        if sub_ground_energy:
-            trunc_vals = trunc_vals - trunc_vals[0]
+        _, eig_vecs = self.eigenstates()
 
         trunc_vecs = eig_vecs[:, :truncated_dim]
         trunc_vecs = get_pos_eigenvectors(trunc_vecs)
@@ -460,6 +480,25 @@ class QuantumSystem(metaclass=ABCMeta):
         """
         fundamental_freq = self.get_freq_difference(0, 1)
         return fundamental_freq
+
+    def get_eigenstate(self, state_index: int) -> Tuple[Array, Array]:
+        """
+        get_eigenstate Returns the eigen energy and eigen state of a specific state, as specified by an integer state index, as the determined by the energy of that state.
+
+        Parameters
+        ----------
+        state_index : int
+            The index of the state, as determined by the energy/number of excitations. For example, the ground state has an index of 0. The second-excitation state has an index of 2.
+
+        Returns
+        -------
+        Tuple[Array, Array]
+            The eigen energy and eigen state of the specified state.
+        """
+        eig_vals, eig_vecs = self.eigenstates()
+        energy = eig_vals[state_index]
+        state = eig_vecs[state_index]
+        return energy, state
 
 
 def get_pos_eigenvectors(eig_vecs: Array) -> Array:

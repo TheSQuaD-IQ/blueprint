@@ -7,7 +7,8 @@ from jax.scipy.linalg import eigh
 
 from ..base import QuantumSystem
 from ..couplings import Coupling
-from ..util.linalg import transform_op
+from ..util.linalg import transform_op, tensor_product
+from ..util.index import state_index, max_overlap_inds
 
 Numeric = Union[float, complex]
 
@@ -58,6 +59,8 @@ class Device:
         self._transform: Array | None = None
 
         self._eig_vals: Array | None = None
+        self._eig_vecs: Array | None = None
+        self._eig_inds: Array | None = None
 
         self._couplings: Dict[str, Coupling] = {}
 
@@ -273,7 +276,7 @@ class Device:
         Array
             The eigenvalues of the qubit Hamiltonian.
         """
-        hamiltonian = self._get_bare_hamiltonian()
+        hamiltonian = self._get_hamiltonian()
         eig_vals = eigh(hamiltonian, eigvals_only=True, **kwargs)
         return eig_vals
 
@@ -286,7 +289,7 @@ class Device:
         Tuple[Array, Array]
             The eigenvalues and eigenvectors of the qubit Hamiltonian.
         """
-        hamiltonian = self._get_bare_hamiltonian()
+        hamiltonian = self._get_hamiltonian()
         eig_vals, eig_vecs = eigh(hamiltonian, eigvals_only=False, **kwargs)
         return eig_vals, eig_vecs
 
@@ -452,3 +455,45 @@ class Device:
                 raise ValueError("The transform matrix is not set.")
             op = transform_op(op, self._transform)
         return op
+
+    def index_eigenstates(self) -> None:
+        """
+        index_eigenstates Indexes the eigenstates of the device by finding the maximum overlap with the bare states.
+        """
+        states_list = []
+        for qubit in self._qubits:
+            _, qubit_states = qubit.eigenstates()
+            states_list.append(qubit_states)
+
+        bare_states = tensor_product(states_list)
+        _, dressed_states = self.eigenstates()
+
+        self._eig_inds = max_overlap_inds(bare_states, dressed_states)
+
+    def get_eigenstate(self, *state_indices: int) -> Tuple[Array, Array]:
+        """
+        get_eigenstate Returns the eigen energy and eigen state of a specific state of the device, as specified by an list of indices (integers). Each index corresponds to the the energy/number of excitations of each respective qubit.
+
+        Parameters
+        ----------
+        state_index : Tuple[int]
+            The index of the state, as determined by the energy/number of excitations of each qubit. The order of the qubits is the same as the order in which they were added to the device. Therefore, the length of the tuple must match the number of qubits in the device. Each index must be an integer and smaller than the dimension of the corresponding qubit. For example, for a device consisting of two qubits, the state [0, 1] corresponds to the ground state of the first qubit and the first excited state of the second qubit.
+
+        Returns
+        -------
+        Tuple[Array, Array]
+            The eigen energy and eigen state of the specified state.
+        """
+        state_ind = state_index(state_indices, self.qubit_dims)
+
+        if self._eig_inds is None:
+            raise ValueError(
+                "Please index the eigenstates of the device by callling 'index_eigenstates' before accessing them."
+            )
+
+        eig_ind = self._eig_inds[state_ind]
+
+        eig_vals, eig_vecs = self.eigenstates()
+        energy = eig_vals[eig_ind]
+        state = eig_vecs[:, eig_ind]
+        return energy, state
