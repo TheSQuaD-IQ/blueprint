@@ -1,6 +1,7 @@
 import math
 from jax import numpy as jnp
 from jax.scipy.special import erf
+from jax import Array
 
 
 def modulated_flux_pulse(
@@ -58,7 +59,7 @@ def net_zero_transition_flux_pulse(
     buffer_end: float,
     flux_per_volt: float,
     gaussian_filter_sigma: float = 1.0,
-) -> float:
+) -> Array:
     """
     net_zero_transition_flux_pulse The Net Zero Transition flux pulse used for CPhase gates.
 
@@ -105,4 +106,4 @@ def net_zero_transition_flux_pulse(
     erfs = erfs / jnp.sum(erfs)
     pulse_voltage = (erfs * voltages).sum(axis=0)
     applied_flux = pulse_voltage * flux_per_volt
-    return float(applied_flux)
+    return applied_flux

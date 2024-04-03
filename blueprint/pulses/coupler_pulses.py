@@ -2,6 +2,7 @@ from typing import Union, Callable
 import math
 from jax import numpy as jnp
 from jax.scipy.special import erf
+from jax import Array
 
 from ..qubits.transmon import TunableTransmon
 
@@ -59,7 +60,7 @@ def flat_top_gaussian(
     buffer_start: float,
     buffer_end: float,
     gaussian_filter_sigma: float,
-) -> Numeric:
+) -> Array:
     """
     flat_top_gaussian The rise and fall are determined by the gaussian filter std.
 
@@ -88,7 +89,7 @@ def flat_top_gaussian(
     erfs = -0.5 * jnp.diff(erf((t - times_drives) * timescale), axis=0)
     erfs = erfs / jnp.sum(erfs)
     pulse_amplitude = (erfs * amplitudes).sum(axis=0)
-    return float(pulse_amplitude)
+    return pulse_amplitude
 
 
 def capacitive_coupling_pulse(
@@ -163,7 +164,7 @@ def net_zero_transition_coupling_pulse(
     buffer_end: float,
     gaussian_filter_sigma: float = 1.0,
     transition_coupling: float | None = None,
-) -> float:
+) -> Array:
     if transition_coupling is None:
         transition_coupling = off_coupling
 
@@ -191,4 +192,4 @@ def net_zero_transition_coupling_pulse(
     erfs = -0.5 * jnp.diff(erf((t - times_drives) * timescale), axis=0)
     erfs = erfs / jnp.sum(erfs)
     coupling_strength = (erfs * couplings).sum(axis=0)
-    return float(coupling_strength)
+    return coupling_strength
