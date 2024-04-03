@@ -86,6 +86,7 @@ def flat_top_gaussian(
         )
     )
     erfs = -0.5 * jnp.diff(erf((t - times_drives) * timescale), axis=0)
+    erfs = erfs / jnp.sum(erfs)
     pulse_amplitude = (erfs * amplitudes).sum(axis=0)
     return float(pulse_amplitude)
 
@@ -116,29 +117,78 @@ def capacitive_coupling_pulse(
     J = g_1c g_2c / 2 * (1 / Delta_1c + 1 / Delta_2c)
     Eq(140) of RMP.
     """
-    # Compute the external flux from the flux_drive callable
-    total_external_flux_1 = static_ext_flux_1 + flux_drive_transmon_1(t)
-    # Do the `compute_eff_josephson_energy()` part
-    cos_term = math.cos(total_external_flux_1)
-    sqrt_term = math.sqrt(1 + asymm_1**2 * math.tan(total_external_flux_1) ** 2)
-    EJ_effective_1 = EJ_1 * abs(cos_term) * sqrt_term
-    # Do the `ext_flux_to_approx_freq()` part
-    freq_trans_1 = math.sqrt(8 * EC_1 * EJ_effective_1) - EC_1
 
-    # Compute the external flux from the flux_drive callable
-    total_external_flux_2 = static_ext_flux_2 + flux_drive_transmon_2(t)
-    # Do the `compute_eff_josephson_energy()` part
-    cos_term = math.cos(total_external_flux_2)
-    sqrt_term = math.sqrt(1 + asymm_2**2 * math.tan(total_external_flux_2) ** 2)
-    EJ_effective_2 = EJ_2 * abs(cos_term) * sqrt_term
-    # Do the `ext_flux_to_approx_freq()` part
-    freq_trans_2 = math.sqrt(8 * EC_2 * EJ_effective_2) - EC_2
+    def compute_freq(ext_flux, asymm, EJ, EC):
+        # Do the `compute_eff_josephson_energy()` part
+        cos_term = math.cos(ext_flux)
+        sqrt_term = math.sqrt(1 + asymm**2 * math.tan(ext_flux) ** 2)
+        EJ_effective_1 = EJ * abs(cos_term) * sqrt_term
+        # Do the `ext_flux_to_approx_freq()` part
+        frequency = math.sqrt(8 * EC * EJ_effective_1) - EC
+        return frequency
 
+    # ### 0) Static coupling ###
+    # static_freq_trans_1 = compute_freq(static_ext_flux_1, asymm_1, EJ_1, EC_1)
+    # static_freq_trans_2 = compute_freq(static_ext_flux_2, asymm_2, EJ_2, EC_2)
+
+    ### 1) Dynamical coupling ###
+    freq_trans_1 = compute_freq(
+        static_ext_flux_1 + flux_drive_transmon_1(t), asymm_1, EJ_1, EC_1
+    )
+    freq_trans_2 = compute_freq(
+        static_ext_flux_2 + flux_drive_transmon_2(t), asymm_2, EJ_2, EC_2
+    )
+
+    ### 2) Coupling strength ###
+    # static_delta_res_trans_1 = static_freq_trans_1 - frequency_resonator
+    # static_delta_res_trans_2 = static_freq_trans_2 - frequency_resonator
     delta_res_trans_1 = freq_trans_1 - frequency_resonator
     delta_res_trans_2 = freq_trans_2 - frequency_resonator
-    return (
-        coupling_res_trans_1
-        * coupling_res_trans_2
-        / 2
-        * (1 / delta_res_trans_1 + 1 / delta_res_trans_2)
+
+    coupling_prefactor = coupling_res_trans_1 * coupling_res_trans_2 / 2
+    # g0 = coupling_prefactor * (
+    #     1 / static_delta_res_trans_1 + 1 / static_delta_res_trans_2
+    # )
+    gt = coupling_prefactor * (1 / delta_res_trans_1 + 1 / delta_res_trans_2)
+    return gt  # - g0
+
+
+def net_zero_transition_coupling_pulse(
+    t: float,
+    off_coupling: float,
+    on_coupling: float,
+    half_hold_time: float,
+    transition_time: float,
+    buffer_start: float,
+    buffer_end: float,
+    gaussian_filter_sigma: float = 1.0,
+    transition_coupling: float | None = None,
+) -> float:
+    if transition_coupling is None:
+        transition_coupling = off_coupling
+
+    lengths = jnp.array(
+        [
+            buffer_start,
+            half_hold_time,
+            transition_time,
+            half_hold_time,
+            buffer_end,
+        ]
     )
+    couplings = jnp.array(
+        [off_coupling, on_coupling, transition_coupling, on_coupling, off_coupling]
+    )
+    timescale = 1 / (math.sqrt(2) * gaussian_filter_sigma)
+    times_drives = jnp.concatenate(
+        (
+            jnp.zeros(
+                1,
+            ),
+            jnp.cumsum(lengths),
+        )
+    )
+    erfs = -0.5 * jnp.diff(erf((t - times_drives) * timescale), axis=0)
+    erfs = erfs / jnp.sum(erfs)
+    coupling_strength = (erfs * couplings).sum(axis=0)
+    return float(coupling_strength)

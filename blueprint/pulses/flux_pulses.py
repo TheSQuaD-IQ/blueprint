@@ -102,6 +102,7 @@ def net_zero_transition_flux_pulse(
         )
     )
     erfs = -0.5 * jnp.diff(erf((t - times_drives) * timescale), axis=0)
+    erfs = erfs / jnp.sum(erfs)
     pulse_voltage = (erfs * voltages).sum(axis=0)
     applied_flux = pulse_voltage * flux_per_volt
     return float(applied_flux)
