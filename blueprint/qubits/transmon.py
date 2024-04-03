@@ -275,7 +275,7 @@ class TunableTransmon(QuantumSystem):
             )
         charge_op = self._get_charge_op()
         diag_op = self.process_op(charge_op, diagonalize=True, embed=False)
-        fluctuations = diag_op[0, 1]
+        fluctuations = diag_op[0, 1].real
         return fluctuations
 
     @property
