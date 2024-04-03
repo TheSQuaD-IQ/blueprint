@@ -845,6 +845,58 @@ class AnharmonicOscillator(QuantumSystem):
         hamiltonian = self._freq * num_op + 0.5 * self._anharm * anharm_op
         return hamiltonian
 
+    def _get_charge_op(self) -> Array:
+        """
+        _get_charge_op Returns the charge operator of the transmon in the Fock basis.
+
+        Returns
+        -------
+        Array
+            The charge operator of the transmon, expressed in the Fock basis.
+        """
+        low_op = self._get_low_op()
+        raise_op = self._get_raise_op()
+        return 1.0j * (raise_op - low_op)
+
+    def get_charge_op(self) -> Array:
+        """
+        charge_op Returns the charge operator of the transmon.
+
+        Returns
+        -------
+        Array
+            The charge operator, in the current basis of the transmon.
+        """
+        native_op = self._get_charge_op()
+        op = self.process_op(native_op)
+        return op
+
+    def _get_flux_op(self) -> Array:
+        """
+        _get_flux_op Returns the flux operator of the transmon in the Fock basis.
+
+        Returns
+        -------
+        Array
+            The flux operator of the transmon, expressed in the Fock basis.
+        """
+        low_op = self._get_low_op()
+        raise_op = self._get_raise_op()
+        return raise_op + low_op
+
+    def get_flux_op(self) -> Array:
+        """
+        get_flux_op Returns the flux operator of the transmon.
+
+        Returns
+        -------
+        Array
+            The flux operator, in the current basis of the transmon.
+        """
+        native_op = self._get_flux_op()
+        op = self.process_op(native_op)
+        return op
+
     def get_potential(self, phases: Union[float, Array]) -> Array:
         """
         potential Returns the potential energy of the transmon.

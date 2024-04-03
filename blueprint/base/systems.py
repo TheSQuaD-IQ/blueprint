@@ -227,6 +227,18 @@ class QuantumSystem(metaclass=ABCMeta):
         hamiltonian = self.process_op(native_hamiltonian)
         return hamiltonian
 
+    @abstractmethod
+    def get_charge_op(self) -> Array:
+        """
+        get_charge_op Returns the charge operator of the quantum system.
+
+        Returns
+        -------
+        Array
+            The charge operator of the quantum system.
+        """
+        pass
+
     def eigenvalues(self, **kwargs) -> Array:
         """
         eig_vals Returns the eigenvalues of the quantum system Hamiltonian.
