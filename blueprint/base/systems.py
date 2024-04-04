@@ -409,13 +409,13 @@ class QuantumSystem(metaclass=ABCMeta):
         Array
             _description_
         """
-        if diagonalize:
+        if diagonalize and self._diagonalized:
             # Handle the case where the qubit implements the operators in an already diagonalized basis.
             if self._transform is None:
                 raise ValueError("The transform matrix is not set.")
             op = transform_op(op, self._transform)
 
-        if embed:
+        if embed and self._embedded:
             if self._ind is not None and self._dims is not None:
                 op = embed_op(op, self._ind, self._dims)
 

@@ -8,7 +8,7 @@ readme = "README.md"
 [tool.poetry.dependencies]
 python = "^3.11"
 ipykernel = "^6.29.3"
-cython = "^3.0.9"
+cython = "^0.29.37"
 pybind11 = "^2.11.1"
 numpy = "^1.26.4"
 scipy = "^1.12.0"
