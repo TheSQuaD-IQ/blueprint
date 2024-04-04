@@ -472,14 +472,16 @@ class TunableTransmon(QuantumSystem):
         def cos_prefactor(*args, **kwargs) -> Array:
             applied_flux = flux_pulse(*args, **kwargs)
             cur_flux = self._ext_flux + applied_flux
-            prefactor = self._ej * (jnp.cos(cur_flux) - jnp.cos(self._ext_flux))
+            prefactor = -self._ej * (jnp.cos(cur_flux) - jnp.cos(self._ext_flux))
             return prefactor
 
         @wraps(flux_pulse)
         def sin_prefactor(*args, **kwargs) -> Array:
             applied_flux = flux_pulse(*args, **kwargs)
             cur_flux = self._ext_flux + applied_flux
-            prefactor = self._ej * (jnp.sin(cur_flux) - jnp.sin(self._ext_flux))
+            prefactor = (
+                -self._ej * self._asymm * (jnp.sin(cur_flux) - jnp.sin(self._ext_flux))
+            )
             return prefactor
 
         prefactors = (cos_prefactor, sin_prefactor)

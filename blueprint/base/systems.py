@@ -175,9 +175,22 @@ class QuantumSystem(metaclass=ABCMeta):
             hamiltonian = jnp.add(hamiltonian, drive_hamiltonian)
         return hamiltonian
 
-    def get_drive_hamiltonian(
-        self, decompose: bool = False, **params
-    ) -> Array | Iterator[Tuple[TimeDependentTerm, Array]]:
+    def get_drive_hamiltonian_terms(
+        self, **params
+    ) -> Iterator[Tuple[TimeDependentTerm, Array]]:
+        """
+        get_drive_hamiltonian_terms
+
+        Returns
+        -------
+        Array
+            The total drive Hamiltonian.
+        """
+        for drive in self._drives.values():
+            for prefactor, op in drive.decompose(**params):
+                yield prefactor, self.process_op(op)
+
+    def get_drive_hamiltonian(self, **params) -> Array:
         """
         get_drive_hamiltonian Returns the sum of the Hamiltonian of each of the drives applied to the system.
 
@@ -186,14 +199,8 @@ class QuantumSystem(metaclass=ABCMeta):
         Array
             The total drive Hamiltonian.
         """
-        if decompose:
-            for drive in self._drives.values():
-                for prefactor, op in drive.decompose(**params):
-                    yield prefactor, self.process_op(op)
-
-        else:
-            drive_hamiltonian = self._get_drive_hamiltonian(**params)
-            return self.process_op(drive_hamiltonian)
+        drive_hamiltonian = self._get_drive_hamiltonian(**params)
+        return self.process_op(drive_hamiltonian)
 
     def _get_diagonal_hamiltonian(self, *, sub_ground_energy: bool = True) -> Array:
         if self._eig_vals is None:
