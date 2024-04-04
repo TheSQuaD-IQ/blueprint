@@ -400,14 +400,14 @@ class TunableTransmon(QuantumSystem):
             The potential term of the transmon Hamiltonian expressed in the charge basis.
         """
         cosphi_op = self._get_cosphi_op()
-        sinphi_op = self._get_cosphi_op()
+        sinphi_op = self._get_sinphi_op()
 
-        phase = jnp.arctan(self._asymm * jnp.tan(self._ext_flux))
+        # phase = jnp.arctan(self._asymm * jnp.tan(self._ext_flux))
 
-        cos_term = cosphi_op * jnp.cos(phase)
-        sin_term = sinphi_op * jnp.sin(phase)
+        cos_term = jnp.cos(self._ext_flux) * cosphi_op
+        sin_term = (self._asymm * jnp.sin(self._ext_flux)) * sinphi_op
 
-        potential_term = -self._ej_eff * (cos_term + sin_term)
+        potential_term = -self._ej * (cos_term + sin_term)
         return potential_term
 
     def _get_hamiltonian(self) -> Array:
