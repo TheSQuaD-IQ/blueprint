@@ -580,9 +580,10 @@ class TunableTransmon(QuantumSystem):
                 asymmetry,
                 charge_cutoff,
             )
-            freq = transmon.fundamental_frequency
-            anharm = transmon.abs_anharmonicity
-            return (frequency - freq) ** 2 + (anharmonicity - anharm) ** 2
+            freq_diff = frequency - transmon.frequency
+            anharm_diff = anharmonicity - transmon.anharmonicity
+            result = freq_diff**2 + anharm_diff**2
+            return result
 
         init_guess = (max_ej, init_ec)
 
