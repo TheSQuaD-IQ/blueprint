@@ -128,7 +128,7 @@ class TunableTransmon(QuantumSystem):
         return self._ec
 
     @property
-    def max_josephson_energy(self) -> float:
+    def josephson_energy(self) -> float:
         """
         josephson_energy Returns the Josephson energy of the transmon.
 
@@ -187,9 +187,9 @@ class TunableTransmon(QuantumSystem):
         """
         return self._ncut
 
-    def compute_eff_josephson_energy(self, ext_flux: float) -> float:
+    def get_josephson_energy(self, ext_flux: float) -> float:
         """
-        compute_eff_josephson_energy Returns the effective Josephson energy of the transmon.
+        eff_josephson_energy Returns the effective Josephson energy of the transmon.
         This is the Josephson energy modified by the external flux and the junction asymmetry.
 
         Returns
@@ -204,19 +204,6 @@ class TunableTransmon(QuantumSystem):
         return self._ej * prefactor
 
     @property
-    def _ej_eff(self) -> float:
-        """
-        eff_josephson_energy Returns the effective Josephson energy of the transmon.
-        This is the Josephson energy modified by the external flux and the junction asymmetry.
-
-        Returns
-        -------
-        float
-            The effective Josephson energy
-        """
-        return self.compute_eff_josephson_energy(self._ext_flux)
-
-    @property
     def eff_josephson_energy(self) -> float:
         """
         eff_josephson_energy Returns the effective Josephson energy of the transmon.
@@ -227,7 +214,7 @@ class TunableTransmon(QuantumSystem):
         float
             The effective Josephson energy.
         """
-        return self._ej_eff
+        return self.get_josephson_energy(self._ext_flux)
 
     def ext_flux_to_approx_freq(self, ext_flux: float) -> float:
         """
@@ -238,10 +225,8 @@ class TunableTransmon(QuantumSystem):
         float
             The approximate transmon 0-1 frequency.
         """
-        return (
-            math.sqrt(8 * self._ec * self.compute_eff_josephson_energy(ext_flux))
-            - self._ec
-        )
+        sqrt_term = math.sqrt(8 * self._ec * self.get_josephson_energy(ext_flux))
+        return sqrt_term - self._ec
 
     @property
     def _wq_approx(self) -> float:
@@ -402,10 +387,8 @@ class TunableTransmon(QuantumSystem):
         cosphi_op = self._get_cosphi_op()
         sinphi_op = self._get_sinphi_op()
 
-        # phase = jnp.arctan(self._asymm * jnp.tan(self._ext_flux))
-
         cos_term = jnp.cos(self._ext_flux) * cosphi_op
-        sin_term = (self._asymm * jnp.sin(self._ext_flux)) * sinphi_op
+        sin_term = self._asymm * jnp.sin(self._ext_flux) * sinphi_op
 
         potential_term = -self._ej * (cos_term + sin_term)
         return potential_term
@@ -438,7 +421,7 @@ class TunableTransmon(QuantumSystem):
         Array
             The potential energy.
         """
-        potential = -self._ej_eff * jnp.cos(phases)
+        potential = -self.eff_josephson_energy * jnp.cos(phases)
         return potential
 
     def add_flux_drive(self, label: str, flux_pulse: Callable) -> None:
