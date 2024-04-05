@@ -27,18 +27,17 @@ class QuantumSystem(metaclass=ABCMeta):
                 f"The dimension of the Hilbert space must be an integer, instead got type {type(dim)}."
             )
 
-        self._native_dim: int = dim
         self._dim: int = dim
+
+        self._truncated: bool = False
+        self._trunc_dim: int | None = None
 
         self._embedded: bool = False
         self._ind: int | None = None
-        self._dims: Tuple[int, ...] | None = None
+        self._device_dims: Tuple[int, ...] | None = None
 
         self._diagonalized: bool = False
         self._transform: Array | None = None
-
-        self._eig_vals: Array | None = None
-        self._eig_vecs: Array | None = None
 
         self._drives: dict[str, Drive] = {}
 
@@ -95,6 +94,18 @@ class QuantumSystem(metaclass=ABCMeta):
         return self._drives
 
     @property
+    def is_truncated(self) -> bool:
+        """
+        is_truncated Returns whether the quantum system has been truncated.
+
+        Returns
+        -------
+        bool
+            Whether the quantum system has been truncated.
+        """
+        return self._truncated
+
+    @property
     def is_diagonalized(self) -> bool:
         """
         is_diagonalized Returns whether the quantum system has been diagonalized.
@@ -131,16 +142,45 @@ class QuantumSystem(metaclass=ABCMeta):
         return any(self._drives)
 
     @property
-    def native_dim(self) -> int:
+    def truncated_dim(self) -> int | None:
         """
-        native_dim Returns the dimension of the Hilbert space of the quantum system in the native basis (excluding any truncation when it is diagonalized).
+        truncated_dim Returns the dimension of the truncated Hilbert space.
 
         Returns
         -------
         int
-            The dimension of the Hilbert space of the quantum system in the native basis.
+            The dimension of the truncated Hilbert space. If None, the Hilbert space is not truncated.
         """
-        return self._native_dim
+        return self._trunc_dim
+
+    @truncated_dim.setter
+    def truncated_dim(self, dim: int | None) -> None:
+        """
+        truncated_dim Sets the dimension of the truncated Hilbert space.
+
+        Parameters
+        ----------
+        dim : int | None
+            The dimension of the truncated Hilbert space. If None, the truncation is removed.
+        """
+        if dim is not None:
+            if not isinstance(dim, int):
+                raise ValueError(
+                    "The dimension of the Hilbert space must be an integer."
+                )
+            if dim <= 0 or dim > self._dim:
+                raise ValueError(
+                    f"The Hilbert space dimension ('truncated_dim') must be greater than 0 and less than or equal to the current dimension ({self._dim})."
+                )
+
+            if dim == self._dim:
+                self._truncated = False
+            else:
+                self._truncated = True
+            self._trunc_dim = dim
+        else:
+            self._truncated = False
+            self._trunc_dim = dim
 
     @property
     def dim(self) -> int:
@@ -167,7 +207,7 @@ class QuantumSystem(metaclass=ABCMeta):
         Array
             The total drive Hamiltonian.
         """
-        hamiltonian = jnp.zeros((self._native_dim, self._native_dim))
+        hamiltonian = jnp.zeros((self._dim, self._dim))
 
         for drive in self._drives.values():
             drive_hamiltonian = drive.get_hamiltonian(**params)
@@ -202,19 +242,11 @@ class QuantumSystem(metaclass=ABCMeta):
         drive_hamiltonian = self._get_drive_hamiltonian(**params)
         return self.process_op(drive_hamiltonian)
 
-    def _get_diagonal_hamiltonian(self, *, sub_ground_energy: bool = True) -> Array:
-        if self._eig_vals is None:
-            # Case where it was not diagonalized
-            eig_vals = self.eigenvalues()
-            diagonal = eig_vals[: self._dim]
+    def _get_diagonal_hamiltonian(self) -> Array:
+        dim = self._trunc_dim or self._dim
 
-        else:
-            # Case where the Hamiltonian was diagonalized or the eigenvalues were previously computed.
-            diagonal = self._eig_vals[: self._dim]
-
-        if sub_ground_energy:
-            diagonal = diagonal - diagonal[0]
-        hamiltonian = jnp.diag(diagonal)
+        eig_vals = self.get_eigenvalues()
+        hamiltonian = jnp.diag(eig_vals[:dim])
         return hamiltonian
 
     def get_hamiltonian(self) -> Array:
@@ -228,7 +260,9 @@ class QuantumSystem(metaclass=ABCMeta):
         """
         if self.is_diagonalized:
             diag_hamiltonian = self._get_diagonal_hamiltonian()
-            hamiltonian = self.process_op(diag_hamiltonian, diagonalize=False)
+            hamiltonian = self.process_op(
+                diag_hamiltonian, diagonalize=False, truncate=False
+            )
             return hamiltonian
 
         native_hamiltonian = self._get_hamiltonian()
@@ -245,9 +279,8 @@ class QuantumSystem(metaclass=ABCMeta):
         Array
             The charge operator of the quantum system.
         """
-        pass
 
-    def eigenvalues(self, **kwargs) -> Array:
+    def get_eigenvalues(self, *, truncate: bool = True) -> Array:
         """
         eig_vals Returns the eigenvalues of the quantum system Hamiltonian.
 
@@ -256,52 +289,46 @@ class QuantumSystem(metaclass=ABCMeta):
         Array
             The eigenvalues of the quantum system Hamiltonian.
         """
-        if self._diagonalized:
-            if self._eig_vals is None:
-                raise ValueError(
-                    "The eigenvalues of the diagonalized Hamiltonian should have been computed."
-                )
-            return self._eig_vals[: self._dim]
+        if truncate and self._truncated:
+            dim = self._trunc_dim
+        else:
+            dim = self._dim
 
-        if self._eig_vals is None:
-            hamiltonian = self._get_hamiltonian()
-            eig_vals, eig_vecs = jsp.linalg.eigh(hamiltonian, **kwargs)
-            norm_vals = eig_vals - eig_vals[0]
-            self._eig_vals = norm_vals
-            self._eig_vecs = eig_vecs
-            return norm_vals
+        hamiltonian = self._get_hamiltonian()
+        eig_vals = jsp.linalg.eigh(hamiltonian, eigvals_only=True)
+        norm_vals = eig_vals - eig_vals[0]
+        return norm_vals[:dim]
 
-        return self._eig_vals
-
-    def eigenstates(self, **kwargs) -> Tuple[Array, Array]:
+    def get_eigenstates(
+        self, *, diagonalize: bool = True, truncate: bool = True
+    ) -> Tuple[Array, Array]:
         """
-        eig_sys Returns the eigenvalues and eigenvectors of the quantum system Hamiltonian.
+        get_eigenstates Returns the eigenvalues and eigenvectors of the quantum system Hamiltonian.
+
+        Parameters
+        ----------
+        diagonalize : bool, optional
+            Whether to return the diagonalized eigenstates, by default True
 
         Returns
         -------
         Tuple[Array, Array]
             The eigenvalues and eigenvectors of the quantum system Hamiltonian.
         """
-        if self._diagonalized:
-            if self._eig_vals is None:
-                raise ValueError(
-                    "The eigenvalues of the diagonalized Hamiltonian should have been computed."
-                )
-            eig_vecs = jnp.identity(self._dim)
-            return self._eig_vals[: self._dim], eig_vecs
+        if truncate and self._truncated:
+            dim = self._trunc_dim
+        else:
+            dim = self._dim
 
-        if self._eig_vecs is None or self._eig_vals is None:
-            hamiltonian = self._get_hamiltonian()
-            eig_vals, eig_vecs = jsp.linalg.eigh(
-                hamiltonian, eigvals_only=False, **kwargs
-            )
-            norm_vals = eig_vals - eig_vals[0]
-            self._eig_vals = norm_vals
-            self._eig_vecs = eig_vecs
-            return eig_vals, eig_vecs
+        if diagonalize and self._diagonalized:
+            eig_vals = self.get_eigenvalues()
+            eig_vecs = jnp.identity(dim)
+            return eig_vals[:dim], eig_vecs
 
-        # NOTE: should this return just the first self._dim values?
-        return self._eig_vals, self._eig_vecs
+        hamiltonian = self._get_hamiltonian()
+        eig_vals, eig_vecs = jsp.linalg.eigh(hamiltonian, eigvals_only=False)
+        norm_vals = eig_vals - eig_vals[0]
+        return norm_vals[:dim], eig_vecs[:, :dim]
 
     def diagonalize(self, truncated_dim: int | None = None) -> None:
         """
@@ -328,26 +355,14 @@ class QuantumSystem(metaclass=ABCMeta):
             )
 
         if truncated_dim is not None:
-            if not isinstance(truncated_dim, int):
-                raise ValueError(
-                    "The dimension of the Hilbert space must be an integer."
-                )
-            if truncated_dim <= 0 or truncated_dim > self._dim:
-                raise ValueError(
-                    f"The Hilbert space dimension ('truncated_dim') must be greater than 0 and less than or equal to the current dimension ({self._dim})."
-                )
+            self.truncated_dim = truncated_dim
 
-            self._dim = truncated_dim
-
-        _, eig_vecs = self.eigenstates()
-
-        trunc_vecs = eig_vecs[:, :truncated_dim]
-        trunc_vecs = get_pos_eigenvectors(trunc_vecs)
+        _, eig_vecs = self.get_eigenstates(truncate=False)
 
         self._diagonalized = True
-        self._transform = trunc_vecs
+        self._transform = eig_vecs
 
-    def embed(self, ind: int, dims: Tuple[int, ...]) -> None:
+    def embed(self, ind: int, device_dims: Tuple[int, ...]) -> None:
         """
         embed Embeds the quantum system into a larger Hilbert space.
 
@@ -355,7 +370,7 @@ class QuantumSystem(metaclass=ABCMeta):
         ----------
         ind : int
             The index of the quantum system in the larger Hilbert space.
-        dims : Tuple[int]
+        device_dims : Tuple[int]
             The dimension of each quantum system (including this one) in the full Hilbert space.
 
         Raises
@@ -372,28 +387,37 @@ class QuantumSystem(metaclass=ABCMeta):
                 f"QuantumSystem '{self._label}' has already been embedded. Create a new QuantumSystem object to embed into another system."
             )
 
-        num_systems = len(dims)
-        if not 0 <= ind < num_systems:
+        num_qubits = len(device_dims)
+        if not 0 <= ind < num_qubits:
             raise ValueError(
-                f"The index of the quantum system ({ind}) must be between 0 and the number of quantum systems in the system ({num_systems})."
+                f"The index of the quantum system ({ind}) must be between 0 and the number of quantum systems in the system ({num_qubits})."
             )
 
-        if dims[ind] != self._dim:
+        dim = self._trunc_dim or self._dim
+
+        if device_dims[ind] != dim:
             raise ValueError(
-                f"The Hilbert dimension of the quantum system ({self._dim}) must match the dimension of the Hilbert subspace it is being embedded into ({dims[ind]})."
+                f"The Hilbert dimension of the quantum system ({dim}) must match the dimension of the Hilbert subspace it is being embedded into ({device_dims[ind]})."
             )
 
         self._embedded = True
         self._ind = ind
-        self._dims = dims
+        self._device_dims = device_dims
 
     def process_op(
-        self, op: Array, *, diagonalize: bool = True, embed: bool = True
+        self,
+        op: Array,
+        *,
+        diagonalize: bool = True,
+        truncate: bool = True,
+        embed: bool = True,
     ) -> Array:
         """
-        process_op Processes an operator in the native quantum system basis to the transformed basis.
-        This can include both transformation to the diagonalized basis and/or
-        an embedding of the operator in a higher-dimensional Hilbert space.
+        process_op Processes an operator expressed in the default quantum system basis to another basis.
+        This can include both transformation to the energy basis if the qubit has been diagonalized,
+        a truncation of the operator if the dimension of the hilbert space has been truncated,
+        and an embedding of the operator in a higher-dimensional Hilbert space if the qubit has been
+        included in a device.
 
         Parameters
         ----------
@@ -412,13 +436,28 @@ class QuantumSystem(metaclass=ABCMeta):
         if diagonalize and self._diagonalized:
             # Handle the case where the qubit implements the operators in an already diagonalized basis.
             if self._transform is None:
-                raise ValueError("The transform matrix is not set.")
+                raise ValueError(
+                    "The transform matrix is not set, making it impossible to perform this."
+                )
             op = transform_op(op, self._transform)
 
-        if embed and self._embedded:
-            if self._ind is not None and self._dims is not None:
-                op = embed_op(op, self._ind, self._dims)
+        if truncate and self._truncated:
+            if self._trunc_dim is None:
+                raise ValueError(
+                    "The truncation dimension is not set, making it impossible to perform this."
+                )
+            op = op[: self._trunc_dim, : self._trunc_dim]
 
+        if embed and self._embedded:
+            if self._ind is None:
+                raise ValueError(
+                    "The embedding index is not set, making it impossible to perform this."
+                )
+            if self._device_dims is None:
+                raise ValueError(
+                    "The device dimensions are not set, making it impossible to perform this."
+                )
+            op = embed_op(op, self._ind, self._device_dims)
         return op
 
     def get_freq_difference(self, low_ind: int, high_ind: int) -> Array:
@@ -455,12 +494,12 @@ class QuantumSystem(metaclass=ABCMeta):
                     f"The indices of the energy levels must be between 0 and the dimension of the Hilbert space ({self._dim})."
                 )
 
-        eig_vals = self.eigenvalues()
+        eig_vals = self.get_eigenvalues()
         freq_diff = eig_vals[high_ind] - eig_vals[low_ind]
         return freq_diff
 
     @property
-    def abs_anharmonicity(self) -> Array:
+    def anharmonicity(self) -> Array:
         """
         anharmonicity Returns the anharmonicity of the qubit.
 
@@ -476,17 +515,17 @@ class QuantumSystem(metaclass=ABCMeta):
         return anharmonicity
 
     @property
-    def fundamental_frequency(self) -> Array:
+    def frequency(self) -> Array:
         """
-        fundamental_freq Returns the fundamental frequency of the qubit.
+        frequency Returns the fundamental frequency of the qubit.
 
         Returns
         -------
         float
             The fundamental frequency of the qubit.
         """
-        fundamental_freq = self.get_freq_difference(0, 1)
-        return fundamental_freq
+        frequency = self.get_freq_difference(0, 1)
+        return frequency
 
     def get_eigenstate(self, state_index: int) -> Tuple[Array, Array]:
         """
@@ -502,7 +541,8 @@ class QuantumSystem(metaclass=ABCMeta):
         Tuple[Array, Array]
             The eigen energy and eigen state of the specified state.
         """
-        eig_vals, eig_vecs = self.eigenstates()
+        # NOTE: This function is very trivial and mostly added for consistency between device and qubits. Should we get rid of it?
+        eig_vals, eig_vecs = self.get_eigenstates()
         energy = eig_vals[state_index]
         state = eig_vecs[state_index]
         return energy, state

@@ -50,7 +50,9 @@ class Device:
 
         dim = math.prod(self.qubit_dims)
         self._dim: int = dim
-        self._native_dim: int = dim
+
+        self._truncated: bool = False
+        self._trunc_dim: int | None = None
 
         for ind, qubit in enumerate(self._qubits):
             qubit.embed(ind, self.qubit_dims)
@@ -58,8 +60,6 @@ class Device:
         self._diagonalized: bool = False
         self._transform: Array | None = None
 
-        self._eig_vals: Array | None = None
-        self._eig_vecs: Array | None = None
         self._eig_inds: Array | None = None
 
         self._couplings: Dict[str, Coupling] = {}
@@ -91,7 +91,7 @@ class Device:
     def __iter__(self) -> Iterable[QuantumSystem]:
         yield from self._qubits
 
-    def get_index(self, label: str) -> int:
+    def get_qubit_index(self, label: str) -> int:
         """
         get_index Returns the index of the qubit in the device.
 
@@ -137,6 +137,18 @@ class Device:
         return self._diagonalized
 
     @property
+    def is_truncated(self) -> bool:
+        """
+        is_truncated Returns whether the quantum system has been truncated.
+
+        Returns
+        -------
+        bool
+            Whether the quantum system has been truncated.
+        """
+        return self._truncated
+
+    @property
     def qubits(self) -> Tuple[QuantumSystem, ...]:
         """
         qubits Returns the qubits in the device.
@@ -170,7 +182,7 @@ class Device:
         Tuple[int]
             The dimensions of the qubits in the device.
         """
-        dims = tuple((qubit.dim for qubit in self._qubits))
+        dims = tuple((qubit.truncated_dim or qubit.dim for qubit in self._qubits))
         return dims
 
     @property
@@ -187,16 +199,45 @@ class Device:
         return labels
 
     @property
-    def native_dim(self) -> int:
+    def truncated_dim(self) -> int | None:
         """
-        _native_dim Returns the dimension of the Hilbert space of the device in the original basis (excluding any truncation when it is diagonalized).
+        truncated_dim Returns the dimension of the truncated Hilbert space.
 
         Returns
         -------
         int
-            The dimension of the Hilbert space of the device in the original basis.
+            The dimension of the truncated Hilbert space. If None, the Hilbert space is not truncated.
         """
-        return self._native_dim
+        return self._trunc_dim
+
+    @truncated_dim.setter
+    def truncated_dim(self, dim: int | None) -> None:
+        """
+        truncated_dim Sets the dimension of the truncated Hilbert space.
+
+        Parameters
+        ----------
+        dim : int | None
+            The dimension of the truncated Hilbert space. If None, the truncation is removed.
+        """
+        if dim is not None:
+            if not isinstance(dim, int):
+                raise ValueError(
+                    "The dimension of the Hilbert space must be an integer."
+                )
+            if dim <= 0 or dim > self._dim:
+                raise ValueError(
+                    f"The Hilbert space dimension ('truncated_dim') must be greater than 0 and less than or equal to the current dimension ({self._dim})."
+                )
+
+            if dim == self._dim:
+                self._truncated = False
+            else:
+                self._truncated = True
+            self._trunc_dim = dim
+        else:
+            self._truncated = False
+            self._trunc_dim = dim
 
     @property
     def dim(self) -> int:
@@ -267,7 +308,7 @@ class Device:
 
         self._couplings[label] = coupling
 
-    def eigenvalues(self, **kwargs) -> Array:
+    def get_eigenvalues(self) -> Array:
         """
         eig_vals Returns the eigenvalues of the qubit Hamiltonian.
 
@@ -276,36 +317,43 @@ class Device:
         Array
             The eigenvalues of the qubit Hamiltonian.
         """
-        hamiltonian = self._get_hamiltonian()
-        eig_vals = eigh(hamiltonian, eigvals_only=True, **kwargs)
-        return eig_vals
+        dim = self._trunc_dim or self._dim
 
-    def eigenstates(self, **kwargs) -> Tuple[Array, Array]:
+        hamiltonian = self._get_hamiltonian()
+        eig_vals = eigh(hamiltonian, eigvals_only=True)
+        norm_vals = eig_vals - eig_vals[0]
+        return norm_vals[:dim]
+
+    def get_eigenstates(self, *, diagonalize: bool = True) -> Tuple[Array, Array]:
         """
-        eig_sys Returns the eigenvalues and eigenvectors of the qubit Hamiltonian.
+        get_eigenstates Returns the eigenvalues and eigenvectors of the qubit Hamiltonian.
+
+        Parameters
+        ----------
+        diagonalize : bool, optional
+            Whether to return the diagonalized eigenstates, by default True
 
         Returns
         -------
         Tuple[Array, Array]
             The eigenvalues and eigenvectors of the qubit Hamiltonian.
         """
+        dim = self._trunc_dim or self._dim
+
+        if diagonalize and self._diagonalized:
+            eig_vals = self.get_eigenvalues()
+            eig_vecs = jnp.identity(dim)
+            return eig_vals[:dim], eig_vecs
+
         hamiltonian = self._get_hamiltonian()
-        eig_vals, eig_vecs = eigh(hamiltonian, eigvals_only=False, **kwargs)
-        return eig_vals, eig_vecs
+        eig_vals, eig_vecs = eigh(hamiltonian, eigvals_only=False)
+        norm_vals = eig_vals - eig_vals[0]
+        return norm_vals[:dim], eig_vecs[:, :dim]
 
-    def _get_diagonal_hamiltonian(self, *, sub_ground_energy: bool = True) -> Array:
-        if self._eig_vals is None:
-            # Case where it was not diagonalized
-            eig_vals = self.eigenvalues()
-            diagonal = eig_vals[: self._dim]
-
-        else:
-            # Case where the Hamiltonian was diagonalized or the eigenvalues were previously computed.
-            diagonal = self._eig_vals[: self._dim]
-
-        if sub_ground_energy:
-            diagonal = diagonal - diagonal[0]
-        hamiltonian = jnp.diag(diagonal)
+    def _get_diagonal_hamiltonian(self) -> Array:
+        dim = self._trunc_dim or self._dim
+        eig_vals = self.get_eigenvalues()
+        hamiltonian = jnp.diag(eig_vals[:dim])
         return hamiltonian
 
     def _get_bare_hamiltonian(self) -> Array:
@@ -317,11 +365,10 @@ class Device:
         Array
             The bare Hamiltonian of the device.
         """
-        bare_hamiltonian = jnp.zeros((self._native_dim, self._native_dim))
+        bare_hamiltonian = jnp.zeros((self._dim, self._dim))
 
         for qubit in self._qubits:
-            qubit_hamiltonian = qubit.get_hamiltonian()
-            bare_hamiltonian = jnp.add(bare_hamiltonian, qubit_hamiltonian)
+            bare_hamiltonian += qubit.get_hamiltonian()
         return bare_hamiltonian
 
     def get_bare_hamiltonian(self) -> Array:
@@ -351,11 +398,10 @@ class Device:
         Array
             The interaction Hamiltonian of the device.
         """
-        int_hamiltonian = jnp.zeros((self._native_dim, self._native_dim))
+        int_hamiltonian = jnp.zeros((self._dim, self._dim))
 
         for coupling in self._couplings.values():
-            coupling_hamiltonian = coupling.get_hamiltonian()
-            int_hamiltonian = jnp.add(int_hamiltonian, coupling_hamiltonian)
+            int_hamiltonian += coupling.get_hamiltonian()
         return int_hamiltonian
 
     def get_int_hamiltonian(self) -> Array:
@@ -374,8 +420,7 @@ class Device:
     def _get_hamiltonian(self) -> Array:
         bare_hamiltonian = self._get_bare_hamiltonian()
         int_hamiltonian = self._get_int_hamiltonian()
-        hamiltonian = bare_hamiltonian + int_hamiltonian
-        return hamiltonian
+        return bare_hamiltonian + int_hamiltonian
 
     def get_hamiltonian(self) -> Array:
         """
@@ -390,9 +435,7 @@ class Device:
         hamiltonian = self.process_op(native_hamiltonian)
         return hamiltonian
 
-    def diagonalize(
-        self, truncated_dim: int | None = None, *, sub_ground_energy: bool = True
-    ) -> None:
+    def diagonalize(self, truncated_dim: int | None = None) -> None:
         """
         diagonalize Diagonalizes the device Hamiltonian.
 
@@ -400,8 +443,6 @@ class Device:
         ----------
         truncated_dim : int | None, optional
             The dimension by which to truncate the Hamiltonian, by default None
-        sub_ground_energy : bool, optional
-            Whether to subtract the ground state energy from the eigenvalues, by default True
 
         Raises
         ------
@@ -414,29 +455,20 @@ class Device:
             raise RuntimeError("The device has already been diagonalized.")
 
         if truncated_dim is not None:
-            if not isinstance(truncated_dim, int):
-                raise ValueError(
-                    "The dimension of the Hilbert space must be an integer."
-                )
-            if truncated_dim <= 0 or truncated_dim > self._dim:
-                raise ValueError(
-                    f"The Hilbert space dimension ('truncated_dim') must be greater than 0 and less than or equal to the current dimension ({self._dim})."
-                )
+            self.truncated_dim = truncated_dim
 
-            self._dim = truncated_dim
-
-        eig_vals, eig_vecs = self.eigenstates()
-        trunc_vals = eig_vals[: self._dim]
-
-        if sub_ground_energy:
-            trunc_vals = trunc_vals - trunc_vals[0]
-
-        trunc_vecs = eig_vecs[:, :truncated_dim]
+        _, eig_vecs = self.get_eigenstates()
 
         self._diagonalized = True
-        self._transform = trunc_vecs
+        self._transform = eig_vecs
 
-    def process_op(self, op: Array, *, diagonalize: bool = True) -> Array:
+    def process_op(
+        self,
+        op: Array,
+        *,
+        diagonalize: bool = True,
+        truncate: bool = True,
+    ) -> Array:
         """
         process_op Processes the native operator into the transformed basis.
 
@@ -454,6 +486,14 @@ class Device:
             if self._transform is None:
                 raise ValueError("The transform matrix is not set.")
             op = transform_op(op, self._transform)
+
+        if truncate and self._truncated:
+            if self._trunc_dim is None:
+                raise ValueError(
+                    "The truncation dimension is not set, making it impossible to perform this."
+                )
+            op = op[: self._trunc_dim, : self._trunc_dim]
+
         return op
 
     def index_eigenstates(self) -> None:
@@ -462,11 +502,11 @@ class Device:
         """
         states_list = []
         for qubit in self._qubits:
-            _, qubit_states = qubit.eigenstates()
+            _, qubit_states = qubit.get_eigenstates()
             states_list.append(qubit_states)
 
         bare_states = tensor_product(states_list)
-        _, dressed_states = self.eigenstates()
+        _, dressed_states = self.get_eigenstates()
 
         self._eig_inds = max_overlap_inds(bare_states, dressed_states)
 
@@ -493,7 +533,7 @@ class Device:
 
         eig_ind = self._eig_inds[state_ind]
 
-        eig_vals, eig_vecs = self.eigenstates()
+        eig_vals, eig_vecs = self.get_eigenstates()
         energy = eig_vals[eig_ind]
         state = eig_vecs[:, eig_ind]
         return energy, state
