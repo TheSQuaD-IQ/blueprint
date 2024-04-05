@@ -298,7 +298,7 @@ class KerrOscillator(QuantumSystem):
         float
             The zero-point fluctuations of the charge.
         """
-        return (self.josephson_energy / (32 * self.charging_energy)) ** 0.25
+        return (self.eff_josephson_energy / (32 * self.charging_energy)) ** 0.25
 
     @property
     def flux_zpf(self) -> float:
@@ -310,7 +310,7 @@ class KerrOscillator(QuantumSystem):
         float
             The zero-point fluctuations of the flux.
         """
-        return (2 * self.charging_energy / self.josephson_energy) ** 0.25
+        return (2 * self.charging_energy / self.eff_josephson_energy) ** 0.25
 
     def _get_raise_op(self) -> Array:
         """
@@ -321,9 +321,9 @@ class KerrOscillator(QuantumSystem):
         Array
             The raising (creation) operator of the transmon.
         """
-        offdiag = jnp.sqrt(jnp.arange(1, self.dim))
-        op = jnp.diag(offdiag, k=-1)
-        return op
+        dim = self._trunc_dim or self._dim
+        offdiag = jnp.sqrt(jnp.arange(1, dim))
+        return jnp.diag(offdiag, k=-1)
 
     def get_raise_op(self) -> Array:
         """
@@ -334,9 +334,8 @@ class KerrOscillator(QuantumSystem):
         Array
             The raising (creation) operator in the current basis of the transmon.
         """
-        native_op = self._get_raise_op()
-        op = self.process_op(native_op)
-        return op
+        raise_op = self._get_raise_op()
+        return self.process_op(raise_op)
 
     def _get_low_op(self) -> Array:
         """
@@ -347,9 +346,9 @@ class KerrOscillator(QuantumSystem):
         Array
             The lowering (annihilaton) operator of the transmon.
         """
-        offdiag = jnp.sqrt(jnp.arange(1, self.dim))
-        op = jnp.diag(offdiag, k=1)
-        return op
+        dim = self._trunc_dim or self._dim
+        offdiag = jnp.sqrt(jnp.arange(1, dim))
+        return jnp.diag(offdiag, k=1)
 
     def get_low_op(self) -> Array:
         """
@@ -360,9 +359,8 @@ class KerrOscillator(QuantumSystem):
         Array
             The lowering (annihilaton) operator in the current basis of the transmon.
         """
-        native_op = self._get_low_op()
-        op = self.process_op(native_op)
-        return op
+        low_op = self._get_low_op()
+        return self.process_op(low_op)
 
     def _get_num_op(self) -> Array:
         """
@@ -373,9 +371,9 @@ class KerrOscillator(QuantumSystem):
         Array
             The number operator of the transmon.
         """
-        diagonal = jnp.arange(self._dim)
-        op = jnp.diag(diagonal)
-        return op
+        dim = self._trunc_dim or self._dim
+        diagonal = jnp.arange(dim)
+        return jnp.diag(diagonal)
 
     def get_num_op(self) -> Array:
         """
@@ -386,9 +384,8 @@ class KerrOscillator(QuantumSystem):
         Array
             The number operator in the current basis of the transmon.
         """
-        native_op = self._get_low_op()
-        op = self.process_op(native_op)
-        return op
+        num_op = self._get_num_op()
+        return self.process_op(num_op)
 
     def _get_hamiltonian(self) -> Array:
         """
@@ -404,9 +401,12 @@ class KerrOscillator(QuantumSystem):
         raise_op = self._get_raise_op()
         num_op = self._get_num_op()
 
-        anharm_op = raise_op @ raise_op @ low_op @ low_op
+        oscillator_term = self.frequency * num_op
 
-        hamiltonian = self.frequency * num_op + 0.5 * self._anharm * anharm_op
+        anharm_op = raise_op @ raise_op @ low_op @ low_op
+        anharmonic_term = 0.5 * self._anharm * anharm_op
+
+        hamiltonian = oscillator_term + anharmonic_term
         return hamiltonian
 
     def _get_charge_op(self) -> Array:
@@ -432,9 +432,8 @@ class KerrOscillator(QuantumSystem):
         Array
             The charge operator, in the current basis of the transmon.
         """
-        native_op = self._get_charge_op()
-        op = self.process_op(native_op)
-        return op
+        charge_op = self._get_charge_op()
+        return self.process_op(charge_op)
 
     def _get_flux_op(self) -> Array:
         """
@@ -447,7 +446,7 @@ class KerrOscillator(QuantumSystem):
         """
         low_op = self._get_low_op()
         raise_op = self._get_raise_op()
-        return raise_op + low_op
+        return self.flux_zpf * (raise_op + low_op)
 
     def get_flux_op(self) -> Array:
         """
@@ -458,9 +457,8 @@ class KerrOscillator(QuantumSystem):
         Array
             The flux operator, in the current basis of the transmon.
         """
-        native_op = self._get_flux_op()
-        op = self.process_op(native_op)
-        return op
+        flux_op = self._get_flux_op()
+        return self.process_op(flux_op)
 
     def get_potential(self, phases: Union[float, Array]) -> Array:
         """
