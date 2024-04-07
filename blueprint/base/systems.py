@@ -1,13 +1,12 @@
 from abc import ABCMeta, abstractmethod
-from typing import Tuple, Dict, Iterator
+from typing import Tuple, Dict, Iterator, Callable
 
+from jax import Array
 from jax import numpy as jnp
 from jax import scipy as jsp
-from jax import Array
 
-from ..util.linalg import embed_op, transform_op
 from ..drives import Drive
-from .terms import TimeDependentTerm
+from ..util.linalg import embed_op, transform_op
 
 
 class QuantumSystem(metaclass=ABCMeta):
@@ -172,15 +171,13 @@ class QuantumSystem(metaclass=ABCMeta):
                 raise ValueError(
                     f"The Hilbert space dimension ('truncated_dim') must be greater than 0 and less than or equal to the current dimension ({self._dim})."
                 )
-
             if dim == self._dim:
                 self._truncated = False
             else:
                 self._truncated = True
-            self._trunc_dim = dim
         else:
             self._truncated = False
-            self._trunc_dim = dim
+        self._trunc_dim = dim
 
     @property
     def dim(self) -> int:
@@ -215,9 +212,7 @@ class QuantumSystem(metaclass=ABCMeta):
             hamiltonian = jnp.add(hamiltonian, drive_hamiltonian)
         return hamiltonian
 
-    def get_drive_hamiltonian_terms(
-        self, **params
-    ) -> Iterator[Tuple[TimeDependentTerm, Array]]:
+    def get_drive_hamiltonian_terms(self, **params) -> Iterator[Tuple[Callable, Array]]:
         """
         get_drive_hamiltonian_terms
 
