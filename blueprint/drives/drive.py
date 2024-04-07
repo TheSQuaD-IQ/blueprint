@@ -1,9 +1,9 @@
-from typing import Any, Union, Callable, Iterable, List, Iterator, Tuple
+from typing import Union, Callable, Iterable, List, Iterator, Tuple
 
 from jax import Array
 from jax import numpy as jnp
 
-from ..base.terms import TimeDependentTerm
+from ..util import Partial
 
 Numeric = Union[float, complex]
 
@@ -70,11 +70,11 @@ class Drive:
 
         self._dim = dim
 
-        self._prefactor_terms: List[TimeDependentTerm] = []
+        self._prefactors: List[Partial] = []
 
         if isinstance(prefactor, Callable):
-            prefactor_term = TimeDependentTerm(prefactor)
-            self._prefactor_terms.append(prefactor_term)
+            partial_prefactor = Partial(prefactor)
+            self._prefactors.append(partial_prefactor)
         elif isinstance(prefactor, Iterable):
             prefactors = list(prefactor)
             if isinstance(self._op, list):
@@ -87,12 +87,12 @@ class Drive:
                         f"instead got {num_prefactors} prefactors and {num_ops} operators."
                     )
 
-            for single_prefactor in prefactors:
-                if not isinstance(single_prefactor, Callable):
+            for op_prefactor in prefactors:
+                if not isinstance(op_prefactor, Callable):
                     raise ValueError("Each prefactor in prefactors must be a callable.")
 
-                prefactor_term = TimeDependentTerm(single_prefactor)
-                self._prefactor_terms.append(prefactor_term)
+                partial_prefactor = Partial(op_prefactor)
+                self._prefactors.append(partial_prefactor)
         else:
             raise ValueError(
                 "The prefactor must be a callable, or an iterable of callables."
@@ -123,70 +123,74 @@ class Drive:
         return self._dim
 
     @property
-    def free_params(self) -> List[str]:
+    def prefactors(self) -> List[Partial]:
+        """
+        prefactors Returns the prefactors of the time-dependent term.
+
+        Returns
+        -------
+        List[Partial]
+            The prefactors of the time-dependent term.
+        """
+        return self._prefactors
+
+    @property
+    def operator(self) -> Array | List[Array]:
+        """
+        operator Returns the operator of the time-dependent term.
+
+        Returns
+        -------
+        Array | List[Array]
+            The operator of the time-dependent term.
+        """
+        return self._op
+
+    @property
+    def free_params(self) -> Tuple[str, ...]:
         """
         free_params Returns the free parameters of the possibly time-dependent drive term.
 
         Returns
         -------
-        List[str]
-            The list of free parameters (str) of the possibly time-dependent drive term.
+        Tuple[str]
+            The tuple of free parameters (str) of the possibly time-dependent drive term.
         """
         params = set()
-        for prefactor_term in self._prefactor_terms:
-            if isinstance(prefactor_term, TimeDependentTerm):
-                params.update(prefactor_term.free_params)
-        return list(params)
+        for prefactor in self._prefactors:
+            params.update(prefactor.free_params)
+        return tuple(params)
 
     @property
-    def params(self) -> List[str]:
+    def params(self) -> Tuple[str, ...]:
         """
         params Returns the parameters of the possibly time-dependent drive term. This includes both free and fixed parameters.
 
         Returns
         -------
-        List[str]
-            The list of parameters (str) of the possibly time-dependent drive term.
+        Tuple[str]
+            The tuple of parameters (str) of the possibly time-dependent drive term.
         """
         params = set()
-        for prefactor_term in self._prefactor_terms:
-            if isinstance(prefactor_term, TimeDependentTerm):
-                params.update(prefactor_term.params)
-        return list(params)
+        for prefactor in self._prefactors:
+            params.update(prefactor.params)
+        return tuple(params)
 
-    @property
-    def param_vals(self) -> dict[str, Any]:
-        """
-        param_vals Returns the parameter values of the possibly time-dependent drive.
-
-        Returns
-        -------
-        dict[str, Any]
-            The dictionary of parameter names (str) and corresponding values (Any) of the possibly time-dependent drive.
-        """
-        params = {}
-        for prefactor_term in self._prefactor_terms:
-            if isinstance(prefactor_term, TimeDependentTerm):
-                params.update(prefactor_term.param_vals)
-        return params
-
-    def set_params(self, **params) -> None:
+    def set_params(self, **keywords) -> None:
         """
         set_params Sets the parameters of the time-dependent term.
 
         Parameters
         ----------
-        **params
+        **keywords
             The parameters of the time-dependent term.
         """
-        for term in self._prefactor_terms:
-            if isinstance(term, TimeDependentTerm):
-                term_params = term.params
-                given_params = {
-                    param: val for param, val in params.items() if param in term_params
-                }
-                if given_params:
-                    term.set_params(**given_params)
+        for prefactor in self._prefactors:
+            prefactor_params = set(prefactor.keyword_args)
+
+            for param, value in keywords.items():
+                if param in prefactor_params:
+                    prefactor.set_keyword(param, value)
 
     def eval_prefactors(self, **params) -> Iterator[Numeric]:
         """
@@ -197,8 +201,23 @@ class Drive:
         Numeric
             The evaluated prefactor.
         """
-        for term in self._prefactor_terms:
-            yield term.eval_prefactor(**params)
+        for prefactor in self._prefactors:
+            req_pos_args = prefactor.req_pos_args
+            args = []
+            for pos_arg in req_pos_args:
+                if pos_arg not in params:
+                    raise ValueError(f"Missing required positional argument {pos_arg}.")
+                arg_val = params[pos_arg]
+                args.append(arg_val)
+
+            keyword_args = prefactor.keyword_args
+            keywords = {}
+            for keyword_arg in keyword_args:
+                if keyword_arg in params:
+                    keywords[keyword_arg] = params[keyword_arg]
+
+            prefactor_val = prefactor(*args, **keywords)
+            yield prefactor_val
 
     def _get_hamiltonian(self, **params) -> Array:
         """
@@ -246,19 +265,31 @@ class Drive:
         """
         return self._get_hamiltonian(**params)
 
-    def decompose(self) -> Iterator[Tuple[TimeDependentTerm, Array]]:
+    def decompose(self, **params) -> Iterator[Tuple[Callable, Array]]:
         """
-        decompose Decomposes the Hamiltonian term associated with this drive
-        into the operators and corresponding prefactors that express it.
+        decompose Decomposes the drive term into a series of time-dependent prefactors (functool.partial methods) and operators.
+        """
+        prefactor_funcs = []
+        for prefactor in self._prefactors:
+            req_pos_args = prefactor.req_pos_args
+            args = []
+            for pos_arg in req_pos_args:
+                if pos_arg not in params:
+                    raise ValueError(f"Missing required positional argument {pos_arg}.")
+                arg_val = params[pos_arg]
+                args.append(arg_val)
 
-        Yields
-        ------
-        Iterator[Tuple[TimeDependentTerm, Array]]
-            An iterator of tuples containing the tuples of prefactor and the operator of the drive term.
-        """
+            keyword_args = prefactor.keyword_args
+            keywords = {}
+            for keyword_arg in keyword_args:
+                if keyword_arg in params:
+                    keywords[keyword_arg] = params[keyword_arg]
+
+            prefactor_func = prefactor.finalize(*args, **keywords)
+            prefactor_funcs.append(prefactor_func)
+
         if isinstance(self._op, list):
-            for prefactor, op in zip(self._prefactor_terms, self._op):
-                yield prefactor, op
+            yield from zip(prefactor_funcs, self._op)
         else:
-            for prefactor in self._prefactor_terms:
-                yield prefactor, self._op
+            for prefactor_func in prefactor_funcs:
+                yield prefactor_func, self._op
