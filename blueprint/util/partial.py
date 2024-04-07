@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Any, Callable, Tuple
+from typing import Any, Callable, Tuple, Dict
 
 from functools import partial
 from inspect import signature
@@ -11,19 +11,17 @@ class Partial:
     """
 
     def __init__(self, func: Callable, /, *args: Any, **keywords: Any) -> None:
-        self._min_num_args = 0
+        self._req_pos_args = []
         self._pos_args = []
 
         self._max_keywords = 0
         self._keywords = {}
-        self._keyword_args = []
         self._has_var_keywords = False
 
         sig = signature(func)
         for name, param in sig.parameters.items():
             if param.kind == param.POSITIONAL_ONLY:
-                self._pos_args.append(name)
-                self._min_num_args += 1
+                self._req_pos_args.append(name)
                 continue
 
             if param.kind == param.POSITIONAL_OR_KEYWORD:
@@ -35,7 +33,6 @@ class Partial:
                 )
 
             if param.kind == param.KEYWORD_ONLY:
-                self._keyword_args.append(name)
                 self._max_keywords += 1
 
             if param.kind == param.VAR_KEYWORD:
@@ -67,10 +64,37 @@ class Partial:
         """
         return self.__class__(self._func)
 
+    def __repr__(self) -> str:
+        func_repr = repr(self._func)
+        param_strs = []
+        for param in self.params:
+            val = self._keywords.get(param)
+            if val is not None:
+                param_strs.append(f"{param}={val}")
+            else:
+                param_strs.append(param)
+
+        param_str = ", ".join(param_strs)
+        repr_str = f"Parial({func_repr}, {param_str})"
+        return repr_str
+
+    @property
+    def req_pos_args(self) -> Tuple[str, ...]:
+        """
+        req_pos_args Returns the required positional-only arguments of the function. These arguments must be provided as positional arguments
+        when calling the function.
+
+        Returns
+        -------
+        Tuple[str, ...]
+            The required positional arguments of the function.
+        """
+        return tuple(self._req_pos_args)
+
     @property
     def pos_args(self) -> Tuple[str, ...]:
         """
-        pos_args Returns the positional arguments of the function. Note that this include both the positional-only and positional-or-keyword arguments.
+        pos_args Returns the positional-or-keyword arguments of the function. These arguments can be either provided as positional arguments or as keyword arguments.
 
         Returns
         -------
@@ -80,34 +104,17 @@ class Partial:
         return tuple(self._pos_args)
 
     @property
-    def free_args(self) -> Tuple[str, ...]:
-        """
-        free_args Returns the free arguments of the function. These are the positional arguments that have not been assigned a value.
-
-        Returns
-        -------
-        Tuple[str, ...]
-            The free arguments of the function.
-        """
-        names = []
-        for name in self._pos_args:
-            val = self._keywords.get(name)
-            if val is None:
-                names.append(name)
-
-        return tuple(names)
-
-    @property
     def keyword_args(self) -> Tuple[str, ...]:
         """
-        keywords Returns the keyword only arguments of the function.
+        keyword_args Returns the keyword arguments of the function.
+        Note that this also includes the positional-or-keyword arguments (see `pos_args` for more details).
 
         Returns
         -------
         Tuple[str, ...]
             The keyword arguments of the function.
         """
-        return tuple(self._keyword_args)
+        return tuple(self._keywords)
 
     @property
     def free_keyword_args(self) -> Tuple[str, ...]:
@@ -119,13 +126,20 @@ class Partial:
         Tuple[str, ...]
             The free keyword arguments of the function.
         """
-        names = []
-        for name in self._keyword_args:
-            val = self._keywords[name]
-            if val is None:
-                names.append(name)
-
+        names = (name for name, val in self._keywords.items() if val is None)
         return tuple(names)
+
+    @property
+    def keywords(self) -> Dict[str, Any]:
+        """
+        keywords Returns the keyword arguments of the function.
+
+        Returns
+        -------
+        Tuple[str, ...]
+            The keyword arguments of the function.
+        """
+        return self._keywords
 
     @property
     def params(self) -> Tuple[str, ...]:
@@ -137,8 +151,8 @@ class Partial:
         Tuple[str, ...]
             The parameters of the function.
         """
-        params = (*self._pos_args, *self._keyword_args)
-        return params
+        names = (*self.req_pos_args, *self.keyword_args)
+        return names
 
     @property
     def free_params(self) -> Tuple[str, ...]:
@@ -150,7 +164,7 @@ class Partial:
         Tuple[str, ...]
             The free arguments of the function.
         """
-        free_params = (*self.free_args, *self.free_keyword_args)
+        free_params = (*self.req_pos_args, *self.free_keyword_args)
         return free_params
 
     @property
@@ -165,6 +179,21 @@ class Partial:
         """
         return self._func
 
+    def set_keyword(self, name: str, value: Any) -> None:
+        """
+        set_keyword Sets the value of a keyword argument.
+
+        Parameters
+        ----------
+        name : str
+            The name of the keyword argument.
+        value : Any
+            The value of the keyword argument.
+        """
+        if name not in self._keywords:
+            raise ValueError(f"Got an unexpected keyword argument {name}.")
+        self._keywords[name] = value
+
     def set_params(self, /, *args, **keywords) -> None:
         """
         set_params Sets the parameters of the function.
@@ -177,9 +206,7 @@ class Partial:
             The values of the keyword arguments.
         """
         num_args = len(args)
-
-        pos_keyword_args = self._pos_args[self._min_num_args :]
-        max_num_args = len(pos_keyword_args)
+        max_num_args = len(self._pos_args)
 
         if num_args > max_num_args:
             raise ValueError(
@@ -187,7 +214,7 @@ class Partial:
             )
 
         for ind, val in enumerate(args):
-            name = pos_keyword_args[ind]
+            name = self._pos_args[ind]
             if name in keywords:
                 raise ValueError(f"Got multiple values for argument {name}.")
 
@@ -201,13 +228,18 @@ class Partial:
     def __call__(self, /, *args: Any, **keywords: Any) -> Any:
         num_args = len(args)
 
-        if num_args < self._min_num_args:
+        min_num_args = len(self._req_pos_args)
+
+        num_pos_args = len(self._pos_args)
+        max_num_args = min_num_args + num_pos_args
+
+        if num_args < min_num_args:
             raise ValueError(
-                f"Expected at least {self._min_num_args} positional arguments, got {num_args}."
+                f"Expected at least {min_num_args} positional arguments, got {num_args}."
             )
-        if num_args > self._max_num_args:
+        if num_args > max_num_args:
             raise ValueError(
-                f"Expected at most {self._max_num_args} positional arguments, got {num_args}."
+                f"Expected at most {max_num_args} positional arguments, got {num_args}."
             )
 
         if not self._has_var_keywords:
@@ -218,16 +250,14 @@ class Partial:
         _args = list(args)
         _keywords = {**self._keywords, **keywords}
 
+        num_set_args = num_args - min_num_args
         for ind, name in enumerate(self._pos_args):
-            if ind < self._min_num_args:
-                continue
-
-            if ind < num_args:
+            if ind < num_set_args:
+                if name in keywords:
+                    raise ValueError(f"Got multiple values for argument {name}.")
                 del _keywords[name]
                 continue
 
-            if name not in keywords:
-                raise ValueError(f"Got multiple values for argument {name}.")
             try:
                 arg = _keywords.pop(name)
                 _args.append(arg)
@@ -262,9 +292,13 @@ class Partial:
             The result of the function evaluation.
         """
         num_args = len(args)
-        if num_args > self._max_num_args:
+
+        min_num_args = len(self._req_pos_args)
+        max_num_args = min_num_args + len(self._pos_args)
+
+        if num_args > max_num_args:
             raise ValueError(
-                f"Expected at most {self._max_num_args} positional arguments, got {num_args}."
+                f"Expected at most {max_num_args} positional arguments, got {num_args}."
             )
 
         if not self._has_var_keywords:
@@ -272,15 +306,21 @@ class Partial:
                 if name not in self._keywords:
                     raise ValueError(f"Got an unexpected keyword argument {name}.")
 
-        _keywords = {**self._keywords, **keywords}
+        merged_keywords = {**self._keywords, **keywords}
+        set_keywords = {}
+        for name, val in merged_keywords.items():
+            if val is not None:
+                set_keywords[name] = val
+
         if num_args == 0:
-            print("Keyword only partial.")
-            return partial(self._func, **_keywords)
+            return partial(self._func, **set_keywords)
 
-        if num_args <= self._min_num_args:
-            print("Positional-only and keyword partial.")
-            return partial(self._func, *args, **_keywords)
+        if num_args <= min_num_args:
+            return partial(self._func, *args, **set_keywords)
 
-        for name in self._pos_args[self._min_num_args : num_args]:
-            del _keywords[name]
-        return partial(self._func, *args, **_keywords)
+        num_set_args = num_args - min_num_args
+        for ind in range(num_set_args):
+            name = self._pos_args[ind]
+            if name in set_keywords:
+                del set_keywords[name]
+        return partial(self._func, *args, **set_keywords)
