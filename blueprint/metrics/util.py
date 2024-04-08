@@ -40,6 +40,16 @@ def validate_ptm(ptm_op: Array, label: str | None = None) -> None:
         raise ValueError(
             f"The Pauli transfer matrices is expected to be real: the provided {op_label} is complex-valued."
         )
+    min_val = float(jnp.min(ptm_op))
+    if min_val < -1:
+        raise ValueError(
+            f"The Pauli transfer matrices is expected to have values in the range [-1, 1]: the provided {op_label} has a minimum value of {min_val}."
+        )
+    max_val = float(jnp.max(ptm_op))
+    if max_val > 1:
+        raise ValueError(
+            f"The Pauli transfer matrices is expected to have values in the range [-1, 1]: the provided {op_label} has a maximum value of {max_val}."
+        )
 
 
 def is_trace_preserving(
