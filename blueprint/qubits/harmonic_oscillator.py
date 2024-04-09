@@ -1,10 +1,12 @@
 from __future__ import annotations
 import math
+from typing import Callable
 
 from jax import numpy as jnp
 from jax import Array
 
 from ..base import QuantumSystem
+from ..drives import Drive
 
 
 class HarmonicOscillator(QuantumSystem):
@@ -324,6 +326,38 @@ class HarmonicOscillator(QuantumSystem):
         """
         potential = 0.5 * self._el * flux**2
         return potential
+
+    def add_charge_drive(self, label: str, charge_pulse: Callable) -> None:
+        """
+        add_charge_drive Applies a charge drive to the transmon.
+
+        Parameters
+        ----------
+        label : str
+            The label of the drive.
+        charge_pulse : Callable
+            The time-dependent charge pulse applied to the transmon. This must be a
+            callable object that returns the applied charge pulse as a function of time.
+
+        Raises
+        ------
+        ValueError
+            If a drive with the same label has already been
+        """
+        if label in self._drives:
+            raise ValueError(
+                f"A drive with the label '{label}' has already been applied to the transmon."
+            )
+
+        if not isinstance(charge_pulse, Callable):
+            raise ValueError(
+                f"The charge pulse must be either a float or a Callable object, instead got type {type(charge_pulse)}."
+            )
+
+        charge_op = self._get_charge_op()
+
+        drive = Drive(label, charge_pulse, charge_op)
+        self._drives[label] = drive
 
     @staticmethod
     def from_frequency(
