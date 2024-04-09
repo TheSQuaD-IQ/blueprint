@@ -43,7 +43,9 @@ class Device:
                     "Please ensure that qubits are not already part of a device."
                 )
 
-        self._qubits: List[QuantumSystem] = list(qubits)
+        self._qubits: List[QuantumSystem] = list(
+            qubits
+        )  # TODO: why is this a list and not a dict?
         self._qubit_inds: Dict[str, int] = {
             qubit.label: ind for ind, qubit in enumerate(qubits)
         }

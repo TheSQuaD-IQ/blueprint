@@ -75,17 +75,10 @@ def flat_top_gaussian(
     Returns:
         Numeric: _description_
     """
-    lengths = jnp.array([buffer_start, hold_time, buffer_end])
+    lengths = jnp.array([0.0, buffer_start, hold_time, buffer_end])
     amplitudes = jnp.array([0.0, amplitude, 0.0])
     timescale = 1 / (math.sqrt(2) * gaussian_filter_sigma)
-    times_drives = jnp.concatenate(
-        (
-            jnp.zeros(
-                1,
-            ),
-            jnp.cumsum(lengths),
-        )
-    )
+    times_drives = jnp.cumsum(lengths)
     erfs = -0.5 * jnp.diff(erf((t - times_drives) * timescale), axis=0)
     erfs = erfs / jnp.sum(erfs)
     pulse_amplitude = (erfs * amplitudes).sum(axis=0)
@@ -170,6 +163,7 @@ def net_zero_transition_coupling_pulse(
 
     lengths = jnp.array(
         [
+            0.0,
             buffer_start,
             half_hold_time,
             transition_time,
@@ -181,14 +175,7 @@ def net_zero_transition_coupling_pulse(
         [off_coupling, on_coupling, transition_coupling, on_coupling, off_coupling]
     )
     timescale = 1 / (math.sqrt(2) * gaussian_filter_sigma)
-    times_drives = jnp.concatenate(
-        (
-            jnp.zeros(
-                1,
-            ),
-            jnp.cumsum(lengths),
-        )
-    )
+    times_drives = jnp.cumsum(lengths)
     erfs = -0.5 * jnp.diff(erf((t - times_drives) * timescale), axis=0)
     erfs = erfs / jnp.sum(erfs)
     coupling_strength = (erfs * couplings).sum(axis=0)

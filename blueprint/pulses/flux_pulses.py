@@ -83,6 +83,7 @@ def net_zero_transition_flux_pulse(
     """
     lengths = jnp.array(
         [
+            0.0,
             buffer_start,
             half_hold_time,
             transition_time,
@@ -94,14 +95,7 @@ def net_zero_transition_flux_pulse(
         [0.0, hold_first_voltage, transition_voltage, -hold_first_voltage, 0.0]
     )
     timescale = 1 / (math.sqrt(2) * gaussian_filter_sigma)
-    times_drives = jnp.concatenate(
-        (
-            jnp.zeros(
-                1,
-            ),
-            jnp.cumsum(lengths),
-        )
-    )
+    times_drives = jnp.cumsum(lengths)
     erfs = -0.5 * jnp.diff(erf((t - times_drives) * timescale), axis=0)
     erfs = erfs / jnp.sum(erfs)
     pulse_voltage = (erfs * voltages).sum(axis=0)
