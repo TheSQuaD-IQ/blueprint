@@ -1,5 +1,5 @@
 import math
-from typing import Iterable, Tuple, Dict, List, Union
+from typing import Iterable, Tuple, Dict, List, Union, Callable, Iterator
 
 from jax import Array
 from jax import numpy as jnp
@@ -435,6 +435,64 @@ class Device:
         hamiltonian = self.process_op(native_hamiltonian)
         return hamiltonian
 
+    def _get_drive_hamiltonian(self, **params) -> Array:
+        """
+        _get_drive_hamiltonian Returns the sum of the Hamiltonian of each of the drives
+        applied to the qubits and couplings of the device.
+
+        Returns
+        -------
+        Array
+            The total drive Hamiltonian of the device.
+        """
+        hamiltonian = jnp.zeros((self._dim, self._dim))
+
+        for qubit in self.qubits:
+            for drive in qubit._drives.values():
+                drive_hamiltonian = drive.get_hamiltonian(**params)
+                hamiltonian = jnp.add(hamiltonian, drive_hamiltonian)
+
+        for coupling in self._couplings.values():
+            for drive in coupling._drives.values():
+                drive_hamiltonian = drive.get_hamiltonian(**params)
+                hamiltonian = jnp.add(hamiltonian, drive_hamiltonian)
+
+        return hamiltonian
+
+    def get_drive_hamiltonian_terms(self, **params) -> Iterator[Tuple[Callable, Array]]:
+        """
+        get_drive_hamiltonian_terms Returns an iterator over the
+        `(prefactor, processed_op)` for each drive applied to the qubits and couplings
+        or the device.
+
+        Returns
+        -------
+        Array
+            The total drive Hamiltonian of the device.
+        """
+        for qubit in self.qubits:
+            for drive in qubit._drives.values():
+                for prefactor, op in drive.decompose(**params):
+                    yield prefactor, self.process_op(op)
+
+        for coupling in self._couplings.values():
+            for drive in coupling._drives.values():
+                for prefactor, op in drive.decompose(**params):
+                    yield prefactor, self.process_op(op)
+
+    def get_drive_hamiltonian(self, **params) -> Array:
+        """
+        get_drive_hamiltonian Returns the sum of the Hamiltonian of each of the drives
+        applied to the device.
+
+        Returns
+        -------
+        Array
+            The total drive Hamiltonian of the device.
+        """
+        drive_hamiltonian = self._get_drive_hamiltonian(**params)
+        return self.process_op(drive_hamiltonian)
+
     def diagonalize(self, truncated_dim: int | None = None) -> None:
         """
         diagonalize Diagonalizes the device Hamiltonian.
@@ -449,7 +507,8 @@ class Device:
         ValueError
             If the truncated dimension is not an integer.
         ValueError
-            If the truncated dimension is less than 0 or greater than the current dimension.
+            If the truncated dimension is less than 0 or greater than the current
+            dimension.
         """
         if self.is_diagonalized:
             raise RuntimeError("The device has already been diagonalized.")
