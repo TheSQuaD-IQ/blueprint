@@ -1,13 +1,10 @@
 from __future__ import annotations
 import math
-from typing import Union, Callable
-from functools import wraps
 
 from jax import numpy as jnp
 from jax import Array
 
 from ..base import QuantumSystem
-from ..drives import Drive
 
 
 class HarmonicOscillator(QuantumSystem):

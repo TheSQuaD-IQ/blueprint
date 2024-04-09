@@ -1,4 +1,3 @@
-from .fidelity import gate_fidelity, entanglement_fidelity
-from ..operators import util
+from .fidelity import entanglement_fidelity, gate_fidelity
 
-__all__ = ["gate_fidelity", "entanglement_fidelity"]
+__all__ = ["entanglement_fidelity", "gate_fidelity"]

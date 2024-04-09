@@ -10,7 +10,7 @@ class Partial:
     A class that allows for partial application of functions. Compatible with positional only, positional or keyword, keyword only and variable keyword arguments.
     """
 
-    def __init__(self, func: Callable, /, *args: Any, **keywords: Any) -> None:
+    def __init__(self, /, func: Callable, *args: Any, **keywords: Any) -> None:
         self._req_pos_args = []
         self._pos_args = []
 
@@ -179,7 +179,7 @@ class Partial:
         """
         return self._func
 
-    def set_keyword(self, name: str, value: Any) -> None:
+    def set_keyword(self, /, name: str, value: Any) -> None:
         """
         set_keyword Sets the value of a keyword argument.
 
