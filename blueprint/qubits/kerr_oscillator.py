@@ -520,7 +520,7 @@ class KerrOscillator(QuantumSystem):
             freq_shift = shifted_freq - self.frequency
             return freq_shift
 
-        num_op = self._get_num_op()
+        num_op = self.get_num_op()
 
         drive = Drive(label, prefactor, num_op)
         self._drives[label] = drive
@@ -552,7 +552,7 @@ class KerrOscillator(QuantumSystem):
                 f"The charge pulse must be either a float or a Callable object, instead got type {type(charge_pulse)}."
             )
 
-        charge_op = self._get_charge_op()
+        charge_op = self.get_charge_op()
 
         drive = Drive(label, charge_pulse, charge_op)
         self._drives[label] = drive

@@ -469,8 +469,8 @@ class TunableTransmon(QuantumSystem):
 
         prefactors = (cos_prefactor, sin_prefactor)
 
-        cosphi_op = self._get_cosphi_op()
-        sinphi_op = self._get_sinphi_op()
+        cosphi_op = self.get_cosphi_op()
+        sinphi_op = self.get_sinphi_op()
         ops = (cosphi_op, sinphi_op)
 
         drive = Drive(label, prefactors, ops)
@@ -503,7 +503,7 @@ class TunableTransmon(QuantumSystem):
                 f"The charge pulse must be either a float or a Callable object, instead got type {type(charge_pulse)}."
             )
 
-        charge_op = self._get_charge_op()
+        charge_op = self.get_charge_op()
 
         drive = Drive(label, charge_pulse, charge_op)
         self._drives[label] = drive
