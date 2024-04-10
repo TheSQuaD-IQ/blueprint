@@ -450,12 +450,12 @@ class Device:
         hamiltonian = jnp.zeros((self._dim, self._dim))
 
         for qubit in self.qubits:
-            for drive in qubit._drives.values():
+            for drive in qubit.drives.values():
                 drive_hamiltonian = drive.get_hamiltonian(**params)
                 hamiltonian = jnp.add(hamiltonian, drive_hamiltonian)
 
         for coupling in self._couplings.values():
-            for drive in coupling._drives.values():
+            for drive in coupling.drives.values():
                 drive_hamiltonian = drive.get_hamiltonian(**params)
                 hamiltonian = jnp.add(hamiltonian, drive_hamiltonian)
 
