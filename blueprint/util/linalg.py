@@ -47,6 +47,23 @@ def tensor_product(ops: Iterable[Array]) -> Array:
     return reduce(jnp.kron, ops)
 
 
+def matrix_product(ops: Iterable[Array]) -> Array:
+    """
+    matrix_product Returns the matrix product of a list of operators.
+
+    Parameters
+    ----------
+    ops : Iterable[Array]
+        The list of operators to matrix product.
+
+    Returns
+    -------
+    Array
+        The matrix product of the operators.
+    """
+    return reduce(jnp.matmul, ops)
+
+
 def embed_op(
     op: Array,
     ind: int,

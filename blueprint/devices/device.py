@@ -7,7 +7,7 @@ from jax.scipy.linalg import eigh
 
 from ..base import QuantumSystem
 from ..couplings import Coupling
-from ..util.linalg import transform_op, tensor_product
+from ..util.linalg import transform_op, tensor_product, matrix_product
 from ..util.index import state_index, max_overlap_inds
 
 Numeric = Union[float, complex]
@@ -473,12 +473,12 @@ class Device:
             The total drive Hamiltonian of the device.
         """
         for qubit in self.qubits:
-            for drive in qubit._drives.values():
+            for drive in qubit.drives.values():
                 for prefactor, op in drive.decompose(**params):
                     yield prefactor, self.process_op(op)
 
         for coupling in self._couplings.values():
-            for drive in coupling._drives.values():
+            for drive in coupling.drives.values():
                 for prefactor, op in drive.decompose(**params):
                     yield prefactor, self.process_op(op)
 
@@ -598,3 +598,29 @@ class Device:
         energy = eig_vals[eig_ind]
         state = eig_vecs[:, eig_ind]
         return energy, state
+
+    def get_comp_projector(self) -> Array:
+        """
+        get_comp_projector Returns the projector onto the computational subspace.
+
+        Returns
+        -------
+        Array
+            The projector onto the computational subspace.
+        """
+        ops = (qubit.get_comp_projector() for qubit in self._qubits)
+        comp_projector = matrix_product(ops)
+        return self.process_op(comp_projector)
+
+    def get_leak_projector(self) -> Array:
+        """
+        get_leak_projector Returns the projector onto the leakage subspace.
+
+        Returns
+        -------
+        Array
+            The projector onto the leakage subspace.
+        """
+        ops = (qubit.get_leak_projector() for qubit in self._qubits)
+        comp_projector = matrix_product(ops)
+        return self.process_op(comp_projector)

@@ -240,7 +240,7 @@ class QuantumSystem(metaclass=ABCMeta):
     def _get_diagonal_hamiltonian(self) -> Array:
         dim = self._trunc_dim or self._dim
 
-        eig_vals = self.get_eigenvalues()
+        eig_vals = self._get_eigenvalues()
         hamiltonian = jnp.diag(eig_vals[:dim])
         return hamiltonian
 
@@ -276,7 +276,7 @@ class QuantumSystem(metaclass=ABCMeta):
         """
 
     def _get_eigenvalues(self) -> Array:
-        hamiltonian = self.get_hamiltonian()
+        hamiltonian = self._get_hamiltonian()
         eig_vals = jsp.linalg.eigh(hamiltonian, eigvals_only=True)
         norm_vals = eig_vals - eig_vals[0]
         return norm_vals
@@ -548,12 +548,6 @@ class QuantumSystem(metaclass=ABCMeta):
         state = eig_vecs[state_index]
         return energy, state
 
-    def _get_comp_projector(self) -> Array:
-        _, eig_vecs = self._get_eigenstates()
-        comp_states = eig_vecs[:, :2]
-        projector = comp_states @ jnp.conj(comp_states.T)
-        return projector
-
     def get_comp_projector(self) -> Array:
         """
         get_comp_projector Returns the projector onto the computational subspace.
@@ -564,13 +558,16 @@ class QuantumSystem(metaclass=ABCMeta):
             The projector onto the computational subspace.
         """
         if self._diagonalized:
-            comp_elems = jnp.ones(2)
-            pad_widths = (0, self._dim - 2)
+            comp_dim = 2
+            comp_elems = jnp.ones(comp_dim)
+            pad_widths = (0, self._dim - comp_dim)
             diag_elems = jnp.pad(comp_elems, pad_widths)
             projector = jnp.diag(diag_elems)
             return self.process_op(projector, diagonalize=False)
 
-        comp_projector = self._get_comp_projector()
+        _, states = self._get_eigenstates()
+        comp_states = states[:, :2]
+        comp_projector = get_projector(comp_states)
         return self.process_op(comp_projector)
 
     def get_leak_projector(self) -> Array:
@@ -582,17 +579,28 @@ class QuantumSystem(metaclass=ABCMeta):
         Array
             The projector onto the leakage subspace.
         """
+        if self._dim < 3:
+            raise ValueError(
+                "The Hilbert space dimension must be greater than 2 to have a leakage subspace."
+            )
+
         if self._diagonalized:
-            comp_elems = jnp.zeros(2)
-            pad_widths = (0, self._dim - 2)
+            comp_dim = 2
+            comp_elems = jnp.zeros(comp_dim)
+            pad_widths = (0, self._dim - comp_dim)
             diag_elems = jnp.pad(comp_elems, pad_widths, constant_values=1)
             projector = jnp.diag(diag_elems)
             return self.process_op(projector, diagonalize=False)
 
-        id_op = jnp.identity(self._dim)
-        comp_projector = self._get_comp_projector()
-        leak_projector = id_op - comp_projector
+        _, states = self._get_eigenstates()
+        leak_states = states[:, 2:]
+        leak_projector = get_projector(leak_states)
         return self.process_op(leak_projector)
+
+
+def get_projector(subspace_states: Array) -> Array:
+    projector = subspace_states @ jnp.conj(subspace_states.T)
+    return projector
 
 
 def get_pos_eigenvectors(eig_vecs: Array) -> Array:
