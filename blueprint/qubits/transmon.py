@@ -469,8 +469,8 @@ class TunableTransmon(QuantumSystem):
 
         prefactors = (cos_prefactor, sin_prefactor)
 
-        cosphi_op = self.get_cosphi_op()
-        sinphi_op = self.get_sinphi_op()
+        cosphi_op = self._get_cosphi_op()
+        sinphi_op = self._get_sinphi_op()
         ops = (cosphi_op, sinphi_op)
 
         drive = Drive(label, prefactors, ops)
