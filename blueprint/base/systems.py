@@ -275,6 +275,12 @@ class QuantumSystem(metaclass=ABCMeta):
             The charge operator of the quantum system.
         """
 
+    def _get_eigenvalues(self) -> Array:
+        hamiltonian = self.get_hamiltonian()
+        eig_vals = jsp.linalg.eigh(hamiltonian, eigvals_only=True)
+        norm_vals = eig_vals - eig_vals[0]
+        return norm_vals
+
     def get_eigenvalues(self, *, truncate: bool = True) -> Array:
         """
         eig_vals Returns the eigenvalues of the quantum system Hamiltonian.
@@ -284,15 +290,17 @@ class QuantumSystem(metaclass=ABCMeta):
         Array
             The eigenvalues of the quantum system Hamiltonian.
         """
-        if truncate and self._truncated:
-            dim = self._trunc_dim
-        else:
-            dim = self._dim
+        eig_vals = self._get_eigenvalues()
+        if truncate:
+            dim = self._trunc_dim or self._dim
+            return eig_vals[:dim]
+        return eig_vals
 
+    def _get_eigenstates(self) -> Tuple[Array, Array]:
         hamiltonian = self._get_hamiltonian()
-        eig_vals = jsp.linalg.eigh(hamiltonian, eigvals_only=True)
+        eig_vals, eig_vecs = jsp.linalg.eigh(hamiltonian, eigvals_only=False)
         norm_vals = eig_vals - eig_vals[0]
-        return norm_vals[:dim]
+        return norm_vals, eig_vecs
 
     def get_eigenstates(
         self, *, diagonalize: bool = True, truncate: bool = True
@@ -310,8 +318,8 @@ class QuantumSystem(metaclass=ABCMeta):
         Tuple[Array, Array]
             The eigenvalues and eigenvectors of the quantum system Hamiltonian.
         """
-        if truncate and self._truncated:
-            dim = self._trunc_dim
+        if truncate:
+            dim = self._trunc_dim or self._dim
         else:
             dim = self._dim
 
@@ -320,10 +328,8 @@ class QuantumSystem(metaclass=ABCMeta):
             eig_vecs = jnp.identity(dim)
             return eig_vals[:dim], eig_vecs
 
-        hamiltonian = self._get_hamiltonian()
-        eig_vals, eig_vecs = jsp.linalg.eigh(hamiltonian, eigvals_only=False)
-        norm_vals = eig_vals - eig_vals[0]
-        return norm_vals[:dim], eig_vecs[:, :dim]
+        eig_vals, eig_vecs = self._get_eigenstates()
+        return eig_vals[:dim], eig_vecs[:, :dim]
 
     def diagonalize(self, truncated_dim: int | None = None) -> None:
         """
@@ -541,6 +547,52 @@ class QuantumSystem(metaclass=ABCMeta):
         energy = eig_vals[state_index]
         state = eig_vecs[state_index]
         return energy, state
+
+    def _get_comp_projector(self) -> Array:
+        _, eig_vecs = self._get_eigenstates()
+        comp_states = eig_vecs[:, :2]
+        projector = comp_states @ jnp.conj(comp_states.T)
+        return projector
+
+    def get_comp_projector(self) -> Array:
+        """
+        get_comp_projector Returns the projector onto the computational subspace.
+
+        Returns
+        -------
+        Array
+            The projector onto the computational subspace.
+        """
+        if self._diagonalized:
+            comp_elems = jnp.ones(2)
+            pad_widths = (0, self._dim - 2)
+            diag_elems = jnp.pad(comp_elems, pad_widths)
+            projector = jnp.diag(diag_elems)
+            return self.process_op(projector, diagonalize=False)
+
+        comp_projector = self._get_comp_projector()
+        return self.process_op(comp_projector)
+
+    def get_leak_projector(self) -> Array:
+        """
+        get_leak_projector Returns the projector onto the leakage subspace.
+
+        Returns
+        -------
+        Array
+            The projector onto the leakage subspace.
+        """
+        if self._diagonalized:
+            comp_elems = jnp.zeros(2)
+            pad_widths = (0, self._dim - 2)
+            diag_elems = jnp.pad(comp_elems, pad_widths, constant_values=1)
+            projector = jnp.diag(diag_elems)
+            return self.process_op(projector, diagonalize=False)
+
+        id_op = jnp.identity(self._dim)
+        comp_projector = self._get_comp_projector()
+        leak_projector = id_op - comp_projector
+        return self.process_op(leak_projector)
 
 
 def get_pos_eigenvectors(eig_vecs: Array) -> Array:
