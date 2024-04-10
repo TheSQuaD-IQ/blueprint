@@ -8,7 +8,7 @@ def cosine_pulse(
     amplitude_GHz: float,
     gate_time_ns: float,
     carrier_freq_GHz: float,
-    carrier_phase: float = 0.0,
+    carrier_phase: float,
 ) -> Array:
     """
     cosine_pulse A simple cosine envelope that starts and end at 0 amplitude at t=0.0
@@ -42,7 +42,7 @@ def cosine_drag_pulse(
     gate_time_ns: float,
     carrier_freq_GHz: float,
     drag_param: float,
-    carrier_phase: float = 0.0,
+    carrier_phase: float,
 ) -> Array:
     """
     cosine_drag_pulse A simple cosine envelope with in-phase DRAG pulse that starts and

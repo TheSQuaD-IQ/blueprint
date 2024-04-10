@@ -36,7 +36,7 @@ def validate_ptm(ptm_op: Array, label: str | None = None) -> None:
             f"Only square Pauli transfer matrices are accepted: the provided {op_label} is ({pauli_dim}, {other_dim}) dimensional."
         )
 
-    if not all(jnp.isreal(ptm_op)):
+    if not bool(jnp.all(jnp.isreal(ptm_op))):
         raise ValueError(
             f"The Pauli transfer matrices is expected to be real: the provided {op_label} is complex-valued."
         )
