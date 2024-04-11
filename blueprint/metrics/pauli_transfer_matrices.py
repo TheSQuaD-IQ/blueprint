@@ -4,7 +4,7 @@ from jax.typing import DTypeLike
 
 """
 This file contains pauli transfer matrices for all basic qubit operations.
-Most of the code is adapted from https://github.com/QudevETH/PycQED_py3/blob/qudev_master/pycqed/simulations/pauli_transfer_matrices.py
+Code adapted from https://github.com/QudevETH/PycQED_py3/blob/qudev_master/pycqed/simulations/pauli_transfer_matrices.py
 """
 
 DTYPE = jnp.complex128
