@@ -11,7 +11,7 @@ def modulated_flux_pulse(
     modulation_freq: float,
     ramp_time: float,
     hold_time: float,
-    std: float = 1.0,
+    std: float,
 ) -> float:
     """
     modulated_flux_pulse The pulse function for a modulated flux pulse. This pulse can be for example used to implement a LRU operation following the ETH paper TODO: add reference and exapand on the pulse.
@@ -58,7 +58,7 @@ def net_zero_transition_flux_pulse(
     buffer_start: float,
     buffer_end: float,
     flux_per_volt: float,
-    gaussian_filter_sigma: float = 1.0,
+    gaussian_filter_sigma: float,
 ) -> Array:
     """
     net_zero_transition_flux_pulse The Net Zero Transition flux pulse used for CPhase gates.
@@ -101,3 +101,60 @@ def net_zero_transition_flux_pulse(
     pulse_voltage = (erfs * voltages).sum(axis=0)
     applied_flux = pulse_voltage * flux_per_volt
     return applied_flux
+
+
+def net_zero_transition_flux_pulse_batchable_voltage(
+    t: float,
+    hold_first_voltage: jnp.ndarray,
+    transition_voltage: float,
+    half_hold_time: float,
+    transition_time: float,
+    buffer_start: float,
+    buffer_end: float,
+    flux_per_volt: float,
+    gaussian_filter_sigma: float,
+) -> Array:
+    """
+    net_zero_transition_flux_pulse The Net Zero Transition flux pulse used for CPhase gates.
+
+    Note: Voltages can also be fluxes directly if one uses `flux_per_volt = 1.0`.
+
+    Note2: Make sure the units match such that `time / gaussian_filter_sigma` is unitless.
+
+    Args:
+        t (float): _description_
+        hold_first_voltage (float): _description_
+        transition_voltage (float): _description_
+        half_hold_time (float): _description_
+        transition_time (float): _description_
+        buffer_start (float): _description_
+        buffer_end (float): _description_
+        flux_per_volt (float): _description_
+        gaussian_filter_sigma (float, optional): _description_. Defaults to 1.0.
+
+    Returns:
+        float: _description_
+    """
+    lengths = jnp.array(
+        [
+            0.0,
+            buffer_start,
+            half_hold_time,
+            transition_time,
+            half_hold_time,
+            buffer_end,
+        ]
+    )
+    voltages = jnp.stack(
+        [
+            jnp.array([0.0, voltage, transition_voltage, -voltage, 0.0])
+            for voltage in hold_first_voltage
+        ]
+    )
+    timescale = 1 / (math.sqrt(2) * gaussian_filter_sigma)
+    times_drives = jnp.cumsum(lengths)
+    erfs = -0.5 * jnp.diff(erf((t - times_drives) * timescale), axis=0)
+    erfs = erfs / jnp.sum(erfs)
+    pulse_voltages = (erfs[None, :] * voltages).sum(axis=1)
+    applied_fluxes = pulse_voltages * flux_per_volt
+    return applied_fluxes

@@ -98,7 +98,7 @@ def gaussian_pulse(
         amplitude_GHz (float): _description_
         gate_time_ns (float): _description_
         carrier_freq_GHz (float): _description_
-        carrier_phase (float, optional): _description_. Defaults to 0.0.
+        carrier_phase (float, optional): _description_.
 
     Returns:
         float: _description_
@@ -129,18 +129,21 @@ def gaussian_drag_pulse(
     and t=gate_time_ns, and reaches a maximal amplitude of `amplitude_GHz`.
 
     Note: The amplitude to implement a theta rotation should be
-    amplitude = theta / sqrt(2 * pi * sigma**2) / (
-            erf(T/sqrt(8*sigma**2)) -
-            T * exp(-T**2 / (8 * sigma**2))
-        )
-    according to Eq (3.2) of https://doi.org/10.1103/PhysRevA.83.012308.
+        amplitude = theta / sqrt(2 * pi * sigma**2) / (
+                erf(T/sqrt(8*sigma**2)) -
+                T * exp(-T**2 / (8 * sigma**2))
+            )
+        according to Eq (3.2) of https://doi.org/10.1103/PhysRevA.83.012308.
+
+    Note2: for detuning=0, drag_param should be `-1/4/anharmonicity` according to
+        Eq (4.34) of the same paper (Gambetta et al, 2011).
 
     Args:
         t (float): Time, in ns.
         amplitude_GHz (float): _description_
         gate_time_ns (float): _description_
         carrier_freq_GHz (float): _description_
-        carrier_phase (float, optional): _description_. Defaults to 0.0.
+        carrier_phase (float, optional): _description_.
 
     Returns:
         float: _description_
