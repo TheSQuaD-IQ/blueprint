@@ -1,6 +1,6 @@
 from __future__ import annotations
 import math
-from typing import Union, Callable
+from typing import Union, Callable, Iterator
 from functools import wraps
 
 from jax import numpy as jnp
@@ -556,6 +556,66 @@ class KerrOscillator(QuantumSystem):
 
         drive = Drive(label, charge_pulse, charge_op)
         self._drives[label] = drive
+
+    def get_relaxation_op(self) -> Array:
+        """
+        get_relaxation_op Returns the relaxation jump operator of the transmon.
+
+        Returns
+        -------
+        Array
+            The relaxation jump operator.
+
+        Raises
+        ------
+        ValueError
+            If the relaxation time has not been set.
+        """
+        if self._relax_time is None:
+            raise ValueError("The relaxation time has not been set.")
+        relax_rate = 1 / self._relax_time
+        prefactor = math.sqrt(relax_rate)
+
+        low_op = self.get_low_op()
+        relax_op = prefactor * low_op
+        return self.process_op(relax_op)
+
+    def get_dephasing_op(self) -> Array:
+        if self._deph_time is None:
+            raise ValueError("The dephasing time has not been set.")
+        deph_rate = 1 / self._deph_time
+        if self._relax_time is None:
+            prefactor = math.sqrt(deph_rate)
+
+            num_op = self._get_num_op()
+            deph_op = prefactor * num_op
+            return self.process_op(deph_op)
+
+        relax_rate = 1 / self._relax_time
+        pure_deph_rate = deph_rate - 0.5 * relax_rate
+        prefactor = math.sqrt(pure_deph_rate)
+
+        num_op = self._get_num_op()
+        deph_op = prefactor * num_op
+        return self.process_op(deph_op)
+
+    def get_jump_ops(self) -> Iterator[Array]:
+        """
+        get_jump_ops Yields the jump operators associated with the Kerr non-linear oscillator.
+        These correspond to either or both the energy relaxation and dephasing processes, depending on whether the values of the relaxation and dephasing times were provided, respectively.
+
+        Yields
+        ------
+        Iterator[Array]
+            The jump operators associated with the Kerr non-linear oscillator.
+        """
+        if self._relax_time is not None:
+            relax_op = self.get_relaxation_op()
+            yield relax_op
+
+        if self._deph_time is not None:
+            deph_op = self.get_dephasing_op()
+            yield deph_op
 
     @staticmethod
     def from_energies(
