@@ -1,9 +1,12 @@
 from __future__ import annotations
 import math
 from typing import Tuple
+from itertools import product
 
 from jax import Array
 from jax import numpy as jnp
+
+from ..util.operators import get_pauli_ops
 
 
 class OperatorBasis:
@@ -208,3 +211,63 @@ class OperatorBasis:
             "ji, ajk, kl -> ail", jnp.conj(trans_op), self._ops, trans_op
         )
         return OperatorBasis(transformed_ops, self._labels)
+
+    def tensor_prod(self, other: OperatorBasis) -> OperatorBasis:
+        """
+        tensor_prod Returns the tensor product of the operator basis with another operator basis.
+
+        Parameters
+        ----------
+        other : OperatorBasis
+            The other operator basis.
+
+        Returns
+        -------
+        OperatorBasis
+            The product operator basis.
+        """
+        dim = self.dim * other.dim
+        pauli_dim = self.pauli_dim * other.pauli_dim
+
+        op_product = jnp.einsum("aik,bjl -> abijkl", self.operators, other.operators)
+        operators = jnp.reshape(op_product, (pauli_dim, dim, dim))
+
+        delimiter = ""
+        label_products = product(self.labels, other.labels)
+        labels = tuple(map(delimiter.join, label_products))
+
+        basis = OperatorBasis(operators, labels)
+        return basis
+
+
+def get_pauli_basis(num_qubits: int = 1, normalize: bool = False) -> OperatorBasis:
+    """
+    get_pauli_basis Returns the Pauli basis for the specified number of qubits.
+
+    Parameters
+    ----------
+    num_qubits : int, optional
+        The number of qubits, by default 1
+    normalize : bool, optional
+        Whether to normalize the Pauli operators, by default False
+
+    Returns
+    -------
+    OperatorBasis
+        The Pauli operator basis.
+
+    Raises
+    ------
+    ValueError
+        If the number of qubits is not a positive integer.
+    NotImplementedError
+        If the number of qubits is greater than 1.
+    """
+    if num_qubits <= 0:
+        raise ValueError("Number of qubits must be a positive integer.")
+    if num_qubits > 1:
+        raise NotImplementedError("Only single-qubit Pauli operators are supported.")
+    operators = jnp.stack(get_pauli_ops(normalize=normalize))
+    labels = ("I", "X", "Y", "Z")
+    basis = OperatorBasis(operators, labels)
+    return basis
