@@ -212,7 +212,9 @@ class QuantumSystem(metaclass=ABCMeta):
             hamiltonian = jnp.add(hamiltonian, drive_hamiltonian)
         return hamiltonian
 
-    def get_drive_hamiltonian_terms(self, **params) -> Iterator[Tuple[Callable, Array]]:
+    def get_drive_hamiltonian_terms(
+        self, finalize: bool = True, **params
+    ) -> Iterator[Tuple[Callable, Array]]:
         """
         get_drive_hamiltonian_terms
 
@@ -222,7 +224,7 @@ class QuantumSystem(metaclass=ABCMeta):
             The total drive Hamiltonian.
         """
         for drive in self._drives.values():
-            for prefactor, op in drive.decompose(**params):
+            for prefactor, op in drive.decompose(finalize, **params):
                 yield prefactor, self.process_op(op)
 
     def get_drive_hamiltonian(self, **params) -> Array:

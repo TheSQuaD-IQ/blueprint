@@ -473,7 +473,9 @@ class Device:
 
         return hamiltonian
 
-    def get_drive_hamiltonian_terms(self, **params) -> Iterator[Tuple[Callable, Array]]:
+    def get_drive_hamiltonian_terms(
+        self, finalize: bool = True, **params
+    ) -> Iterator[Tuple[Callable, Array]]:
         """
         get_drive_hamiltonian_terms Returns an iterator over the
         `(prefactor, processed_op)` for each drive applied to the qubits and couplings
@@ -486,12 +488,12 @@ class Device:
         """
         for qubit in self.qubits:
             for drive in qubit.drives.values():
-                for prefactor, op in drive.decompose(**params):
+                for prefactor, op in drive.decompose(finalize, **params):
                     yield prefactor, self.process_op(op)
 
         for coupling in self._couplings.values():
             for drive in coupling.drives.values():
-                for prefactor, op in drive.decompose(**params):
+                for prefactor, op in drive.decompose(finalize, **params):
                     yield prefactor, self.process_op(op)
 
     def get_drive_hamiltonian(self, **params) -> Array:

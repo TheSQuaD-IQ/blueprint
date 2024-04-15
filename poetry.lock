@@ -409,7 +409,7 @@ files = []
 develop = false
 
 [package.dependencies]
-cmasher = "*"
+cmasher = ">=1.8.0"
 diffrax = ">=0.5.0"
 equinox = "*"
 imageio = "*"
@@ -419,7 +419,8 @@ jaxlib = "*"
 jaxtyping = "*"
 matplotlib = "*"
 numpy = "*"
-qutip = "*"
+qutip = ">=4.0,<5.0"
+scipy = "<=1.12"
 tqdm = "*"
 
 [package.extras]
@@ -429,7 +430,7 @@ dev = ["black", "codespell", "mkdocs-gen-files", "mkdocs-glightbox", "mkdocs-lit
 type = "git"
 url = "https://github.com/dynamiqs/dynamiqs.git"
 reference = "HEAD"
-resolved_reference = "9c4d3241cf1ba92871c4b004692252eb6e45a487"
+resolved_reference = "b406022672c961866d0114a82a83a5da0bb86c45"
 
 [[package]]
 name = "equinox"

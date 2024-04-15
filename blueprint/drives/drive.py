@@ -202,9 +202,8 @@ class Drive:
             The evaluated prefactor.
         """
         for prefactor in self._prefactors:
-            req_pos_args = prefactor.req_pos_args
             args = []
-            for pos_arg in req_pos_args:
+            for pos_arg in prefactor.pos_only_args:
                 if pos_arg not in params:
                     raise ValueError(f"Missing required positional argument {pos_arg}.")
                 arg_val = params[pos_arg]
@@ -290,9 +289,8 @@ class Drive:
             prefactors = []
 
             for prefactor in self._prefactors:
-                req_pos_args = prefactor.req_pos_args
                 args = []
-                for pos_arg in req_pos_args:
+                for pos_arg in prefactor.pos_only_args:
                     if pos_arg not in params:
                         raise ValueError(
                             f"Missing required positional argument {pos_arg}."
