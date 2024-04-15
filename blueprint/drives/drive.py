@@ -265,31 +265,54 @@ class Drive:
         """
         return self._get_hamiltonian(**params)
 
-    def decompose(self, **params) -> Iterator[Tuple[Callable, Array]]:
+    def decompose(
+        self, finalize: bool = True, **params
+    ) -> Iterator[Tuple[Callable, Array]]:
         """
-        decompose Decomposes the drive term into a series of time-dependent prefactors (functool.partial methods) and operators.
+        decompose Decomposes the drive term into prefactors and operators.
+
+        Parameters
+        ----------
+        finalize : bool, optional
+            Whether to finalize the prefactors, by default True
+
+        Yields
+        ------
+        Iterator[Tuple[Callable, Array]]
+            The prefactors and operators of the drive term.
+
+        Raises
+        ------
+        ValueError
+            If a required positional argument is missing.
         """
-        prefactor_funcs = []
-        for prefactor in self._prefactors:
-            req_pos_args = prefactor.req_pos_args
-            args = []
-            for pos_arg in req_pos_args:
-                if pos_arg not in params:
-                    raise ValueError(f"Missing required positional argument {pos_arg}.")
-                arg_val = params[pos_arg]
-                args.append(arg_val)
+        if finalize:
+            prefactors = []
 
-            keyword_args = prefactor.keyword_args
-            keywords = {}
-            for keyword_arg in keyword_args:
-                if keyword_arg in params:
-                    keywords[keyword_arg] = params[keyword_arg]
+            for prefactor in self._prefactors:
+                req_pos_args = prefactor.req_pos_args
+                args = []
+                for pos_arg in req_pos_args:
+                    if pos_arg not in params:
+                        raise ValueError(
+                            f"Missing required positional argument {pos_arg}."
+                        )
+                    arg_val = params[pos_arg]
+                    args.append(arg_val)
 
-            prefactor_func = prefactor.finalize(*args, **keywords)
-            prefactor_funcs.append(prefactor_func)
+                keyword_args = prefactor.keyword_args
+                keywords = {}
+                for keyword_arg in keyword_args:
+                    if keyword_arg in params:
+                        keywords[keyword_arg] = params[keyword_arg]
+
+                finalized_prefactor = prefactor.finalize(*args, **keywords)
+                prefactors.append(finalized_prefactor)
+        else:
+            prefactors = self._prefactors
 
         if isinstance(self._op, list):
-            yield from zip(prefactor_funcs, self._op)
+            yield from zip(prefactors, self._op)
         else:
-            for prefactor_func in prefactor_funcs:
-                yield prefactor_func, self._op
+            for prefactor in prefactors:
+                yield prefactor, self._op
