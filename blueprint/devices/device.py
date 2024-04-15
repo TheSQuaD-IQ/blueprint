@@ -253,6 +253,18 @@ class Device:
         """
         return self._dim
 
+    @property
+    def couplings(self) -> Dict[str, Coupling]:
+        """
+        couplings Returns the couplings in the device.
+
+        Returns
+        -------
+        Dict[str, Coupling]
+            The couplings in the device.
+        """
+        return self._couplings
+
     def add_capacative_coupling(
         self, qubits: Tuple[str, str], label: str, prefactor: Numeric
     ) -> None:
