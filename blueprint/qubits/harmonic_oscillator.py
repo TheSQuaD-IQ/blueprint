@@ -354,7 +354,7 @@ class HarmonicOscillator(QuantumSystem):
                 f"The charge pulse must be either a float or a Callable object, instead got type {type(charge_pulse)}."
             )
 
-        charge_op = self.get_charge_op()
+        charge_op = self._get_charge_op()
 
         drive = Drive(label, charge_pulse, charge_op)
         self._drives[label] = drive

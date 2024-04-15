@@ -503,10 +503,7 @@ class TunableTransmon(QuantumSystem):
                 f"The charge pulse must be either a float or a Callable object, instead got type {type(charge_pulse)}."
             )
 
-        charge_op = (
-            self.get_charge_op()
-        )  # TODO: Decide whether we want the drive ops to be processed or not at this point. Make it consistent with `add_flux_drive()`.
-
+        charge_op = self._get_charge_op()
         drive = Drive(label, charge_pulse, charge_op)
         self._drives[label] = drive
 
