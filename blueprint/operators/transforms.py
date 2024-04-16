@@ -1,6 +1,74 @@
 from jax import Array
 from jax import numpy as jnp
 
+from .basis import OperatorBasis
+
+
+def unitary_to_ptm(
+    unitary: Array, input_basis: OperatorBasis, output_basis: OperatorBasis
+) -> Array:
+    """
+    unitary_to_ptm Converts a unitary operator to a Pauli transfer matrix (PTM) superoperator.
+
+    Parameters
+    ----------
+    unitary : Array
+        The unitary operator.
+    input_basis : OperatorBasis
+        The input operator basis.
+    output_basis : OperatorBasis
+        The output operator basis.
+
+    Returns
+    -------
+    Array
+        The PTM superoperator.
+
+    Raises
+    ------
+    ValueError
+        If unitary is not a jax.numpy.ndarray.
+    ValueError
+        If unitary is not a 2D array.
+    ValueError
+        If unitary is not a square matrix.
+    ValueError
+        If input_basis is not an OperatorBasis object.
+    ValueError
+        If input_basis does not have the same dimension as unitary.
+    ValueError
+        If output_basis is not an OperatorBasis object.
+    ValueError
+        If output_basis does not have the same dimension as unitary.
+    """
+    if not isinstance(unitary, Array):
+        raise ValueError("unitary must be a jax.numpy.ndarray")
+    num_dims = len(unitary.shape)
+    if num_dims != 2:
+        raise ValueError("unitary must be a 2D array")
+    dim, other_dim = unitary.shape
+    if dim != other_dim:
+        raise ValueError("unitary must be a square matrix")
+
+    if not isinstance(input_basis, OperatorBasis):
+        raise ValueError("input_basis must be an OperatorBasis object")
+    if input_basis.dim != dim:
+        raise ValueError("input_basis must have the same dimension as unitary")
+
+    if not isinstance(output_basis, OperatorBasis):
+        raise ValueError("output_basis must be an OperatorBasis object")
+    if output_basis.dim != dim:
+        raise ValueError("output_basis must have the same dimension as unitary")
+
+    ptm = jnp.einsum(
+        "iab, bc, jcd, ad -> ij",
+        input_basis.operators,
+        unitary,
+        output_basis.operators,
+        jnp.conjugate(unitary),
+    )
+    return ptm.real / dim
+
 
 def kraus_to_ptm(
     kraus_ops: Array, input_basis_ops: Array, output_basis_ops: Array
