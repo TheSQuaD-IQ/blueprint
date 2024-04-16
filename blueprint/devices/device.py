@@ -487,9 +487,8 @@ class Device:
             The total drive Hamiltonian of the device.
         """
         for qubit in self.qubits:
-            for drive in qubit.drives.values():
-                for prefactor, op in drive.decompose(finalize, **params):
-                    yield prefactor, self.process_op(op)
+            for prefactor, op in qubit.get_drive_hamiltonian_terms(finalize, **params):
+                yield prefactor, self.process_op(op)
 
         for coupling in self._couplings.values():
             for drive in coupling.drives.values():
