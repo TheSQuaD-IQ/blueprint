@@ -312,6 +312,34 @@ class KerrOscillator(QuantumSystem):
         """
         return (2 * self.charging_energy / self.eff_josephson_energy) ** 0.25
 
+    def get_frequency(self, flux: float | None = None) -> float:
+        """
+        get_frequency Returns the frequency shift of the transmon due to the applied flux.
+
+        Parameters
+        ----------
+        flux : float
+            The applied flux.
+
+        Returns
+        -------
+        float
+            The frequency shift.
+        """
+        if flux is None:
+            return self.frequency
+
+        total_flux = self._ext_flux + flux
+
+        cos_term = abs(math.cos(total_flux))
+        sqrt_term = math.sqrt(1 + self.asymmetry**2 * math.tan(total_flux) ** 2)
+
+        eff_ej = self.josephson_energy * cos_term * sqrt_term
+        res_freq = math.sqrt(8 * self.charging_energy * eff_ej)
+
+        shifted_freq = res_freq - self.charging_energy
+        return shifted_freq
+
     def _get_raise_op(self) -> Array:
         """
         _get_creation_op Returns the raising (creation) operator of the transmon.
