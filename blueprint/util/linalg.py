@@ -121,3 +121,63 @@ def embed_ops(
         else:
             expanded_ops.append(jnp.identity(dim))
     return tensor_product(expanded_ops)
+
+
+def dag(op: Array) -> Array:
+    """
+    dag Returns the conjugate transpose of the operator.
+
+    Parameters
+    ----------
+    op : Array
+        The operator to conjugate transpose.
+
+    Returns
+    -------
+    Array
+        The conjugate transpose of the operator.
+    """
+    return jnp.transpose(jnp.conj(op))
+
+
+def is_hermitian(
+    op: Array, *, rtol: float = 1e-05, atol: float = 1e-08, equal_nan: bool = False
+) -> bool:
+    """
+    is_hermitian Checks if the provided operator is Hermitian.
+
+    Parameters
+    ----------
+    op : Array
+        The operator to check for Hermiticity.
+
+    Returns
+    -------
+    bool
+        Whether the provided operator is Hermitian.
+    """
+    conj_op = jnp.transpose(jnp.conj(op))
+    result = jnp.allclose(op, conj_op, rtol=rtol, atol=atol, equal_nan=equal_nan)
+    return bool(result)
+
+
+def is_diagonal(
+    op: Array, *, rtol: float = 1e-05, atol: float = 1e-08, equal_nan: bool = False
+) -> bool:
+    """
+    is_diagonal Checks if the provided operator is diagonal.
+
+    Parameters
+    ----------
+    op : Array
+        The operator to check for diagonalization.
+
+    Returns
+    -------
+    bool
+        Whether the provided operator is diagonal.
+    """
+    diag_elements = jnp.diag(op)
+    diag_op = jnp.diag(diag_elements)
+    result = jnp.allclose(op, diag_op, rtol=rtol, atol=atol, equal_nan=equal_nan)
+    return bool(result)
