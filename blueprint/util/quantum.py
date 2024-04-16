@@ -28,14 +28,14 @@ def state_overlap(state: Array, target_state: Array) -> Array:
     Parameters
     ----------
     state : Array
-        _description_
+        The state(s) that you want to calculate the overlap for.
     target_state : Array
-        _description_
+        The target state(s) that you want to calculate the overlap with.
 
     Returns
     -------
     Array
-        _description_
+        The overlap(s) between the state(s) and the target state(s).
     """
     state_dim = len(state.shape)
     target_dim = len(target_state.shape)
