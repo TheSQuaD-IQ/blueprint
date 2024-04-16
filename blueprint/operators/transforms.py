@@ -71,7 +71,7 @@ def unitary_to_ptm(
 
 
 def kraus_to_ptm(
-    kraus_ops: Array, input_basis_ops: Array, output_basis_ops: Array
+    kraus_ops: Array, input_basis: OperatorBasis, output_basis: OperatorBasis
 ) -> Array:
     """
     kraus_to_ptm Converts a set of Kraus operators to a Pauli transfer matrix (PTM) superoperator.
@@ -95,12 +95,38 @@ def kraus_to_ptm(
     Array
         The PTM superoperator.
     """
+    if not isinstance(kraus_ops, Array):
+        raise ValueError("unitary must be a jax.numpy.ndarray")
+    num_dims = len(kraus_ops.shape)
+    if num_dims == 2:
+        ops = jnp.expand_dims(kraus_ops, axis=0)
+    elif num_dims == 3:
+        ops = kraus_ops
+    else:
+        raise ValueError(
+            f"kraus_ops must be a 2D or 3D array, instead got a {num_dims}D array."
+        )
+    num_kraus, dim, other_dim = ops.shape
+    if dim != other_dim:
+        raise ValueError(
+            f"Each kraus operaator must be a square matrix, instead got a shape ({num_kraus},{dim},{other_dim})"
+        )
+    if not isinstance(input_basis, OperatorBasis):
+        raise ValueError("input_basis must be an OperatorBasis object")
+    if input_basis.dim != dim:
+        raise ValueError("input_basis must have the same dimension as unitary")
+
+    if not isinstance(output_basis, OperatorBasis):
+        raise ValueError("output_basis must be an OperatorBasis object")
+    if output_basis.dim != dim:
+        raise ValueError("output_basis must have the same dimension as unitary")
+
     dim = kraus_ops.shape[1]
     ptm = jnp.einsum(
         "iab, kbc, jcd, kad -> ij",
-        input_basis_ops,
+        input_basis.operators,
         kraus_ops,
-        output_basis_ops,
+        output_basis.operators,
         jnp.conjugate(kraus_ops),
     )
     return ptm.real / dim
