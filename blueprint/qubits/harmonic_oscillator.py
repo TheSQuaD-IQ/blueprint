@@ -363,37 +363,67 @@ class HarmonicOscillator(QuantumSystem):
     def from_frequency(
         label: str,
         frequency: float,
+        impedence: float,
         dim: int = 3,
         relax_time: float | None = None,
         deph_time: float | None = None,
     ) -> HarmonicOscillator:
         """
-        from_energies Create a HarmonicOscillator from the charging and Josephson energies. This is so far assuming symmetric junctions.
+        from_frequency Returns a HarmonicOscillator object from the frequency and impedence of the resonator.
 
         Parameters
         ----------
         label : str
-            The label of the transmon.
-        charge_energy : float
-            The charging energy of the transmon.
-        joseph_energy : float
-            The Josephson energy of the transmon.
-        ext_flux : float, optional
-            The external flux through the SQUID loop of the transmon, by default 0.0
-        asymmetry : float, optional
-            The asymmetry of the junction, by default 0.0
+            The label of the harmonic oscillator.
+        frequency : float
+            The frequency of the harmonic oscillator.
+        impedence : float
+            The characteristic impedence of the harmonic oscillator.
         dim : int, optional
-            The dimension of the Hilbert space of the transmon, by default 3
-        relax_time : float, optional
-            The relaxation time of the transmon, by default None
-        deph_time : float, optional
-            The dephasing time of the transmon, by default None
-
-
+            The dimensionality of the harmonic oscillator , by default 3
+        relax_time : float | None, optional
+            The relaxation time of the harmonic resonator, by default None
+        deph_time : float | None, optional
+            The dephasing time of the harmonic oscillatgor, by default None
 
         Returns
         -------
         HarmonicOscillator
-            The HarmonicOscillator instance.
+            The resulting HarmonicOscillator .
+
+        Raises
+        ------
+        ValueError
+            If the frequency is not a float.
+        ValueError
+            If the frequency is less than or equal to zero.
+        ValueError
+            If the impedence is not a float.
+        ValueError
+            If the impedence is less than or equal to zero.
         """
-        raise NotImplementedError("This method is not implemented yet.")
+        if not isinstance(frequency, float):
+            raise ValueError(
+                f"The frequency must be a float, instead got type {type(frequency)}."
+            )
+        if frequency <= 0.0:
+            raise ValueError("The frequency must be greater than zero.")
+
+        if not isinstance(impedence, float):
+            raise ValueError(
+                f"The impedence must be a float, instead got type {type(impedence)}."
+            )
+        if impedence <= 0.0:
+            raise ValueError("The impedence must be greater than zero.")
+
+        charging_energy = 1 / (impedence * frequency)
+        inductive_energy = impedence / frequency
+        oscillator = HarmonicOscillator(
+            label=label,
+            charging_energy=charging_energy,
+            inductive_energy=inductive_energy,
+            dim=dim,
+            relax_time=relax_time,
+            deph_time=deph_time,
+        )
+        return oscillator
