@@ -8,7 +8,7 @@ from jax.scipy.linalg import eigh
 from ..base import QuantumSystem
 from ..couplings import Coupling
 from ..util.linalg import transform_op, tensor_product, matrix_product
-from ..util.index import state_index, max_overlap_inds
+from ..util.index import state_index, get_max_overlap_inds
 
 Numeric = Union[float, complex]
 
@@ -582,7 +582,7 @@ class Device:
         bare_states = tensor_product(states_list)
         _, dressed_states = self.get_eigenstates()
 
-        self._eig_inds = max_overlap_inds(bare_states, dressed_states)
+        self._eig_inds = get_max_overlap_inds(bare_states, dressed_states)
 
     def get_eigenstate(self, *state_indices: int) -> Tuple[Array, Array]:
         """
