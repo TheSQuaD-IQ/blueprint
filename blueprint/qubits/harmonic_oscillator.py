@@ -219,9 +219,9 @@ class HarmonicOscillator(QuantumSystem):
         low_op = self._get_low_op()
         return self.process_op(low_op)
 
-    def _get_num_op(self) -> Array:
+    def _get_number_op(self) -> Array:
         """
-        _get_num_op Returns the number operator of the transmon.
+        _get_number_op Returns the number operator of the transmon.
 
         Returns
         -------
@@ -232,17 +232,17 @@ class HarmonicOscillator(QuantumSystem):
         diagonal = jnp.arange(dim)
         return jnp.diag(diagonal)
 
-    def get_num_op(self) -> Array:
+    def get_number_op(self) -> Array:
         """
-        get_num_op Returns the number operator of the transmon.
+        get_number_op Returns the number operator of the transmon.
 
         Returns
         -------
         Array
             The number operator in the current basis of the transmon.
         """
-        num_op = self._get_num_op()
-        return self.process_op(num_op)
+        number_op = self._get_number_op()
+        return self.process_op(number_op)
 
     def _get_hamiltonian(self) -> Array:
         """
@@ -253,8 +253,8 @@ class HarmonicOscillator(QuantumSystem):
         Array
             The Hamiltonian of the transmon expressed in the charge basis.
         """
-        num_op = self._get_num_op()
-        hamiltonian = self.frequency * num_op
+        number_op = self._get_number_op()
+        hamiltonian = self.frequency * number_op
         return hamiltonian
 
     def _get_charge_op(self, include_fluctuations: bool) -> Array:

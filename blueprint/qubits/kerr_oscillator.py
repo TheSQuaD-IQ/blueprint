@@ -390,9 +390,9 @@ class KerrOscillator(QuantumSystem):
         low_op = self._get_low_op()
         return self.process_op(low_op)
 
-    def _get_num_op(self) -> Array:
+    def _get_number_op(self) -> Array:
         """
-        _get_num_op Returns the number operator of the transmon.
+        _get_number_op Returns the number operator of the transmon.
 
         Returns
         -------
@@ -403,17 +403,17 @@ class KerrOscillator(QuantumSystem):
         diagonal = jnp.arange(dim)
         return jnp.diag(diagonal)
 
-    def get_num_op(self) -> Array:
+    def get_number_op(self) -> Array:
         """
-        get_num_op Returns the number operator of the transmon.
+        get_number_op Returns the number operator of the transmon.
 
         Returns
         -------
         Array
             The number operator in the current basis of the transmon.
         """
-        num_op = self._get_num_op()
-        return self.process_op(num_op)
+        number_op = self._get_number_op()
+        return self.process_op(number_op)
 
     def _get_hamiltonian(self) -> Array:
         """
@@ -427,9 +427,9 @@ class KerrOscillator(QuantumSystem):
 
         low_op = self._get_low_op()
         raise_op = self._get_raise_op()
-        num_op = self._get_num_op()
+        number_op = self._get_number_op()
 
-        oscillator_term = self.frequency * num_op
+        oscillator_term = self.frequency * number_op
 
         anharm_op = raise_op @ raise_op @ low_op @ low_op
         anharmonic_term = 0.5 * self._anharm * anharm_op
@@ -553,9 +553,9 @@ class KerrOscillator(QuantumSystem):
             freq_shift = shifted_freq - self.frequency
             return freq_shift
 
-        num_op = self._get_num_op()
+        number_op = self._get_number_op()
 
-        drive = Drive(label, prefactor, num_op)
+        drive = Drive(label, prefactor, number_op)
         self._drives[label] = drive
 
     def add_charge_drive(
@@ -622,16 +622,16 @@ class KerrOscillator(QuantumSystem):
         if self._relax_time is None:
             prefactor = math.sqrt(deph_rate)
 
-            num_op = self._get_num_op()
-            deph_op = prefactor * num_op
+            number_op = self._get_number_op()
+            deph_op = prefactor * number_op
             return self.process_op(deph_op)
 
         relax_rate = 1 / self._relax_time
         pure_deph_rate = deph_rate - 0.5 * relax_rate
         prefactor = math.sqrt(pure_deph_rate)
 
-        num_op = self._get_num_op()
-        deph_op = prefactor * num_op
+        number_op = self._get_number_op()
+        deph_op = prefactor * number_op
         return self.process_op(deph_op)
 
     def get_jump_ops(self) -> Iterator[Array]:

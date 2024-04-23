@@ -431,6 +431,30 @@ class TunableTransmon(QuantumSystem):
         hamil = kinetic_term + potential_term
         return hamil
 
+    def get_number_op(self) -> Array:
+        """
+        get_number_op Returns the number operator of the transmon.
+
+        Returns
+        -------
+        Array
+            The number operator of the transmon.
+
+        Raises
+        ------
+        NotImplementedError
+            If the transmon is not diagonalized.
+        """
+        if self._diagonalized:
+            diag_elems = jnp.arange(self._dim)
+            num_op = jnp.diag(diag_elems)
+            processed_op = self.process_op(num_op, diagonalize=False)
+            return processed_op
+
+        raise NotImplementedError(
+            "The number operator is only available in the diagonal (energy) basis."
+        )
+
     def get_potential(self, phases: Union[float, Array]) -> Array:
         """
         potential Returns the potential energy of the transmon.
