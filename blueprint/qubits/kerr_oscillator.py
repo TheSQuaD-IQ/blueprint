@@ -437,7 +437,7 @@ class KerrOscillator(QuantumSystem):
         hamiltonian = oscillator_term + anharmonic_term
         return hamiltonian
 
-    def _get_charge_op(self) -> Array:
+    def _get_charge_op(self, include_fluctuations: bool) -> Array:
         """
         _get_charge_op Returns the charge operator of the transmon in the Fock basis.
 
@@ -448,10 +448,12 @@ class KerrOscillator(QuantumSystem):
         """
         low_op = self._get_low_op()
         raise_op = self._get_raise_op()
-        charge_op = 1.0j * self.charge_zpf * (raise_op - low_op)
+        charge_op = 1.0j * (raise_op - low_op)
+        if include_fluctuations:
+            return self.charge_zpf * charge_op
         return charge_op
 
-    def get_charge_op(self) -> Array:
+    def get_charge_op(self, *, include_fluctuations: bool = True) -> Array:
         """
         charge_op Returns the charge operator of the transmon.
 
@@ -460,10 +462,10 @@ class KerrOscillator(QuantumSystem):
         Array
             The charge operator, in the current basis of the transmon.
         """
-        charge_op = self._get_charge_op()
+        charge_op = self._get_charge_op(include_fluctuations)
         return self.process_op(charge_op)
 
-    def _get_flux_op(self) -> Array:
+    def _get_flux_op(self, include_fluctuations: bool) -> Array:
         """
         _get_flux_op Returns the flux operator of the transmon in the Fock basis.
 
@@ -474,9 +476,12 @@ class KerrOscillator(QuantumSystem):
         """
         low_op = self._get_low_op()
         raise_op = self._get_raise_op()
-        return self.flux_zpf * (raise_op + low_op)
+        flux_op = raise_op + low_op
+        if include_fluctuations:
+            return self.flux_zpf * flux_op
+        return flux_op
 
-    def get_flux_op(self) -> Array:
+    def get_flux_op(self, *, include_fluctuations: bool = True) -> Array:
         """
         get_flux_op Returns the flux operator of the transmon.
 
@@ -485,7 +490,7 @@ class KerrOscillator(QuantumSystem):
         Array
             The flux operator, in the current basis of the transmon.
         """
-        flux_op = self._get_flux_op()
+        flux_op = self._get_flux_op(include_fluctuations)
         return self.process_op(flux_op)
 
     def get_potential(self, phases: Union[float, Array]) -> Array:
@@ -553,7 +558,9 @@ class KerrOscillator(QuantumSystem):
         drive = Drive(label, prefactor, num_op)
         self._drives[label] = drive
 
-    def add_charge_drive(self, label: str, charge_pulse: Callable) -> None:
+    def add_charge_drive(
+        self, label: str, charge_pulse: Callable, *, include_fluctuations: bool = True
+    ) -> None:
         """
         add_charge_drive Applies a charge drive to the transmon.
 
@@ -580,7 +587,7 @@ class KerrOscillator(QuantumSystem):
                 f"The charge pulse must be either a float or a Callable object, instead got type {type(charge_pulse)}."
             )
 
-        charge_op = self._get_charge_op()
+        charge_op = self._get_charge_op(include_fluctuations)
 
         drive = Drive(label, charge_pulse, charge_op)
         self._drives[label] = drive

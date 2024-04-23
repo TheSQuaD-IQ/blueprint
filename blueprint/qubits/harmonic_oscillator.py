@@ -2,6 +2,7 @@ from __future__ import annotations
 import math
 from typing import Callable
 
+from scipy.constants import e
 from jax import numpy as jnp
 from jax import Array
 
@@ -252,14 +253,11 @@ class HarmonicOscillator(QuantumSystem):
         Array
             The Hamiltonian of the transmon expressed in the charge basis.
         """
-        dim = self._trunc_dim or self._dim
         num_op = self._get_num_op()
-        id_op = jnp.identity(dim)
-
-        hamiltonian = self.frequency * (num_op + 0.5 * id_op)
+        hamiltonian = self.frequency * num_op
         return hamiltonian
 
-    def _get_charge_op(self) -> Array:
+    def _get_charge_op(self, include_fluctuations: bool) -> Array:
         """
         _get_charge_op Returns the charge operator of the transmon in the Fock basis.
 
@@ -270,10 +268,12 @@ class HarmonicOscillator(QuantumSystem):
         """
         low_op = self._get_low_op()
         raise_op = self._get_raise_op()
-        charge_op = 1.0j * self.charge_zpf * (raise_op - low_op)
+        charge_op = 1.0j * (raise_op - low_op)
+        if include_fluctuations:
+            return self.charge_zpf * charge_op
         return charge_op
 
-    def get_charge_op(self) -> Array:
+    def get_charge_op(self, *, include_fluctuations: bool = True) -> Array:
         """
         charge_op Returns the charge operator of the transmon.
 
@@ -282,10 +282,10 @@ class HarmonicOscillator(QuantumSystem):
         Array
             The charge operator, in the current basis of the transmon.
         """
-        charge_op = self._get_charge_op()
+        charge_op = self._get_charge_op(include_fluctuations)
         return self.process_op(charge_op)
 
-    def _get_flux_op(self) -> Array:
+    def _get_flux_op(self, include_fluctuations: bool) -> Array:
         """
         _get_flux_op Returns the flux operator of the transmon in the Fock basis.
 
@@ -296,9 +296,12 @@ class HarmonicOscillator(QuantumSystem):
         """
         low_op = self._get_low_op()
         raise_op = self._get_raise_op()
-        return self.flux_zpf * (raise_op + low_op)
+        flux_op = raise_op + low_op
+        if include_fluctuations:
+            return self.flux_zpf * flux_op
+        return flux_op
 
-    def get_flux_op(self) -> Array:
+    def get_flux_op(self, *, include_fluctuations: bool = True) -> Array:
         """
         get_flux_op Returns the flux operator of the transmon.
 
@@ -307,7 +310,7 @@ class HarmonicOscillator(QuantumSystem):
         Array
             The flux operator, in the current basis of the transmon.
         """
-        flux_op = self._get_flux_op()
+        flux_op = self._get_flux_op(include_fluctuations)
         return self.process_op(flux_op)
 
     def get_potential(self, flux: float | Array) -> float | Array:
@@ -327,7 +330,9 @@ class HarmonicOscillator(QuantumSystem):
         potential = 0.5 * self._el * flux**2
         return potential
 
-    def add_charge_drive(self, label: str, charge_pulse: Callable) -> None:
+    def add_charge_drive(
+        self, label: str, charge_pulse: Callable, *, include_fluctuations: bool = True
+    ) -> None:
         """
         add_charge_drive Applies a charge drive to the transmon.
 
@@ -354,7 +359,7 @@ class HarmonicOscillator(QuantumSystem):
                 f"The charge pulse must be either a float or a Callable object, instead got type {type(charge_pulse)}."
             )
 
-        charge_op = self._get_charge_op()
+        charge_op = self._get_charge_op(include_fluctuations)
 
         drive = Drive(label, charge_pulse, charge_op)
         self._drives[label] = drive
@@ -415,9 +420,11 @@ class HarmonicOscillator(QuantumSystem):
             )
         if impedence <= 0.0:
             raise ValueError("The impedence must be greater than zero.")
+        capacitance = 1 / (impedence * frequency)
+        charging_energy = (e**2) / (2 * capacitance)
 
-        charging_energy = 1 / (impedence * frequency)
-        inductive_energy = impedence / frequency
+        inductance = impedence / frequency
+        inductive_energy = 1 / (4 * (e**2) * inductance)
         oscillator = HarmonicOscillator(
             label=label,
             charging_energy=charging_energy,
