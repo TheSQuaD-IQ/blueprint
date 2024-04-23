@@ -227,9 +227,9 @@ class TunableTransmon(QuantumSystem):
         return sqrt_term - self._ec
 
     @property
-    def _wq_approx(self) -> float:
+    def _approx_freq(self) -> float:
         """
-        _wq_approx Returns the approximate 0-1 frequency of the transmon.
+        _approx_freq Returns the approximate 0-1 frequency of the transmon.
 
         Returns
         -------
@@ -248,28 +248,54 @@ class TunableTransmon(QuantumSystem):
         float
             The approximate transmon 0-1 frequency.
         """
-        return self._wq_approx
+        return self._approx_freq
 
     @property
-    def charge_zpf(self) -> Array:
+    def charge_zpf(self) -> float:
+        """
+        charge_zpf Returns the zero-point fluctuations of the charge variable of the transmon.
+        Note that this is only defined in the energy eigenbasis of the transmon, meaning
+        that the transmon must be diagonalized before calling this property.
+
+        Returns
+        -------
+        float
+            The zero-point fluctuations of the charge variable.
+
+        Raises
+        ------
+        ValueError
+            If the transmon is not diagonalized.
+        """
         if not self.is_diagonalized:
             raise ValueError(
                 "The charge zero-point fluctuations are only available in the diagonal basis."
             )
         charge_op = self._get_charge_op()
-        diag_op = self.process_op(charge_op, diagonalize=True, embed=False)
-        fluctuations = diag_op[0, 1].real
-        return fluctuations
+        diag_op = self.process_op(
+            charge_op, diagonalize=True, embed=False, truncate=False
+        )
+        squared_op = diag_op @ diag_op
+        exp_val = squared_op[0, 0]
+        charge_fluctuations = math.sqrt(float(exp_val.real))
+        return charge_fluctuations
 
     @property
-    def flux_zpf(self) -> Array:
+    def flux_zpf(self) -> float:
         """
-        flux_zpf Returns the zero-point fluctuations of the flux variable of the transmon.
+        charge_zpf Returns the zero-point fluctuations of the flux variable of the transmon.
+        Note that this is only defined in the energy eigenbasis of the transmon, meaning
+        that the transmon must be diagonalized before calling this property.
 
         Returns
         -------
         float
             The zero-point fluctuations of the flux variable.
+
+        Raises
+        ------
+        ValueError
+            If the transmon is not diagonalized.
         """
         return 1 / (2 * self.charge_zpf)
 
@@ -295,9 +321,9 @@ class TunableTransmon(QuantumSystem):
         Array
             The charge operator, in the current basis of the transmon.
         """
-        native_op = self._get_charge_op()
-        op = self.process_op(native_op)
-        return op
+        charge_op = self._get_charge_op()
+        processed_op = self.process_op(charge_op)
+        return processed_op
 
     def _get_cosphi_op(self) -> Array:
         """
