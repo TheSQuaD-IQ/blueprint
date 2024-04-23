@@ -1,11 +1,14 @@
 from typing import Tuple
+from functools import partial
 from itertools import accumulate
 from operator import mul
 
+import jax
 from jax import Array
 from jax import numpy as jnp
 
 from .quantum import state_overlap
+from ..util.linalg import dag
 
 
 def state_index(state: Tuple[int, ...], dims: Tuple[int, ...]) -> int:
@@ -35,7 +38,7 @@ def state_index(state: Tuple[int, ...], dims: Tuple[int, ...]) -> int:
     return ind
 
 
-def max_overlap_inds(states: Array, target_states: Array) -> Array:
+def get_max_overlap_inds(states: Array, target_states: Array) -> Array:
     """
     max_overlap_inds Returns the indices of the states with the maximum overlap with the target states.
 
@@ -53,5 +56,156 @@ def max_overlap_inds(states: Array, target_states: Array) -> Array:
     """
     overlaps = state_overlap(states, target_states)
     inds = jnp.argmax(overlaps, axis=-1)
+
+    return inds
+
+
+def get_next_ind(overlap_mat: Array, start_ind: Array) -> Tuple[Array, Array]:
+    """
+    get_next_ind Finds the next branch index given the current branch index and an overlap matrix.
+    The overlap matrix holds the information between
+
+    Parameters
+    ----------
+    overlap_mat : Array
+
+    start_ind : Array
+        _description_
+
+    Returns
+    -------
+    Tuple[Array, Array]
+        The updated overlap matrix and the next branch index.
+    """
+    next_ind = jnp.argmax(overlap_mat[:, start_ind])
+    overlap_mat = overlap_mat.at[next_ind].set(0.0)
+    return overlap_mat, next_ind
+
+
+def get_next_inds(
+    prev_carry: Tuple[Array, Array], _
+) -> Tuple[Tuple[Array, Array], Array]:
+    """
+    get_next_inds Finds the set of branch indices for the next branch given the current branch indices.
+    Each of the set of branch indicies correspond to the resonator being fixed in a certain state.
+
+    Parameters
+    ----------
+    prev_carry : Tuple[Array, Array]
+        The overlap matrix and the previous branch indices.
+    _ : None
+        Useless argument introduced to fit the signature of `jax.lax.scan`.
+
+    Returns
+    -------
+    Tuple[Tuple[Array, Array], Array]
+        The updated carry (overlap matrix and next branch indices) and the next branch indices (which are passed again for saving).
+    """
+    overlap_mat, prev_inds = prev_carry
+    overlap_mat, next_inds = jax.lax.scan(get_next_ind, overlap_mat, prev_inds)
+    next_carry = (overlap_mat, next_inds)
+    return next_carry, next_inds
+
+
+@partial(jax.jit, static_argnames=("num_branches"))
+def assign_branch_inds(
+    overlap_mat: Array, ground_inds: Array, num_branches: int
+) -> Array:
+    """
+    assign_branch_inds Assigns an index to each branch of the resonator.
+
+    Parameters
+    ----------
+    overlap_mat : Array
+        The overlap matrix.
+    ground_inds : Array
+        The indices of the ground state.
+    num_branches : int
+        The number of resonator branches. Typically, this is the dimensionality of the resonator.
+
+    Returns
+    -------
+    Array
+        The branch indices.
+    """
+    overlap_mat = overlap_mat.at[ground_inds].set(0)
+    init = (overlap_mat, ground_inds)
+    length = num_branches - 1
+    _, exc_inds = jax.lax.scan(get_next_inds, init, xs=None, length=length)
+    branch_inds = jnp.vstack((ground_inds, exc_inds))
+    return branch_inds
+
+
+def get_branch_inds(states: Array, raise_op: Array, ground_inds: Array) -> Array:
+    """
+    get_branch_inds Returns the indices of the states with maximum overlap with the states obtained by applying the raising operator to the input states.
+
+    Parameters
+    ----------
+    states : Array
+        The eigenstates of the system.
+    raise_op : Array
+        The raising operator of the resonator.
+    ground_inds : Array
+        The indices of the states corresponding to the resonator being in the ground state.
+
+    Returns
+    -------
+    Array
+        The indices of each of the branches of the resonator.
+
+    Raises
+    ------
+    ValueError
+        If the states are not a matrix of column vectors.
+    ValueError
+        If the number of states is greater than the dimension of the Hilbert space.
+    ValueError
+        If the raising operator is not a square matrix.
+    ValueError
+        If the raising operator does not have the same dimension as the Hilbert space of the states.
+    ValueError
+        If the number of ground states is greater than the dimension of the Hilbert space.
+    """
+    num_dims = len(states.shape)
+    if num_dims != 2:
+        raise ValueError("The states must be a matrix of column vectors.")
+
+    num_states, dim = states.shape
+
+    if num_states > dim:
+        raise ValueError(
+            "The number of states cannot be greater than the dimension of the Hilbert space."
+        )
+
+    num_op_dims = len(raise_op.shape)
+    if num_op_dims != 2:
+        raise ValueError("The raising operator must be a matrix.")
+
+    op_dim, other_dim = raise_op.shape
+    if op_dim != other_dim:
+        raise ValueError("The raising operator must be a square matrix.")
+
+    if op_dim != dim:
+        raise ValueError(
+            "The raising operator must have the same dimension as the Hilbert space of the states."
+        )
+
+    num_inds = len(ground_inds)
+
+    if num_inds >= dim:
+        raise ValueError(
+            "The number of ground states must be less than the dimension of the Hilbert space."
+        )
+
+    # Compute the branch criteria matrix
+    overlap_mat = jnp.abs(dag(states) @ raise_op @ states)
+
+    num_branches = dim / num_inds
+    # Assign the remaining branch indices
+    branch_inds = assign_branch_inds(overlap_mat, ground_inds, num_branches)
+
+    # Flatten the branch indices to a vector thaat can be used to extract the branch vectors
+    inds = jnp.ravel(jnp.transpose(branch_inds))
 
     return inds
