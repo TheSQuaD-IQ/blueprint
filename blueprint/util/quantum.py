@@ -64,3 +64,22 @@ def state_overlap(state: Array, target_state: Array) -> Array:
     )
 
     return jnp.abs(overlap)
+
+
+def expectation_value(states: Array, operator: Array) -> Array:
+    """
+    get_expectation_val Calculates the expectation value of an operator given a set of state vectors.
+
+    Parameters
+    ----------
+    vectors : Array
+        The eigenvectors of the Hamiltonian.
+    operator : Array
+        The operator for which the expectation value is to be calculated.
+
+    Returns
+    -------
+    Array
+        The expectation value of the operator for each state.
+    """
+    return jnp.einsum("ia, ...ij, ja -> a...", jnp.conj(states), operator, states)
