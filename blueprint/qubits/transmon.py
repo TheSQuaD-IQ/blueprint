@@ -9,8 +9,6 @@ from jax import Array
 from ..base import QuantumSystem
 from ..drives import Drive
 
-# NOTE: Separate class for fixed-frequency transmon?
-
 
 def check_var_validity(
     arg: float,
