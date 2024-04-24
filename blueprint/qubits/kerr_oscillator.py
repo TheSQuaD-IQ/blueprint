@@ -510,7 +510,7 @@ class KerrOscillator(QuantumSystem):
         potential = -self.josephson_energy * jnp.cos(phases)
         return potential
 
-    def add_flux_drive(self, label: str, flux_pulse: Callable) -> None:
+    def add_flux_drive(self, label: str, flux_pulse: Callable, **keywords) -> None:
         """
         add_flux_drive Applies a flux drive to the transmon.
 
@@ -549,10 +549,15 @@ class KerrOscillator(QuantumSystem):
             return freq_shift
 
         number_op = self._get_number_op()
-        self.add_drive(label, prefactor, number_op)
+        self.add_drive(label, prefactor, number_op, **keywords)
 
     def add_charge_drive(
-        self, label: str, charge_pulse: Callable, *, include_fluctuations: bool = True
+        self,
+        label: str,
+        charge_pulse: Callable,
+        *,
+        include_fluctuations: bool = True,
+        **keywords,
     ) -> None:
         """
         add_charge_drive Applies a charge drive to the transmon.
@@ -566,9 +571,11 @@ class KerrOscillator(QuantumSystem):
             callable object that returns the applied charge pulse as a function of time.
         """
         charge_op = self._get_charge_op(include_fluctuations)
-        self.add_drive(label, charge_pulse, charge_op)
+        self.add_drive(label, charge_pulse, charge_op, **keywords)
 
-    def add_detuning_drive(self, label: str, detuning_pulse: Callable) -> None:
+    def add_detuning_drive(
+        self, label: str, detuning_pulse: Callable, **keywords
+    ) -> None:
         """
         add_detuning_drive Applies a direct frequency detuning drive to the transmon.
         Note that this isn't a phyiscal drive, but rather a drive that directly detunes the qubit frequency.
@@ -585,7 +592,7 @@ class KerrOscillator(QuantumSystem):
             callable object that returns the applied frequency detuning pulse as a function of time.
         """
         number_op = self._get_number_op()
-        self.add_drive(label, detuning_pulse, number_op)
+        self.add_drive(label, detuning_pulse, number_op, **keywords)
 
     def get_relaxation_op(self) -> Array:
         """
