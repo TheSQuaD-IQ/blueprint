@@ -196,6 +196,7 @@ class QuantumSystem(metaclass=ABCMeta):
         label: str,
         pulse: Callable | Iterable[Callable],
         operator: Array | Iterable[Array],
+        **keywords,
     ) -> None:
         """
         add_drive Adds a drive to the quantum system.
@@ -253,6 +254,7 @@ class QuantumSystem(metaclass=ABCMeta):
             )
 
         drive = Drive(label, pulse, operator)
+        drive.set_params(**keywords)
         self._drives[label] = drive
 
     @abstractmethod

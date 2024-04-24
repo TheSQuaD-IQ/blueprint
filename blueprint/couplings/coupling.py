@@ -332,7 +332,7 @@ class Coupling:
             op = op[: self._trunc_dim, : self._trunc_dim]
         return op
 
-    def add_drive(self, label: str, coupling_pulse: Callable) -> None:
+    def add_drive(self, label: str, coupling_pulse: Callable, **keywords) -> None:
         """
         add_drive Adds a drive to the coupling term.
 
@@ -359,4 +359,5 @@ class Coupling:
             return coup_prefactor - self._prefactor
 
         drive = Drive(label, prefactor, self._operator)
+        drive.set_params(**keywords)
         self._drives[label] = drive
