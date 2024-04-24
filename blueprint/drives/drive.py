@@ -41,6 +41,13 @@ class Drive:
 
         elif isinstance(operator, Iterable):
             operators = list(operator)
+
+            for operator in operators:
+                if not isinstance(operator, Array):
+                    raise ValueError(
+                        f"Each drive operator must be a jax.Array object, instead got type {type(operator)}."
+                    )
+
             dim, _ = operators[0].shape
 
             for operator in operators:
@@ -62,19 +69,18 @@ class Drive:
                     )
 
             self._op = operators
-
         else:
             raise ValueError(
-                f"The operator must be a jax.Array or an iterable of jax.Arrays, instead got type {type(operator)}."
+                f"The drive operator must be either a jax.Array object or an Iterable of jax.Array objects, instead got type {type(operator)}."
             )
 
         self._dim = dim
-
         self._prefactors: List[Partial] = []
 
         if isinstance(prefactor, Callable):
             partial_prefactor = Partial(prefactor)
             self._prefactors.append(partial_prefactor)
+
         elif isinstance(prefactor, Iterable):
             prefactors = list(prefactor)
             if isinstance(self._op, list):
@@ -93,9 +99,10 @@ class Drive:
 
                 partial_prefactor = Partial(op_prefactor)
                 self._prefactors.append(partial_prefactor)
+
         else:
             raise ValueError(
-                "The prefactor must be a callable, or an iterable of callables."
+                f"The drive prefactor must be either a Callable object or an Iterable of Callable objects, instead got type {type(prefactor)}."
             )
 
     @property
