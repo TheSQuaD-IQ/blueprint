@@ -1,5 +1,5 @@
 from abc import ABCMeta, abstractmethod
-from typing import Tuple, Dict, Iterator, Callable
+from typing import Tuple, Dict, Iterator, Callable, Iterable
 
 from jax import Array
 from jax import numpy as jnp
@@ -190,6 +190,70 @@ class QuantumSystem(metaclass=ABCMeta):
             The dimension of the Hilbert space of the quantum system.
         """
         return self._dim
+
+    def add_drive(
+        self,
+        label: str,
+        pulse: Callable | Iterable[Callable],
+        operator: Array | Iterable[Array],
+    ) -> None:
+        """
+        add_drive Adds a drive to the quantum system.
+
+        Parameters
+        ----------
+        label : str
+            The label of the drive.
+        pulse : Callable | Iterable[Callable]
+            The pulse or list of pulses of the drive, which return the prefactor
+            coefficient at a given time t. For more details, see bluperint.drives.Drive.
+        operator : Array | Iterable[Array]
+            The operator or list of operators of the drive.
+
+        Raises
+        ------
+        ValueError
+            If a drive with the same label has already been
+        ValueError
+            If the pulse is not a Callable object or an iterable of Callable objects.
+        ValueError
+            If the operator is not a jax.Array object or an iterable of jax.Array objects.
+        """
+        if label in self._drives:
+            raise ValueError(
+                f"A drive with the label '{label}' has already been applied to the transmon."
+            )
+
+        if isinstance(operator, Array):
+            op_dims = len(operator.shape)
+            if op_dims != 2:
+                raise ValueError(
+                    f"The operator must be a 2D array, instead got a {op_dims}-dimensional array."
+                )
+            dim, other_dim = operator.shape
+            if dim != self._dim or other_dim != self._dim:
+                raise ValueError(
+                    f"The operator must be a square matrix with dimensions equal to the Hilbert space dimension ({self._dim})."
+                )
+        elif isinstance(operator, Iterable):
+            for op in operator:
+                op_dims = len(op.shape)
+                if op_dims != 2:
+                    raise ValueError(
+                        f"The operator must be a 2D array, instead got a {op_dims}-dimensional array."
+                    )
+                dim, other_dim = op.shape
+                if dim != self._dim or other_dim != self._dim:
+                    raise ValueError(
+                        f"The operator must be a square matrix with dimensions equal to the Hilbert space dimension ({self._dim})."
+                    )
+        else:
+            raise ValueError(
+                "The operator must be a jax.Array object or an iterable of jax.Array objects."
+            )
+
+        drive = Drive(label, pulse, operator)
+        self._drives[label] = drive
 
     @abstractmethod
     def _get_hamiltonian(self) -> Array:
