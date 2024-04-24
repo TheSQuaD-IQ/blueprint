@@ -528,11 +528,6 @@ class KerrOscillator(QuantumSystem):
         ValueError
             If a drive with the same label has already been
         """
-        if label in self._drives:
-            raise ValueError(
-                f"A drive with the label '{label}' has already been applied to the transmon."
-            )
-
         if not isinstance(flux_pulse, Callable):
             raise ValueError(
                 f"The flux pulse must be either a float or a Callable object, instead got type {type(flux_pulse)}."
@@ -554,9 +549,7 @@ class KerrOscillator(QuantumSystem):
             return freq_shift
 
         number_op = self._get_number_op()
-
-        drive = Drive(label, prefactor, number_op)
-        self._drives[label] = drive
+        self.add_drive(label, prefactor, number_op)
 
     def add_charge_drive(
         self, label: str, charge_pulse: Callable, *, include_fluctuations: bool = True
@@ -571,26 +564,28 @@ class KerrOscillator(QuantumSystem):
         charge_pulse : Callable
             The time-dependent charge pulse applied to the transmon. This must be a
             callable object that returns the applied charge pulse as a function of time.
-
-        Raises
-        ------
-        ValueError
-            If a drive with the same label has already been
         """
-        if label in self._drives:
-            raise ValueError(
-                f"A drive with the label '{label}' has already been applied to the transmon."
-            )
-
-        if not isinstance(charge_pulse, Callable):
-            raise ValueError(
-                f"The charge pulse must be either a float or a Callable object, instead got type {type(charge_pulse)}."
-            )
-
         charge_op = self._get_charge_op(include_fluctuations)
+        self.add_drive(label, charge_pulse, charge_op)
 
-        drive = Drive(label, charge_pulse, charge_op)
-        self._drives[label] = drive
+    def add_detuning_drive(self, label: str, detuning_pulse: Callable) -> None:
+        """
+        add_detuning_drive Applies a direct frequency detuning drive to the transmon.
+        Note that this isn't a phyiscal drive, but rather a drive that directly detunes the qubit frequency.
+        Typically, this would instead be realized by applying a flux pulse.
+        However, the availaility of this method allows for additional utility and can be used to find
+        optimal frequency detunings, which can then be converted to an applied flux instead.
+
+        Parameters
+        ----------
+        label : str
+            The label of the drive.
+        detuning_pulse : Callable
+            The time-dependent detuning pulse applied to the transmon. This must be a
+            callable object that returns the applied frequency detuning pulse as a function of time.
+        """
+        number_op = self._get_number_op()
+        self.add_drive(label, detuning_pulse, number_op)
 
     def get_relaxation_op(self) -> Array:
         """
