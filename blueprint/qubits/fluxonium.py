@@ -337,3 +337,27 @@ class Fluxonium(QuantumSystem):
         hamil = self._get_kinetic_term() + self._get_potential_term()
         return hamil
     
+    def get_number_op(self) -> Array:
+        """
+        get_number_op Returns the number operator of the fluxonium.
+
+        Returns
+        -------
+        Array
+            The number operator of the fluxonium.
+
+        Raises
+        ------
+        NotImplementedError
+            If the fluxonium is not diagonalized.
+        """
+        if self._diagonalized:
+            diag_elems = jnp.arange(self._dim)
+            num_op = jnp.diag(diag_elems)
+            processed_op = self.process_op(num_op, diagonalize=False)
+            return processed_op
+
+        raise NotImplementedError(
+            "The number operator is only available in the diagonal (energy) basis."
+        )
+    
