@@ -7,7 +7,6 @@ from jax import numpy as jnp
 from jax import Array
 
 from ..base import QuantumSystem
-from ..drives import Drive
 
 
 class KerrOscillator(QuantumSystem):
