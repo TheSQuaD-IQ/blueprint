@@ -1,3 +1,5 @@
+"""Fluxonium qubit module."""
+
 from typing import Callable
 
 from jax import Array
@@ -14,8 +16,28 @@ def check_var_validity(
     max_value: float | None = None,
 ) -> None:
     """
-    check_valid_variable Checks if the provided variable is a valid numeric variable.
+    check_var_validity Checks the validity of a variable.
+    Note that this function does not accept value equal to the minimum or maximum value.
 
+    Parameters
+    ----------
+    arg : float
+        The variable to check.
+    argname : str
+        The name of the variable.
+    min_value : float | None, optional
+        The minimum value that the variable can take , by default None
+    max_value : float | None, optional
+        The maximum value the variable can take , by default None
+
+    Raises
+    ------
+    ValueError
+        If the variable is not a float.
+    ValueError
+        If the variable is less than the minimum value.
+    ValueError
+        If the variable is greater than the maximum value.
     """
     if not isinstance(arg, float):
         raise ValueError(
@@ -36,13 +58,12 @@ def check_var_validity(
 
 class Fluxonium(QuantumSystem):
     """
-    Fluxonium qubit model.
+    Fluxonium _summary_
 
-    Args:
-        josephson_energy: The josephson energy of the fluxonium black sheep junction
-        charging_energy: The charging energy of the fluxonium
-        ext_flux: The external flux through the fluxonium loop
-        fock_cut_off: The number of fock states to consider
+    Parameters
+    ----------
+    QuantumSystem : _type_
+        _description_
     """
 
     def __init__(
@@ -54,7 +75,33 @@ class Fluxonium(QuantumSystem):
         ext_flux: float,
         fock_cutoff: int,
     ) -> None:
-        # The fluxonium parameters (Josephson energy, charging energy, external flux)
+        """
+        __init__ Initializes the fluxonium qubit.
+
+        Parameters
+        ----------
+        label : str
+            The label of the fluxonium.
+        josephson_energy : float
+            The Josephson energy of the fluxonium.
+        charging_energy : float
+            The charging energy of the fluxonium.
+        inductive_energy : float
+            The inductive energy of the fluxonium.
+        ext_flux : float
+            The external flux applied though the loop of the fluxonium.
+        fock_cutoff : int
+            The number of Fock-basis states to consider when constructing the Hamiltonian/operators.
+
+        Raises
+        ------
+        ValueError
+            If any of the energies are not floats or if they are negative.
+        ValueError
+            If the external flux is not a float.
+        ValueError
+            If the Fock-basis cutoff is not an integer or is less than or equal to zero.
+        """
         check_var_validity(josephson_energy, "josephson_energy", min_value=0.0)
         self._ej = josephson_energy
 
