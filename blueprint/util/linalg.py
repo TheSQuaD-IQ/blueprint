@@ -7,7 +7,27 @@ from functools import reduce
 
 
 from jax import numpy as jnp
+from jax import scipy as jsp
 from jax import Array
+
+
+def cosm(op: Array) -> Array:
+    """
+    cosm Returns the matrix cosine of the given operator.
+
+    Parameters
+    ----------
+    op : Array
+        The operator to take the matrix cosine of.
+
+    Returns
+    -------
+    Array
+        The matrix cosine of the operator.
+    """
+    exponent = 1.0j * op
+    cosm_op = 0.5 * (jsp.linalg.expm(exponent) + jsp.linalg.expm(-exponent))
+    return cosm_op
 
 
 def transform_op(op: Array, trans_op: Array) -> Array:
