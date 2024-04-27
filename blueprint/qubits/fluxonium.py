@@ -1,6 +1,7 @@
+from typing import Callable
+
 from jax import Array
 from jax import numpy as jnp
-from jax import scipy as jsc
 
 from ..base import QuantumSystem
 from ..util.linalg import cosm
@@ -508,3 +509,25 @@ class Fluxonium(QuantumSystem):
         potential_term = self._get_potential_term()
         hamil = kinetic_term + potential_term
         return hamil
+
+    def add_charge_drive(
+        self,
+        label: str,
+        charge_pulse: Callable,
+        *,
+        include_fluctuations: bool = True,
+        **keywords,
+    ) -> None:
+        """
+        add_charge_drive Applies a charge drive to the fluxonium.
+
+        Parameters
+        ----------
+        label : str
+            The label of the drive.
+        charge_pulse : Callable
+            The time-dependent charge pulse applied to the fluxonium.
+            This must be a callable object that returns the prefactor in front of the charge operator as a function of the time `t`.
+        """
+        charge_op = self._get_charge_op(include_fluctuations)
+        self.add_drive(label, charge_pulse, charge_op, **keywords)
