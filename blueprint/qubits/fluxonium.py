@@ -349,8 +349,7 @@ class Fluxonium(QuantumSystem):
         Array
             The raising operator, in the Fock basis.
         """
-        dim = self._trunc_dim or self.dim
-        offdiag = jnp.sqrt(jnp.arange(1, dim))
+        offdiag = jnp.sqrt(jnp.arange(1, self._dim))
         raise_op = jnp.diag(offdiag, k=-1)
         return raise_op
 
@@ -375,8 +374,7 @@ class Fluxonium(QuantumSystem):
         Array
             The lowering (annihilaton) operator of the fluxonium.
         """
-        dim = self._trunc_dim or self._dim
-        offdiag = jnp.sqrt(jnp.arange(1, dim))
+        offdiag = jnp.sqrt(jnp.arange(1, self._dim))
         low_op = jnp.diag(offdiag, k=1)
         return low_op
 
@@ -401,8 +399,7 @@ class Fluxonium(QuantumSystem):
         Array
             The number operator of the fluxonium.
         """
-        dim = self._trunc_dim or self._dim
-        diag_elems = jnp.arange(dim)
+        diag_elems = jnp.arange(self._dim)
         return jnp.diag(diag_elems)
 
     def get_number_op(self) -> Array:
@@ -531,9 +528,7 @@ class Fluxonium(QuantumSystem):
         """
         cosphi_op = self._get_cosphi_op(include_fluctuations=True)
         flux_op = self._get_flux_op(include_fluctuations=True)
-
-        dim = self._trunc_dim or self.dim
-        id_op = jnp.identity(dim)
+        id_op = jnp.identity(self.dim)
 
         offset_flux_op = flux_op + self._ext_flux * id_op
 
