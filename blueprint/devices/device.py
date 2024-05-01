@@ -265,59 +265,90 @@ class Device:
         """
         return self._couplings
 
+    def add_coupling(self, coupling: Coupling) -> None:
+        """
+        add_coupling Adds a coupling to the device.
+
+        Parameters
+        ----------
+        coupling : Coupling
+            The coupling to be added to the device.
+        """
+        label = coupling.label
+        if label in self._couplings:
+            raise ValueError(
+                f"Coupling {coupling.label} already added to the device. "
+                "Please ensure that all coupling labels are unique."
+            )
+
+        qubit_labels = coupling.qubit_labels
+        if qubit_labels is not None:
+            device_qubits = set(self._qubits)
+            for qubit_label in qubit_labels:
+                if qubit_label not in device_qubits:
+                    raise ValueError(f"Qubit {qubit_label} not found in the device.")
+
+        if coupling.dim != self._dim:
+            raise ValueError(
+                "The dimension of the coupling must match the dimension of the device."
+            )
+
+        self._couplings[label] = coupling
+
     def add_capacative_coupling(
-        self, qubits: Tuple[str, str], label: str, prefactor: Numeric
+        self, qubit: str, coupled_qubit: str, label: str, coupling_strength: Numeric
     ) -> None:
         """
         add_capacative_coupling Adds a capacitive coupling between a pair of qubit (specified by their labels) to the device. The coupling is specified by a prefactor and couples the labels via their charge operators. For more information about the coupling prefactor, see the documentation of the `Coupling` class.
 
         Parameters
         ----------
-        qubits : Tuple[str, str]
-            The labels of the pair of qubits to be coupled.
+        qubit : str
+            The label of qubit to be coupled.
+        coupled_qubit : str
+            The label of other qubit that is coupled to qubit `qubit`.
         label : str
             The label of the coupling term.
-        prefactor : GenNumeric
-            The prefactor of the coupling term. This can either be a constant factor (float or complext) or a callable that takes in parameters and returns a numeric value.
+        coupling_strength : GenNumeric
+            The coupling_strength of the coupling term. This shoudl be a constant factor (float or complext).
         """
-
-        if not isinstance(qubits, tuple):
+        if not isinstance(qubit, str):
             raise ValueError(
-                f"The qubit labels 'qubit_labels' expeted as a tuple, instead got type {type(qubits)}."
+                f"The qubit label `qubit` expected as str, instead got a type {type(qubit)}."
             )
+        if qubit not in self._qubit_inds:
+            raise ValueError(f"Qubit {qubit} not found in the device.")
 
-        if len(qubits) != 2:
+        if not isinstance(coupled_qubit, str):
             raise ValueError(
-                f"The qubit labels 'qubit_labels' expected as a tuple of length 2, instead got a tuple of length {len(qubits)}."
+                f"The qubit label `other_qubit` expected as str, instead got a type {type(coupled_qubit)}."
             )
+        if coupled_qubit not in self._qubit_inds:
+            raise ValueError(f"Qubit {coupled_qubit} not found in the device.")
 
-        ops = []
-        for ind, qubit in enumerate(qubits):
-            if not isinstance(qubit, str):
-                raise ValueError(
-                    f"Each qubit label 'qubit_labels' expected as a string, instead got a type {type(qubit)} for the label at index {ind}."
-                )
-            if qubit not in self._qubit_inds:
-                raise ValueError(f"Qubit {qubit} not found in the device.")
+        qubit_ind = self._qubit_inds[qubit]
+        try:
+            qubit_op = self._qubits[qubit_ind].get_charge_op()
+        except AttributeError as exc:
+            raise AttributeError(
+                f"Qubit {qubit} does not have a charge operator."
+            ) from exc
 
-            qubit_ind = self._qubit_inds[qubit]
+        coupled_ind = self._qubit_inds[coupled_qubit]
+        try:
+            coupled_op = self._qubits[coupled_ind].get_charge_op()
+        except AttributeError as exc:
+            raise AttributeError(
+                f"Qubit {coupled_qubit} does not have a charge operator."
+            ) from exc
 
-            try:
-                op = self._qubits[qubit_ind].get_charge_op()
-            except AttributeError as exc:
-                raise AttributeError(
-                    f"Qubit {qubits[ind]} does not have a charge operator."
-                ) from exc
-
-            ops.append(op)
-
-        operator = jnp.matmul(ops[0], ops[1])
-
+        operator = qubit_op @ coupled_op
+        qubit_labels = (qubit, coupled_qubit)
         coupling = Coupling(
             label=label,
             operator=operator,
-            prefactor=prefactor,
-            qubit_labels=qubits,
+            prefactor=coupling_strength,
+            qubit_labels=qubit_labels,
         )
 
         self._couplings[label] = coupling
