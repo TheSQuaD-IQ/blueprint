@@ -283,7 +283,7 @@ class Device:
 
         qubit_labels = coupling.qubit_labels
         if qubit_labels is not None:
-            device_qubits = set(self._qubits)
+            device_qubits = set(self._qubit_inds)
             for qubit_label in qubit_labels:
                 if qubit_label not in device_qubits:
                     raise ValueError(f"Qubit {qubit_label} not found in the device.")
