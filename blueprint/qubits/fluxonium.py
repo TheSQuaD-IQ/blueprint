@@ -224,7 +224,7 @@ class Fluxonium(QuantumSystem):
         Array
             The charge operator, in the Fock basis.
         """
-        op = self.charge_zpf * (self.get_raise_op() - self.get_low_op())
+        op = self.charge_zpf * (self._get_raise_op() - self._get_low_op())
         return op
     
     def get_charge_op(self) -> Array:
@@ -249,7 +249,7 @@ class Fluxonium(QuantumSystem):
         Array
             The flux operator, in the Fock basis.
         """
-        op = self.flux_zpf * (self.get_raise_op() + self.get_low_op())
+        op = self.flux_zpf * (self._get_raise_op() + self._get_low_op())
         return op
     
     def get_flux_op(self) -> Array:
@@ -274,7 +274,7 @@ class Fluxonium(QuantumSystem):
         Array
             The cos(phi) operator of the fluxonium, in the Fock basis.
         """
-        exponent = 1.j * self.get_flux_op()
+        exponent = 1.j * self._get_flux_op()
         op = 0.5 * (jsc.linalg.expm(exponent) + jsc.linalg.expm(-exponent))
         return op
     
