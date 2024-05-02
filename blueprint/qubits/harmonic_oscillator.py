@@ -126,10 +126,10 @@ class HarmonicOscillator(QuantumSystem):
         """
         if not isinstance(inductive_energy, float):
             raise ValueError(
-                f"The Josephson energy must be a float, instead got type {type(inductive_energy)}."
+                f"The inductive energy must be a float, instead got type {type(inductive_energy)}."
             )
         if inductive_energy <= 0.0:
-            raise ValueError("The Josephson energy must be greater than zero.")
+            raise ValueError("The inductive energy must be greater than zero.")
         self._el = inductive_energy
 
     @property
@@ -155,7 +155,7 @@ class HarmonicOscillator(QuantumSystem):
         float
             The zero-point fluctuations of the charge.
         """
-        return (self.inductive_energy / (32 * self.charging_energy)) ** 0.25
+        return (self._el / (32 * self._ec)) ** 0.25
 
     @property
     def flux_zpf(self) -> float:
@@ -167,7 +167,7 @@ class HarmonicOscillator(QuantumSystem):
         float
             The zero-point fluctuations of the flux.
         """
-        return (2 * self.charging_energy / self.inductive_energy) ** 0.25
+        return (2 * self._ec / self._el) ** 0.25
 
     def _get_raise_op(self) -> Array:
         """
