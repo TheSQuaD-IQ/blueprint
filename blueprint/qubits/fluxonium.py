@@ -4,6 +4,7 @@ from typing import Callable
 
 from jax import Array
 from jax import numpy as jnp
+from jax import scipy as jsc 
 
 from ..base import QuantumSystem
 from ..util.linalg import cosm
@@ -447,7 +448,7 @@ class Fluxonium(QuantumSystem):
         charge_op = self._get_charge_op(include_fluctuations)
         processed_op = self.process_op(charge_op)
         return processed_op
-
+    
     def _get_flux_op(self, include_fluctuations: bool) -> Array:
         """
         _get_charge_op Returns the flux operator of the fluxonium.
@@ -457,10 +458,6 @@ class Fluxonium(QuantumSystem):
         Array
             The flux operator, in the Fock basis.
         """
-        op = self.flux_zpf * (self._get_raise_op() + self._get_low_op())
-        return op
-    
-    def get_flux_op(self) -> Array:
         low_op = self._get_low_op()
         raise_op = self._get_raise_op()
         flux_op = raise_op + low_op
@@ -480,7 +477,7 @@ class Fluxonium(QuantumSystem):
         flux_op = self._get_flux_op(include_fluctuations)
         processed_op = self.process_op(flux_op)
         return processed_op
-
+    
     def _get_cosphi_op(self, include_fluctuations: bool = True) -> Array:
         """
         _get_cosphi_op Returns the cos(phi) operator of the fluxonium in the fock basis.
@@ -490,11 +487,6 @@ class Fluxonium(QuantumSystem):
         Array
             The cos(phi) operator of the fluxonium, in the Fock basis.
         """
-        exponent = 1.j * self._get_flux_op()
-        op = 0.5 * (jsc.linalg.expm(exponent) + jsc.linalg.expm(-exponent))
-        return op
-    
-    def get_cosphi_op(self) -> Array:
         flux_op = self._get_flux_op(include_fluctuations)
         cosphi_op = cosm(flux_op)
         return cosphi_op
