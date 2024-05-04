@@ -478,7 +478,7 @@ class Fluxonium(QuantumSystem):
         processed_op = self.process_op(flux_op)
         return processed_op
     
-    def _get_cosphi_op(self, include_fluctuations: bool = True) -> Array:
+    def _get_cosphi_op(self, include_fluctuations: bool) -> Array:
         """
         _get_cosphi_op Returns the cos(phi) operator of the fluxonium in the fock basis.
 
