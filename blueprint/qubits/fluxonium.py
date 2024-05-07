@@ -4,7 +4,6 @@ from typing import Callable
 
 from jax import Array
 from jax import numpy as jnp
-from jax import scipy as jsc 
 
 from ..base import QuantumSystem
 from ..util.linalg import cosm
@@ -417,8 +416,15 @@ class Fluxonium(QuantumSystem):
         NotImplementedError
             If the fluxonium is not diagonalized.
         """
-        number_op = self._get_number_op()
-        return self.process_op(number_op)
+        if self._diagonalized:
+            diag_elems = jnp.arange(self._dim)
+            number_op = jnp.diag(diag_elems)
+            processed_op = self.process_op(number_op, diagonalize=False)
+            return processed_op
+
+        raise NotImplementedError(
+            "The number operator is only available in the diagonal (energy) basis."
+        )
 
     def _get_charge_op(self, include_fluctuations: bool) -> Array:
         """
@@ -448,7 +454,7 @@ class Fluxonium(QuantumSystem):
         charge_op = self._get_charge_op(include_fluctuations)
         processed_op = self.process_op(charge_op)
         return processed_op
-    
+
     def _get_flux_op(self, include_fluctuations: bool) -> Array:
         """
         _get_charge_op Returns the flux operator of the fluxonium.
@@ -477,7 +483,7 @@ class Fluxonium(QuantumSystem):
         flux_op = self._get_flux_op(include_fluctuations)
         processed_op = self.process_op(flux_op)
         return processed_op
-    
+
     def _get_cosphi_op(self, include_fluctuations: bool) -> Array:
         """
         _get_cosphi_op Returns the cos(phi) operator of the fluxonium in the fock basis.
@@ -539,6 +545,13 @@ class Fluxonium(QuantumSystem):
         potential_term = inductive_term + josephson_term
         return potential_term
 
+    def _get_oscillator_term(self) -> Array:
+        id_op = jnp.identity(self._dim)
+        number_op = self._get_number_op()
+        plasma_freq = jnp.sqrt(8 * self._ec * self._el)
+        oscillator_term = plasma_freq * (number_op + 0.5 * id_op)
+        return oscillator_term
+
     def _get_hamiltonian(self) -> Array:
         """
         _get_hamiltonian Returns the Hamiltonian of the fluxonium in the fock basis.
@@ -548,10 +561,18 @@ class Fluxonium(QuantumSystem):
         Array
             The Hamiltonian of the fluxonium, in the Fock basis.
         """
+        # oscillator_term = self._get_oscillator_term()
+        # flux_op = self._get_flux_op(include_fluctuations=True)
+        # josephson_term = -self._ej * cosm(flux_op - self._ext_flux * id_op)
+
+        # hamiltonian = oscillator_term + josephson_term
+        # return hamiltonian
+
         kinetic_term = self._get_kinetic_term()
         potential_term = self._get_potential_term()
-        hamil = kinetic_term + potential_term
-        return hamil
+        hamiltonian = kinetic_term + potential_term
+
+        return hamiltonian
 
     def add_charge_drive(
         self,
