@@ -178,8 +178,7 @@ class HarmonicOscillator(QuantumSystem):
         Array
             The raising (creation) operator of the transmon.
         """
-        dim = self._trunc_dim or self._dim
-        offdiag = jnp.sqrt(jnp.arange(1, dim))
+        offdiag = jnp.sqrt(jnp.arange(1, self._dim))
         return jnp.diag(offdiag, k=-1)
 
     def get_raise_op(self) -> Array:
@@ -203,8 +202,7 @@ class HarmonicOscillator(QuantumSystem):
         Array
             The lowering (annihilaton) operator of the transmon.
         """
-        dim = self._trunc_dim or self._dim
-        offdiag = jnp.sqrt(jnp.arange(1, dim))
+        offdiag = jnp.sqrt(jnp.arange(1, self._dim))
         return jnp.diag(offdiag, k=1)
 
     def get_low_op(self) -> Array:
@@ -228,8 +226,7 @@ class HarmonicOscillator(QuantumSystem):
         Array
             The number operator of the transmon.
         """
-        dim = self._trunc_dim or self._dim
-        diagonal = jnp.arange(dim)
+        diagonal = jnp.arange(self._dim)
         return jnp.diag(diagonal)
 
     def get_number_op(self) -> Array:
@@ -421,7 +418,7 @@ class HarmonicOscillator(QuantumSystem):
         if impedence <= 0.0:
             raise ValueError("The impedence must be greater than zero.")
         capacitance = 1 / (impedence * frequency)
-        charging_energy = (e**2) / (2 * capacitance)
+        charging_energy = (e**2) / (2 * capacitance)  # FIXME: units here are wrong
 
         inductance = impedence / frequency
         inductive_energy = 1 / (4 * (e**2) * inductance)
