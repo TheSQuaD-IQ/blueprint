@@ -1,5 +1,6 @@
 """Fluxonium qubit module."""
 
+import math
 from typing import Callable
 
 from jax import Array
@@ -340,6 +341,18 @@ class Fluxonium(QuantumSystem):
         """
         return (2 * self._ec / self._el) ** 0.25
 
+    @property
+    def plasma_frequency(self) -> float:
+        """
+        plasma_frequency Returns the plasma frequency of the fluxonium.
+
+        Returns
+        -------
+        float
+            The plasma frequency of the fluxonium.
+        """
+        return math.sqrt(8 * self._ec * self._el)
+
     def _get_raise_op(self) -> Array:
         """
         _get_raise_op Returns the raising (creation) operator of the fluxonium.
@@ -548,8 +561,7 @@ class Fluxonium(QuantumSystem):
     def _get_oscillator_term(self) -> Array:
         id_op = jnp.identity(self._dim)
         number_op = self._get_number_op()
-        plasma_freq = jnp.sqrt(8 * self._ec * self._el)
-        oscillator_term = plasma_freq * (number_op + 0.5 * id_op)
+        oscillator_term = self.plasma_frequency * (number_op + 0.5 * id_op)
         return oscillator_term
 
     def _get_hamiltonian(self) -> Array:
@@ -561,12 +573,13 @@ class Fluxonium(QuantumSystem):
         Array
             The Hamiltonian of the fluxonium, in the Fock basis.
         """
+        # id_op = jnp.identity(self._dim)
         # oscillator_term = self._get_oscillator_term()
+
         # flux_op = self._get_flux_op(include_fluctuations=True)
         # josephson_term = -self._ej * cosm(flux_op - self._ext_flux * id_op)
 
         # hamiltonian = oscillator_term + josephson_term
-        # return hamiltonian
 
         kinetic_term = self._get_kinetic_term()
         potential_term = self._get_potential_term()
