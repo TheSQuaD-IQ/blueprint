@@ -430,7 +430,7 @@ dev = ["black", "codespell", "mkdocs-gen-files", "mkdocs-glightbox", "mkdocs-lit
 type = "git"
 url = "https://github.com/dynamiqs/dynamiqs.git"
 reference = "HEAD"
-resolved_reference = "b406022672c961866d0114a82a83a5da0bb86c45"
+resolved_reference = "7f05936c448e864900f7425ec25a02cd5fbe8316"
 
 [[package]]
 name = "equinox"
