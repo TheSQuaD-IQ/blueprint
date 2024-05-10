@@ -75,7 +75,7 @@ class KerrOscillator(QuantumSystem):
         self._deph_time = deph_time
 
     @property
-    def frequency(self) -> float:
+    def approx_frequency(self) -> float:
         """
         frequency Returns the frequency of the transmon.
 
@@ -311,7 +311,7 @@ class KerrOscillator(QuantumSystem):
         """
         return (2 * self.charging_energy / self.eff_josephson_energy) ** 0.25
 
-    def get_frequency(self, flux: float | None = None) -> float:
+    def get_frequency(self, ext_flux: float) -> float:
         """
         get_frequency Returns the frequency shift of the transmon due to the applied flux.
 
@@ -325,19 +325,26 @@ class KerrOscillator(QuantumSystem):
         float
             The frequency shift.
         """
-        if flux is None:
-            return self.frequency
-
-        total_flux = self._ext_flux + flux
-
-        cos_term = abs(math.cos(total_flux))
-        sqrt_term = math.sqrt(1 + self.asymmetry**2 * math.tan(total_flux) ** 2)
+        cos_term = abs(math.cos(ext_flux))
+        sqrt_term = math.sqrt(1 + self.asymmetry**2 * math.tan(ext_flux) ** 2)
 
         eff_ej = self.josephson_energy * cos_term * sqrt_term
         res_freq = math.sqrt(8 * self.charging_energy * eff_ej)
 
         shifted_freq = res_freq - self.charging_energy
         return shifted_freq
+
+    @property
+    def frequency(self) -> float:
+        """
+        approximate_frequency Returns the approximate 0-1 frequency of the transmon.
+
+        Returns
+        -------
+        float
+            The approximate transmon 0-1 frequency.
+        """
+        return self.get_frequency(self._ext_flux)
 
     def _get_raise_op(self) -> Array:
         """

@@ -584,7 +584,7 @@ class QuantumSystem(metaclass=ABCMeta):
         return anharmonicity
 
     @property
-    def frequency(self) -> Array:
+    def fundamental_frequency(self) -> Array:
         """
         frequency Returns the fundamental frequency of the qubit.
 

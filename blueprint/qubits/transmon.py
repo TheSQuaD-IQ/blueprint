@@ -7,7 +7,6 @@ from jax import numpy as jnp
 from jax import Array
 
 from ..base import QuantumSystem
-from ..drives import Drive
 
 
 def check_var_validity(
@@ -646,7 +645,7 @@ class TunableTransmon(QuantumSystem):
                 asymmetry,
                 charge_cutoff,
             )
-            freq_diff = frequency - transmon.frequency
+            freq_diff = frequency - transmon.fundamental_frequency
             anharm_diff = anharmonicity - transmon.anharmonicity
             result = freq_diff**2 + anharm_diff**2
             return result
