@@ -2,7 +2,7 @@ from jax import numpy as jnp
 from jax import Array
 
 
-def to_denstiy_mat(state_vec: Array) -> Array:
+def to_denstiy_matrix(state_vec: Array) -> Array:
     """
     to_operator Converts a vector to a density matrix operator.
 
