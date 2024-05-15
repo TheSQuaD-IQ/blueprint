@@ -611,7 +611,7 @@ class Device:
             states_list.append(qubit_states)
 
         bare_states = tensor_product(states_list)
-        _, dressed_states = self.get_eigenstates()
+        _, dressed_states = self.get_eigenstates(diagonalize=False)
 
         self._eig_inds = get_max_overlap_inds(bare_states, dressed_states)
 
