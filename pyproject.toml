@@ -16,6 +16,7 @@ matplotlib = "^3.8.3"
 wheel = "^0.42.0"
 jax = {extras = ["cpu"], version = "^0.4.25"}
 dynamiqs = {git = "https://github.com/dynamiqs/dynamiqs.git"}
+pyyaml = "^6.0.1"
 
 [tool.poetry.group.dev.dependencies]
 black = "^24.2.0"
