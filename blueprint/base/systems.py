@@ -675,6 +675,7 @@ class QuantumSystem(metaclass=ABCMeta):
         from_yaml Initializes a quantum system from a YAML file which
         defines the required qubit parameters.
 
+
         Parameters
         ----------
         filename : Filestring

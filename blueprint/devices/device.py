@@ -1,16 +1,20 @@
 import math
-from typing import Iterable, Tuple, Dict, List, Union, Callable, Iterator
+import yaml
+from pathlib import Path
+from typing import Iterable, Tuple, Dict, List, Callable, Iterator, Self, TypeAlias
 
 from jax import Array
 from jax import numpy as jnp
 from jax.scipy.linalg import eigh
 
+from .. import qubits as qubit_lib
 from ..base import QuantumSystem
 from ..couplings import Coupling
 from ..util.linalg import transform_op, tensor_product, matrix_product
 from ..util.index import state_index, get_max_overlap_inds
 
-Numeric = Union[float, complex]
+Numeric: TypeAlias = float | complex
+Filestring: TypeAlias = str | Path
 
 
 class Device:
@@ -668,3 +672,47 @@ class Device:
         ops = (qubit.get_leak_projector() for qubit in self._qubits)
         comp_projector = matrix_product(ops)
         return self.process_op(comp_projector)
+
+    @classmethod
+    def from_yaml(cls, filename: Filestring) -> Self:
+        """
+        from_yaml Initializes a device from a YAML file
+        which defines the parameters of the device.
+        The YAML file should contain a list of qubit parameters, including
+        the type of each qubit and the parameters required to initialize it.
+        The qubit type should be one of the qubit types defined in the blueprint.qubits module.
+
+        Parameters
+        ----------
+        filename : Filestring
+            The path to the YAML file containing the qubit parameters.
+            This can be provided either as a string or a pathlib.Path object.
+
+        Returns
+        -------
+        Self
+            The device initialized from the YAML file.
+
+        Raises
+        ------
+        ValueError
+            If the qubit type is not found in the qubits module.
+        """
+        with open(filename, "r", encoding="utf-8") as file:
+            device_parameters = yaml.safe_load(file)
+
+        qubits_params = device_parameters["qubits"]
+
+        qubits = []
+        for qubit_params in qubits_params:
+            qubit_type = qubit_params.pop("type")
+            try:
+                qubit_class = getattr(qubit_lib, qubit_type)
+            except AttributeError as err:
+                err_msg = f"Qubit type '{qubit_type}' not found in the qubits module."
+                raise ValueError(err_msg) from err
+
+            qubit = qubit_class(**qubit_params)
+            qubits.append(qubit)
+
+        return cls(qubits)
