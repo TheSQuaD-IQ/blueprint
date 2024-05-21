@@ -10,6 +10,7 @@ from jax.scipy.linalg import eigh
 from .. import qubits as qubit_lib
 from ..base import QuantumSystem
 from ..couplings import Coupling
+from ..couplings import library as coupling_lib
 from ..util.linalg import transform_op, tensor_product, matrix_product
 from ..util.index import state_index, get_max_overlap_inds
 
@@ -71,17 +72,7 @@ class Device:
         self._couplings: Dict[str, Coupling] = {}
 
     def __getitem__(self, label: str) -> QuantumSystem:
-        if not isinstance(label, str):
-            raise ValueError(
-                f"The qubit label must be a string, instead got type {type(label)}."
-            )
-
-        try:
-            ind = self._qubit_inds[label]
-        except KeyError as exc:
-            raise ValueError(f"Qubit {label} not found in the device.") from exc
-
-        return self._qubits[ind]
+        return self.get_qubit(label)
 
     def __contains__(self, label: str) -> bool:
         if not isinstance(label, str):
@@ -129,6 +120,19 @@ class Device:
             raise ValueError(f"Qubit {label} not found in the device.") from exc
 
         return ind
+
+    def get_qubit(self, label: str) -> QuantumSystem:
+        if not isinstance(label, str):
+            raise ValueError(
+                f"The qubit label must be a string, instead got type {type(label)}."
+            )
+
+        try:
+            ind = self._qubit_inds[label]
+        except KeyError as exc:
+            raise ValueError(f"Qubit {label} not found in the device.") from exc
+
+        return self._qubits[ind]
 
     @property
     def is_diagonalized(self) -> bool:
@@ -715,4 +719,25 @@ class Device:
             qubit = qubit_class(**qubit_params)
             qubits.append(qubit)
 
-        return cls(qubits)
+        device = cls(qubits)
+
+        couplings_params = device_parameters["couplings"]
+        for coupling_params in couplings_params:
+            coup_type = coupling_params.pop("type")
+            attr_name = f"get_{coup_type}"
+            try:
+                get_coupling = getattr(coupling_lib, attr_name)
+            except AttributeError as err:
+                err_msg = f"Qubit type '{qubit_type}' not found in the qubits module."
+                raise ValueError(err_msg) from err
+
+            qubit_label, coupled_qubit_label = coupling_params.pop("qubits")
+            qubit = device[qubit_label]
+            coupled_qubit = device[coupled_qubit_label]
+
+            coupling = get_coupling(
+                system=qubit, coupled_system=coupled_qubit, **coupling_params
+            )
+            device.add_coupling(coupling)
+
+        return device
