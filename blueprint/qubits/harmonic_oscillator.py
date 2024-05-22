@@ -2,7 +2,7 @@ from __future__ import annotations
 import math
 from typing import Callable
 
-from scipy.constants import e
+from scipy.constants import e, hbar
 from jax import numpy as jnp
 from jax import Array
 
@@ -126,10 +126,10 @@ class HarmonicOscillator(QuantumSystem):
         """
         if not isinstance(inductive_energy, float):
             raise ValueError(
-                f"The Josephson energy must be a float, instead got type {type(inductive_energy)}."
+                f"The inductive energy must be a float, instead got type {type(inductive_energy)}."
             )
         if inductive_energy <= 0.0:
-            raise ValueError("The Josephson energy must be greater than zero.")
+            raise ValueError("The inductive energy must be greater than zero.")
         self._el = inductive_energy
 
     @property
@@ -155,7 +155,7 @@ class HarmonicOscillator(QuantumSystem):
         float
             The zero-point fluctuations of the charge.
         """
-        return (self.inductive_energy / (32 * self.charging_energy)) ** 0.25
+        return (self._el / (32 * self._ec)) ** 0.25
 
     @property
     def flux_zpf(self) -> float:
@@ -167,7 +167,7 @@ class HarmonicOscillator(QuantumSystem):
         float
             The zero-point fluctuations of the flux.
         """
-        return (2 * self.charging_energy / self.inductive_energy) ** 0.25
+        return (2 * self._ec / self._el) ** 0.25
 
     def _get_raise_op(self) -> Array:
         """
@@ -178,8 +178,7 @@ class HarmonicOscillator(QuantumSystem):
         Array
             The raising (creation) operator of the transmon.
         """
-        dim = self._trunc_dim or self._dim
-        offdiag = jnp.sqrt(jnp.arange(1, dim))
+        offdiag = jnp.sqrt(jnp.arange(1, self._dim))
         return jnp.diag(offdiag, k=-1)
 
     def get_raise_op(self) -> Array:
@@ -203,8 +202,7 @@ class HarmonicOscillator(QuantumSystem):
         Array
             The lowering (annihilaton) operator of the transmon.
         """
-        dim = self._trunc_dim or self._dim
-        offdiag = jnp.sqrt(jnp.arange(1, dim))
+        offdiag = jnp.sqrt(jnp.arange(1, self._dim))
         return jnp.diag(offdiag, k=1)
 
     def get_low_op(self) -> Array:
@@ -228,8 +226,7 @@ class HarmonicOscillator(QuantumSystem):
         Array
             The number operator of the transmon.
         """
-        dim = self._trunc_dim or self._dim
-        diagonal = jnp.arange(dim)
+        diagonal = jnp.arange(self._dim)
         return jnp.diag(diagonal)
 
     def get_number_op(self) -> Array:
@@ -421,10 +418,13 @@ class HarmonicOscillator(QuantumSystem):
         if impedence <= 0.0:
             raise ValueError("The impedence must be greater than zero.")
         capacitance = 1 / (impedence * frequency)
-        charging_energy = (e**2) / (2 * capacitance)
+
+        redifined_e = e / math.sqrt(hbar)
+        charging_energy = (redifined_e**2) / (2 * capacitance)
 
         inductance = impedence / frequency
-        inductive_energy = 1 / (4 * (e**2) * inductance)
+        inductive_energy = 1 / (4 * (redifined_e**2) * inductance)
+
         oscillator = HarmonicOscillator(
             label=label,
             charging_energy=charging_energy,
