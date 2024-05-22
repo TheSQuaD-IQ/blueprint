@@ -7,7 +7,6 @@ from jax import numpy as jnp
 from jax import Array
 
 from ..base import QuantumSystem
-from ..drives import Drive
 
 
 def check_var_validity(
@@ -161,6 +160,18 @@ class TunableTransmon(QuantumSystem):
         """
         return self._ext_flux
 
+    @external_flux.setter
+    def external_flux(self, value: float) -> None:
+        """
+        external_flux Sets the external flux of the transmon.
+
+        Parameters
+        ----------
+        value : float
+            The new value of the external flux.
+        """
+        self._ext_flux = value
+
     @property
     def asymmetry(self) -> float:
         """
@@ -185,7 +196,7 @@ class TunableTransmon(QuantumSystem):
         """
         return self._ncut
 
-    def get_josephson_energy(self, ext_flux: float) -> float:
+    def get_josephson_energy(self, ext_flux: float) -> Array:
         """
         eff_josephson_energy Returns the effective Josephson energy of the transmon.
         This is the Josephson energy modified by the external flux and the junction asymmetry.
@@ -195,14 +206,14 @@ class TunableTransmon(QuantumSystem):
         float
             The effective Josephson energy
         """
-        cos_term = math.cos(ext_flux)
-        sqrt_term = math.sqrt(1 + self._asymm**2 * math.tan(ext_flux) ** 2)
+        cos_term = jnp.cos(0.5 * ext_flux)
+        sqrt_term = jnp.sqrt(1 + self._asymm**2 * jnp.tan(0.5 * ext_flux) ** 2)
 
-        prefactor = abs(cos_term) * sqrt_term
+        prefactor = jnp.abs(cos_term) * sqrt_term
         return self._ej * prefactor
 
     @property
-    def eff_josephson_energy(self) -> float:
+    def eff_josephson_energy(self) -> Array:
         """
         eff_josephson_energy Returns the effective Josephson energy of the transmon.
         This is the Josephson energy modified by the external flux and the junction asymmetry.
@@ -214,32 +225,21 @@ class TunableTransmon(QuantumSystem):
         """
         return self.get_josephson_energy(self._ext_flux)
 
-    def ext_flux_to_approx_freq(self, ext_flux: float) -> float:
+    def get_approx_frequency(self, ext_flux: float) -> Array:
         """
-        ext_flux_to_approx_freq Returns the approximate 0-1 frequency of the transmon.
+        get_approximate_frequency Returns the approximate 0-1 frequency of the transmon
+        at a given external flux.
 
         Returns
         -------
         float
             The approximate transmon 0-1 frequency.
         """
-        sqrt_term = math.sqrt(8 * self._ec * self.get_josephson_energy(ext_flux))
+        sqrt_term = jnp.sqrt(8 * self._ec * self.get_josephson_energy(ext_flux))
         return sqrt_term - self._ec
 
     @property
-    def _approx_freq(self) -> float:
-        """
-        _approx_freq Returns the approximate 0-1 frequency of the transmon.
-
-        Returns
-        -------
-        float
-            The approximate transmon 0-1 frequency.
-        """
-        return self.ext_flux_to_approx_freq(self._ext_flux)
-
-    @property
-    def approximate_frequency(self) -> float:
+    def approximate_frequency(self) -> Array:
         """
         approximate_frequency Returns the approximate 0-1 frequency of the transmon.
 
@@ -248,7 +248,7 @@ class TunableTransmon(QuantumSystem):
         float
             The approximate transmon 0-1 frequency.
         """
-        return self._approx_freq
+        return self.get_approx_frequency(self._ext_flux)
 
     @property
     def charge_zpf(self) -> float:
@@ -411,8 +411,8 @@ class TunableTransmon(QuantumSystem):
         cosphi_op = self._get_cosphi_op()
         sinphi_op = self._get_sinphi_op()
 
-        cos_term = jnp.cos(self._ext_flux) * cosphi_op
-        sin_term = self._asymm * jnp.sin(self._ext_flux) * sinphi_op
+        cos_term = jnp.cos(0.5 * self._ext_flux) * cosphi_op
+        sin_term = self._asymm * jnp.sin(0.5 * self._ext_flux) * sinphi_op
 
         potential_term = -self._ej * (cos_term + sin_term)
         return potential_term
@@ -472,7 +472,7 @@ class TunableTransmon(QuantumSystem):
         potential = -self.eff_josephson_energy * jnp.cos(phases)
         return potential
 
-    def add_flux_drive(self, label: str, flux_pulse: Callable) -> None:
+    def add_flux_drive(self, label: str, flux_pulse: Callable, **keywords) -> None:
         """
         add_flux_drive Applies a flux drive to the transmon.
 
@@ -503,16 +503,16 @@ class TunableTransmon(QuantumSystem):
         def cos_prefactor(*args, **kwargs) -> Array:
             applied_flux = flux_pulse(*args, **kwargs)
             cur_flux = self._ext_flux + applied_flux
-            prefactor = -self._ej * (jnp.cos(cur_flux) - jnp.cos(self._ext_flux))
+            cos_diff = jnp.cos(0.5 * cur_flux) - jnp.cos(0.5 * self._ext_flux)
+            prefactor = -self._ej * cos_diff
             return prefactor
 
         @wraps(flux_pulse)
         def sin_prefactor(*args, **kwargs) -> Array:
             applied_flux = flux_pulse(*args, **kwargs)
             cur_flux = self._ext_flux + applied_flux
-            prefactor = (
-                -self._ej * self._asymm * (jnp.sin(cur_flux) - jnp.sin(self._ext_flux))
-            )
+            sin_diff = jnp.sin(0.5 * cur_flux) - jnp.sin(0.5 * self._ext_flux)
+            prefactor = -self._ej * self._asymm * sin_diff
             return prefactor
 
         prefactors = (cos_prefactor, sin_prefactor)
@@ -521,9 +521,15 @@ class TunableTransmon(QuantumSystem):
         sinphi_op = self._get_sinphi_op()
         ops = (cosphi_op, sinphi_op)
 
-        self.add_drive(label, prefactors, ops)
+        self.add_drive(label, prefactors, ops, **keywords)
 
-    def add_charge_drive(self, label: str, charge_pulse: Callable) -> None:
+
+    def add_charge_drive(
+        self,
+        label: str,
+        charge_pulse: Callable,
+        **keywords,
+    ) -> None:
         """
         add_charge_drive Applies a charge drive to the transmon.
 
@@ -551,7 +557,7 @@ class TunableTransmon(QuantumSystem):
             )
 
         charge_op = self._get_charge_op()
-        self.add_drive(label, charge_pulse, charge_op)
+        self.add_drive(label, charge_pulse, charge_op, **keywords)
 
     @staticmethod
     def from_params(
@@ -640,7 +646,7 @@ class TunableTransmon(QuantumSystem):
                 asymmetry,
                 charge_cutoff,
             )
-            freq_diff = frequency - transmon.frequency
+            freq_diff = frequency - transmon.fundamental_frequency
             anharm_diff = anharmonicity - transmon.anharmonicity
             result = freq_diff**2 + anharm_diff**2
             return result

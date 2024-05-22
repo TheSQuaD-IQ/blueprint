@@ -7,7 +7,6 @@ from jax import numpy as jnp
 from jax import Array
 
 from ..base import QuantumSystem
-from ..drives import Drive
 
 
 class KerrOscillator(QuantumSystem):
@@ -76,7 +75,7 @@ class KerrOscillator(QuantumSystem):
         self._deph_time = deph_time
 
     @property
-    def frequency(self) -> float:
+    def approx_frequency(self) -> float:
         """
         frequency Returns the frequency of the transmon.
 
@@ -164,7 +163,7 @@ class KerrOscillator(QuantumSystem):
         self._anharm = anharmonicity
 
     @property
-    def ext_flux(self) -> float:
+    def external_flux(self) -> float:
         """
         ext_flux Returns the external flux through the SQUID loop of the transmon.
 
@@ -175,8 +174,8 @@ class KerrOscillator(QuantumSystem):
         """
         return self._ext_flux
 
-    @ext_flux.setter
-    def ext_flux(self, ext_flux: float) -> None:
+    @external_flux.setter
+    def external_flux(self, ext_flux: float) -> None:
         """
         ext_flux Sets the external flux through the SQUID loop of the transmon.
 
@@ -269,8 +268,8 @@ class KerrOscillator(QuantumSystem):
         float
             The effective Josephson energy
         """
-        cos_term = math.cos(ext_flux)
-        sqrt_term = math.sqrt(1 + self._asymm**2 * math.tan(ext_flux) ** 2)
+        cos_term = math.cos(0.5 * ext_flux)
+        sqrt_term = math.sqrt(1 + self._asymm**2 * math.tan(0.5 * ext_flux) ** 2)
 
         prefactor = abs(cos_term) * sqrt_term
         return self.josephson_energy * prefactor
@@ -312,7 +311,7 @@ class KerrOscillator(QuantumSystem):
         """
         return (2 * self.charging_energy / self.eff_josephson_energy) ** 0.25
 
-    def get_frequency(self, flux: float | None = None) -> float:
+    def get_frequency(self, ext_flux: float) -> Array:
         """
         get_frequency Returns the frequency shift of the transmon due to the applied flux.
 
@@ -326,19 +325,26 @@ class KerrOscillator(QuantumSystem):
         float
             The frequency shift.
         """
-        if flux is None:
-            return self.frequency
-
-        total_flux = self._ext_flux + flux
-
-        cos_term = abs(math.cos(total_flux))
-        sqrt_term = math.sqrt(1 + self.asymmetry**2 * math.tan(total_flux) ** 2)
+        cos_term = abs(jnp.cos(0.5 * ext_flux))
+        sqrt_term = jnp.sqrt(1 + self.asymmetry**2 * jnp.tan(0.5 * ext_flux) ** 2)
 
         eff_ej = self.josephson_energy * cos_term * sqrt_term
-        res_freq = math.sqrt(8 * self.charging_energy * eff_ej)
+        res_freq = jnp.sqrt(8 * self.charging_energy * eff_ej)
 
         shifted_freq = res_freq - self.charging_energy
         return shifted_freq
+
+    @property
+    def frequency(self) -> Array:
+        """
+        approximate_frequency Returns the approximate 0-1 frequency of the transmon.
+
+        Returns
+        -------
+        float
+            The approximate transmon 0-1 frequency.
+        """
+        return self.get_frequency(self._ext_flux)
 
     def _get_raise_op(self) -> Array:
         """
@@ -538,8 +544,8 @@ class KerrOscillator(QuantumSystem):
             applied_flux = flux_pulse(*args, **kwargs)
             total_flux = self._ext_flux + applied_flux
 
-            cos_term = jnp.abs(jnp.cos(total_flux))
-            sqrt_term = jnp.sqrt(1 + self.asymmetry**2 * jnp.tan(total_flux) ** 2)
+            cos_term = jnp.abs(jnp.cos(0.5 * total_flux))
+            sqrt_term = jnp.sqrt(1 + self.asymmetry**2 * jnp.tan(0.5 * total_flux) ** 2)
 
             eff_ej = self.josephson_energy * cos_term * sqrt_term
             res_freq = jnp.sqrt(8 * self.charging_energy * eff_ej)

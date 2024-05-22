@@ -77,8 +77,8 @@ def kraus_to_ptm(
     kraus_to_ptm Converts a set of Kraus operators to a Pauli transfer matrix (PTM) superoperator.
     The formula that the Einstein summation below is implementing is given
     R_{i,j} = Tr(P_{i}S(P_{j})), where R is the PTM operator, P_{i} and P_{j} are the input and output basis operators, respectively, and S is the a linear map defined by the Kraus operators.
-    In particular, S(o) = \sum_k K_{k} o K_{k}^{\dagger}, where K_{k} are the Kraus operators.
-    Combining these expressions, we get R_{i,j} = Tr(P_{i} \sum_k K_{k} P_{j} K_{k}^{\dagger}).
+    In particular, S(o) = \\sum_k K_{k} o K_{k}^{\\dagger}, where K_{k} are the Kraus operators.
+    Combining these expressions, we get R_{i,j} = Tr(P_{i} \\sum_k K_{k} P_{j} K_{k}^{\\dagger}).
     See arXiv:1509.02921 for more information.
 
     Parameters

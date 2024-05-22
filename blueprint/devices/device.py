@@ -1,16 +1,21 @@
 import math
-from typing import Iterable, Tuple, Dict, List, Union, Callable, Iterator
+import yaml
+from pathlib import Path
+from typing import Iterable, Tuple, Dict, List, Callable, Iterator, Self, TypeAlias
 
 from jax import Array
 from jax import numpy as jnp
 from jax.scipy.linalg import eigh
 
+from .. import qubits as qubit_lib
 from ..base import QuantumSystem
 from ..couplings import Coupling
+from ..couplings import library as coupling_lib
 from ..util.linalg import transform_op, tensor_product, matrix_product
 from ..util.index import state_index, get_max_overlap_inds
 
-Numeric = Union[float, complex]
+Numeric: TypeAlias = float | complex
+Filestring: TypeAlias = str | Path
 
 
 class Device:
@@ -67,17 +72,7 @@ class Device:
         self._couplings: Dict[str, Coupling] = {}
 
     def __getitem__(self, label: str) -> QuantumSystem:
-        if not isinstance(label, str):
-            raise ValueError(
-                f"The qubit label must be a string, instead got type {type(label)}."
-            )
-
-        try:
-            ind = self._qubit_inds[label]
-        except KeyError as exc:
-            raise ValueError(f"Qubit {label} not found in the device.") from exc
-
-        return self._qubits[ind]
+        return self.get_qubit(label)
 
     def __contains__(self, label: str) -> bool:
         if not isinstance(label, str):
@@ -125,6 +120,19 @@ class Device:
             raise ValueError(f"Qubit {label} not found in the device.") from exc
 
         return ind
+
+    def get_qubit(self, label: str) -> QuantumSystem:
+        if not isinstance(label, str):
+            raise ValueError(
+                f"The qubit label must be a string, instead got type {type(label)}."
+            )
+
+        try:
+            ind = self._qubit_inds[label]
+        except KeyError as exc:
+            raise ValueError(f"Qubit {label} not found in the device.") from exc
+
+        return self._qubits[ind]
 
     @property
     def is_diagonalized(self) -> bool:
@@ -265,59 +273,90 @@ class Device:
         """
         return self._couplings
 
+    def add_coupling(self, coupling: Coupling) -> None:
+        """
+        add_coupling Adds a coupling to the device.
+
+        Parameters
+        ----------
+        coupling : Coupling
+            The coupling to be added to the device.
+        """
+        label = coupling.label
+        if label in self._couplings:
+            raise ValueError(
+                f"Coupling {coupling.label} already added to the device. "
+                "Please ensure that all coupling labels are unique."
+            )
+
+        qubit_labels = coupling.qubit_labels
+        if qubit_labels is not None:
+            device_qubits = set(self._qubit_inds)
+            for qubit_label in qubit_labels:
+                if qubit_label not in device_qubits:
+                    raise ValueError(f"Qubit {qubit_label} not found in the device.")
+
+        if coupling.dim != self._dim:
+            raise ValueError(
+                "The dimension of the coupling must match the dimension of the device."
+            )
+
+        self._couplings[label] = coupling
+
     def add_capacative_coupling(
-        self, qubits: Tuple[str, str], label: str, prefactor: Numeric
+        self, qubit: str, coupled_qubit: str, label: str, coupling_strength: Numeric
     ) -> None:
         """
         add_capacative_coupling Adds a capacitive coupling between a pair of qubit (specified by their labels) to the device. The coupling is specified by a prefactor and couples the labels via their charge operators. For more information about the coupling prefactor, see the documentation of the `Coupling` class.
 
         Parameters
         ----------
-        qubits : Tuple[str, str]
-            The labels of the pair of qubits to be coupled.
+        qubit : str
+            The label of qubit to be coupled.
+        coupled_qubit : str
+            The label of other qubit that is coupled to qubit `qubit`.
         label : str
             The label of the coupling term.
-        prefactor : GenNumeric
-            The prefactor of the coupling term. This can either be a constant factor (float or complext) or a callable that takes in parameters and returns a numeric value.
+        coupling_strength : GenNumeric
+            The coupling_strength of the coupling term. This shoudl be a constant factor (float or complext).
         """
-
-        if not isinstance(qubits, tuple):
+        if not isinstance(qubit, str):
             raise ValueError(
-                f"The qubit labels 'qubit_labels' expeted as a tuple, instead got type {type(qubits)}."
+                f"The qubit label `qubit` expected as str, instead got a type {type(qubit)}."
             )
+        if qubit not in self._qubit_inds:
+            raise ValueError(f"Qubit {qubit} not found in the device.")
 
-        if len(qubits) != 2:
+        if not isinstance(coupled_qubit, str):
             raise ValueError(
-                f"The qubit labels 'qubit_labels' expected as a tuple of length 2, instead got a tuple of length {len(qubits)}."
+                f"The qubit label `other_qubit` expected as str, instead got a type {type(coupled_qubit)}."
             )
+        if coupled_qubit not in self._qubit_inds:
+            raise ValueError(f"Qubit {coupled_qubit} not found in the device.")
 
-        ops = []
-        for ind, qubit in enumerate(qubits):
-            if not isinstance(qubit, str):
-                raise ValueError(
-                    f"Each qubit label 'qubit_labels' expected as a string, instead got a type {type(qubit)} for the label at index {ind}."
-                )
-            if qubit not in self._qubit_inds:
-                raise ValueError(f"Qubit {qubit} not found in the device.")
+        qubit_ind = self._qubit_inds[qubit]
+        try:
+            qubit_op = self._qubits[qubit_ind].get_charge_op()
+        except AttributeError as exc:
+            raise AttributeError(
+                f"Qubit {qubit} does not have a charge operator."
+            ) from exc
 
-            qubit_ind = self._qubit_inds[qubit]
+        coupled_ind = self._qubit_inds[coupled_qubit]
+        try:
+            coupled_op = self._qubits[coupled_ind].get_charge_op()
+        except AttributeError as exc:
+            raise AttributeError(
+                f"Qubit {coupled_qubit} does not have a charge operator."
+            ) from exc
 
-            try:
-                op = self._qubits[qubit_ind].get_charge_op()
-            except AttributeError as exc:
-                raise AttributeError(
-                    f"Qubit {qubits[ind]} does not have a charge operator."
-                ) from exc
-
-            ops.append(op)
-
-        operator = jnp.matmul(ops[0], ops[1])
-
+        operator = qubit_op @ coupled_op
+        qubit_labels = (qubit, coupled_qubit)
         coupling = Coupling(
             label=label,
             operator=operator,
-            prefactor=prefactor,
-            qubit_labels=qubits,
+            prefactor=coupling_strength,
+            qubit_labels=qubit_labels,
         )
 
         self._couplings[label] = coupling
@@ -580,7 +619,7 @@ class Device:
             states_list.append(qubit_states)
 
         bare_states = tensor_product(states_list)
-        _, dressed_states = self.get_eigenstates()
+        _, dressed_states = self.get_eigenstates(diagonalize=False)
 
         self._eig_inds = get_max_overlap_inds(bare_states, dressed_states)
 
@@ -637,3 +676,68 @@ class Device:
         ops = (qubit.get_leak_projector() for qubit in self._qubits)
         comp_projector = matrix_product(ops)
         return self.process_op(comp_projector)
+
+    @classmethod
+    def from_yaml(cls, filename: Filestring) -> Self:
+        """
+        from_yaml Initializes a device from a YAML file
+        which defines the parameters of the device.
+        The YAML file should contain a list of qubit parameters, including
+        the type of each qubit and the parameters required to initialize it.
+        The qubit type should be one of the qubit types defined in the blueprint.qubits module.
+
+        Parameters
+        ----------
+        filename : Filestring
+            The path to the YAML file containing the qubit parameters.
+            This can be provided either as a string or a pathlib.Path object.
+
+        Returns
+        -------
+        Self
+            The device initialized from the YAML file.
+
+        Raises
+        ------
+        ValueError
+            If the qubit type is not found in the qubits module.
+        """
+        with open(filename, "r", encoding="utf-8") as file:
+            device_parameters = yaml.safe_load(file)
+
+        qubits_params = device_parameters["qubits"]
+
+        qubits = []
+        for qubit_params in qubits_params:
+            qubit_type = qubit_params.pop("type")
+            try:
+                qubit_class = getattr(qubit_lib, qubit_type)
+            except AttributeError as err:
+                err_msg = f"Qubit type '{qubit_type}' not found in the qubits module."
+                raise ValueError(err_msg) from err
+
+            qubit = qubit_class(**qubit_params)
+            qubits.append(qubit)
+
+        device = cls(qubits)
+
+        couplings_params = device_parameters["couplings"]
+        for coupling_params in couplings_params:
+            coup_type = coupling_params.pop("type")
+            attr_name = f"get_{coup_type}"
+            try:
+                get_coupling = getattr(coupling_lib, attr_name)
+            except AttributeError as err:
+                err_msg = f"Qubit type '{qubit_type}' not found in the qubits module."
+                raise ValueError(err_msg) from err
+
+            qubit_label, coupled_qubit_label = coupling_params.pop("qubits")
+            qubit = device[qubit_label]
+            coupled_qubit = device[coupled_qubit_label]
+
+            coupling = get_coupling(
+                system=qubit, coupled_system=coupled_qubit, **coupling_params
+            )
+            device.add_coupling(coupling)
+
+        return device

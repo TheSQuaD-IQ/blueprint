@@ -1,5 +1,7 @@
 from abc import ABCMeta, abstractmethod
-from typing import Tuple, Dict, Iterator, Callable, Iterable
+from pathlib import Path
+from typing import Tuple, Dict, Iterator, Callable, Iterable, Self, TypeAlias
+import yaml
 
 from jax import Array
 from jax import numpy as jnp
@@ -7,6 +9,8 @@ from jax import scipy as jsp
 
 from ..drives import Drive
 from ..util.linalg import embed_op, transform_op
+
+Filestring: TypeAlias = str | Path
 
 
 class QuantumSystem(metaclass=ABCMeta):
@@ -584,7 +588,7 @@ class QuantumSystem(metaclass=ABCMeta):
         return anharmonicity
 
     @property
-    def frequency(self) -> Array:
+    def fundamental_frequency(self) -> Array:
         """
         frequency Returns the fundamental frequency of the qubit.
 
@@ -664,6 +668,28 @@ class QuantumSystem(metaclass=ABCMeta):
         leak_states = states[:, 2:]
         leak_projector = get_projector(leak_states)
         return self.process_op(leak_projector)
+
+    @classmethod
+    def from_yaml(cls, filename: Filestring) -> Self:
+        """
+        from_yaml Initializes a quantum system from a YAML file which
+        defines the required qubit parameters.
+
+
+        Parameters
+        ----------
+        filename : Filestring
+            The path to the YAML file containing the qubit parameters.
+            This can be provided either as a string or a pathlib.Path object.
+
+        Returns
+        -------
+        Self
+            The quantum system object initialized from the YAML file.
+        """
+        with open(filename, "r", encoding="utf-8") as file:
+            parameters = yaml.safe_load(file)
+            return cls(**parameters)
 
 
 def get_projector(subspace_states: Array) -> Array:
