@@ -521,8 +521,7 @@ class TunableTransmon(QuantumSystem):
         sinphi_op = self._get_sinphi_op()
         ops = (cosphi_op, sinphi_op)
 
-        drive = Drive(label, prefactors, ops)
-        self._drives[label] = drive
+        self.add_drive(label, prefactors, ops)
 
     def add_charge_drive(self, label: str, charge_pulse: Callable) -> None:
         """
@@ -552,8 +551,7 @@ class TunableTransmon(QuantumSystem):
             )
 
         charge_op = self._get_charge_op()
-        drive = Drive(label, charge_pulse, charge_op)
-        self._drives[label] = drive
+        self.add_drive(label, charge_pulse, charge_op)
 
     @staticmethod
     def from_params(

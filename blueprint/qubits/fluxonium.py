@@ -605,6 +605,24 @@ class Fluxonium(QuantumSystem):
         charge_pulse : Callable
             The time-dependent charge pulse applied to the fluxonium.
             This must be a callable object that returns the prefactor in front of the charge operator as a function of the time `t`.
+        include_fluctuations : bool, optional
+            Whether to include the charge operator fluctuations, by default True
         """
         charge_op = self._get_charge_op(include_fluctuations)
         self.add_drive(label, charge_pulse, charge_op, **keywords)
+
+    def add_flux_drive(
+        self, label: str, flux_pulse: Callable, *, include_fluctuations: bool = True
+    ) -> None:
+        """
+        add_flux_drive Applies a flux drive to the fluxonium.
+
+        Parameters
+        ----------
+        label : str
+            The label of the drive.
+        flux_pulse : Callable
+            The time-dependent flux pulse applied to the fluxonium.
+            This must be a callable object that returns the prefactor in front of the flux operator as a function of the time `t`.
+        """
+        raise NotImplementedError
