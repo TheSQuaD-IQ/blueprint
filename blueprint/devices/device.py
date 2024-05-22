@@ -23,7 +23,7 @@ class Device:
     Device Base device class.
     """
 
-    def __init__(self, qubits: Iterable[QuantumSystem]) -> None:
+    def __init__(self, *qubits: QuantumSystem) -> None:
         labels = set()
 
         for qubit in qubits:
@@ -719,7 +719,7 @@ class Device:
             qubit = qubit_class(**qubit_params)
             qubits.append(qubit)
 
-        device = cls(qubits)
+        device = cls(*qubits)
 
         couplings_params = device_parameters["couplings"]
         for coupling_params in couplings_params:
