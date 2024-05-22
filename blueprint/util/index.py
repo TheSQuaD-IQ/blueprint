@@ -203,9 +203,58 @@ def get_branch_inds(states: Array, raise_op: Array, ground_inds: Array) -> Array
 
     num_branches = dim / num_inds
     # Assign the remaining branch indices
-    branch_inds = assign_branch_inds(overlap_mat, ground_inds, num_branches)
+    inds = assign_branch_inds(overlap_mat, ground_inds, num_branches)
 
     # Flatten the branch indices to a vector thaat can be used to extract the branch vectors
-    inds = jnp.ravel(jnp.transpose(branch_inds))
+    raveled_inds = jnp.ravel(jnp.transpose(inds))
 
-    return inds
+    return raveled_inds
+
+
+def get_branch_states(
+    hamiltonian: Array, raise_op: Array, res_dim: int
+) -> Tuple[Array, Array]:
+    """
+    get_branch_states Returns the branch energies and eigenstates of the input system Hamiltonian.
+    The system is assumed to be composed of a qubit and a resonator, in that order.
+    The dressed states are assigned sequentially, starting from the ground state branch,
+    corresponding to the resonator being in the ground state.
+    The assignment is done by maximizing the overlap of the dressed states with the states
+    resulting from the action of the raising operator on the previously identified states,
+    starting from the ground branch.
+
+    ----------
+    hamiltonian : Array
+        The Hamiltonian of the system.
+    raise_op : Array
+        The raising operator of the resonator, expanded to match the Hilbert space of the system.
+    res_dim : int
+        The dimension of the resonator Hilbert space.
+
+    Returns
+    -------
+    Tuple[Array, Array]
+        The branch energies and eigenstates of the system.
+    """
+    energies, states = jnp.linalg.eigh(hamiltonian)  # Normal scipy way
+
+    # Normalize the energies by the ground state energy
+    energies = energies - energies[0]
+
+    # Compute the branch criteria matrix
+    overlap_mat = jnp.abs(dag(states) @ raise_op @ states)
+
+    # Find the ground state indices
+    ground_inds = jnp.argmax(jnp.abs(states[::res_dim]), axis=1)
+
+    # Assign the remaining branch indices
+    inds = assign_branch_inds(overlap_mat, ground_inds, res_dim)
+
+    # Flatten the branch indices to a vector thaat can be used to extract the branch vectors
+    raveled_inds = jnp.ravel(jnp.transpose(inds))
+
+    # Get the branch energies and vectors
+    energies = energies[raveled_inds]
+    states = states[:, raveled_inds]
+
+    return energies, states
