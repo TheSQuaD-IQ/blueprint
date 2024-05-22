@@ -2,7 +2,7 @@ from __future__ import annotations
 import math
 from typing import Callable
 
-from scipy.constants import e
+from scipy.constants import e, hbar
 from jax import numpy as jnp
 from jax import Array
 
@@ -418,10 +418,13 @@ class HarmonicOscillator(QuantumSystem):
         if impedence <= 0.0:
             raise ValueError("The impedence must be greater than zero.")
         capacitance = 1 / (impedence * frequency)
-        charging_energy = (e**2) / (2 * capacitance)  # FIXME: units here are wrong
+
+        redifined_e = e / math.sqrt(hbar)
+        charging_energy = (redifined_e**2) / (2 * capacitance)
 
         inductance = impedence / frequency
-        inductive_energy = 1 / (4 * (e**2) * inductance)
+        inductive_energy = 1 / (4 * (redifined_e**2) * inductance)
+
         oscillator = HarmonicOscillator(
             label=label,
             charging_energy=charging_energy,
