@@ -1,6 +1,6 @@
 from __future__ import annotations
 import math
-from typing import Callable
+from typing import Callable, Iterator, Self
 
 from scipy.constants import e, hbar
 from jax import numpy as jnp
@@ -22,9 +22,53 @@ class HarmonicOscillator(QuantumSystem):
         charging_energy: float,
         inductive_energy: float,
         dim: int = 3,
-        relax_time: float | None = None,
-        deph_time: float | None = None,
+        decay_rate: float | None = None,
+        deph_rate: float | None = None,
+        thermal_photons: float = 0.0,
     ) -> None:
+        """
+        __init__ Initializes the HarmonicOscillator object.
+
+        Parameters
+        ----------
+        label : str
+            The label of the harmonic oscillator.
+        charging_energy : float
+            The charging energy of the oscillator.
+        inductive_energy : float
+            The inductive energy of the oscillator.
+        dim : int, optional
+            The dimension of the oscillator , by default 3
+        decay_rate : float | None, optional
+            The decay rate of the oscillator , by default None
+        deph_rate : float | None, optional
+            The pure dephasing rate of the oscillator, by default None
+        thermal_photons : float | None, optional
+            The thermal photon number of the environment leading to the decay of the oscillator, by default None
+
+        Raises
+        ------
+        ValueError
+            If the charging energy is not a float.
+        ValueError
+            If the charging energy is less than or equal to zero.
+        ValueError
+            If the inductive energy is not a float.
+        ValueError
+            If the inductive energy is less than or equal to zero.
+        ValueError
+            If the decay rate is not a float.
+        ValueError
+            If the decay rate is less than zero.
+        ValueError
+            If the dephasing rate is not a float.
+        ValueError
+            If the dephasing rate is less than zero.
+        ValueError
+            If the thermal photons is not a float.
+        ValueError
+            If the thermal photons is less than zero.
+        """
         if not isinstance(charging_energy, float):
             raise ValueError(
                 f"The charging energy must be a float, instead got type {type(charging_energy)}."
@@ -43,20 +87,31 @@ class HarmonicOscillator(QuantumSystem):
         super().__init__(label, dim)
 
         # The relaxation and dephasing times
-        if relax_time is not None:
-            if relax_time <= 0.0:
-                raise ValueError("The relaxation time must be greater than zero.")
-        self._relax_time = relax_time
+        if decay_rate is not None:
+            if not isinstance(decay_rate, float):
+                raise ValueError(
+                    f"The decay rate must be a float, instead got type {type(decay_rate)}."
+                )
+            if decay_rate < 0.0:
+                raise ValueError("The decay rate must be greater than zero.")
+        self._decay_rate = decay_rate
 
-        if deph_time is not None:
-            if deph_time <= 0.0:
-                raise ValueError("The dephasing time must be greater than zero.")
-            if relax_time is not None:
-                if deph_time > 2 * relax_time:
-                    raise ValueError(
-                        "The dephasing time must be less than or equal to two times the relaxation time."
-                    )
-        self._deph_time = deph_time
+        if deph_rate is not None:
+            if not isinstance(deph_rate, float):
+                raise ValueError(
+                    f"The dephasing rate must be a float, instead got type {type(deph_rate)}."
+                )
+            if deph_rate < 0.0:
+                raise ValueError("The dephasing rate must be greater than zero.")
+        self._deph_rate = deph_rate
+
+        if not isinstance(thermal_photons, float):
+            raise ValueError(
+                f"The thermal photons must be a float, instead got type {type(thermal_photons)}."
+            )
+        if thermal_photons < 0.0:
+            raise ValueError("The thermal photons must be greater than zero.")
+        self._n_thermal = thermal_photons
 
     @property
     def charging_energy(self) -> float:
@@ -328,7 +383,12 @@ class HarmonicOscillator(QuantumSystem):
         return potential
 
     def add_charge_drive(
-        self, label: str, charge_pulse: Callable, *, include_fluctuations: bool = True
+        self,
+        label: str,
+        charge_pulse: Callable,
+        *,
+        include_fluctuations: bool = True,
+        **keywords: Any,
     ) -> None:
         """
         add_charge_drive Applies a charge drive to the transmon.
@@ -357,9 +417,86 @@ class HarmonicOscillator(QuantumSystem):
             )
 
         charge_op = self._get_charge_op(include_fluctuations)
+        self.add_drive(label, charge_pulse, charge_op, **keywords)
 
-        drive = Drive(label, charge_pulse, charge_op)
-        self._drives[label] = drive
+    def _get_decay_ops(self) -> Iterator[Array]:
+        """
+        _get_decay_ops Yields the decay (and excitation) jump operators of the harmonic oscillator in the native fock bais.
+
+        Yields
+        ------
+        Iterator[Array]
+            The decay (and excitation) jump operators of the harmonic oscillator.
+
+        Raises
+        ------
+        ValueError
+            If the decay rate of the harmonic oscillator has not been set.
+        """
+        if self._decay_rate is None:
+            raise ValueError("The decay rate of the transmon has not been set.")
+
+        decay_rate = self._decay_rate * (1 + self._n_thermal)
+        low_op = self._get_low_op()
+
+        decay_op = math.sqrt(decay_rate) * low_op
+        yield decay_op
+
+        if self._n_thermal > 0.0:
+            exc_rate = self._n_thermal * self._decay_rate
+            raise_op = self._get_raise_op()
+
+            exc_op = math.sqrt(exc_rate) * raise_op
+            yield exc_op
+
+    def get_decay_ops(self) -> Iterator[Array]:
+        """
+        get_decay_ops Yield the decay (and excitation) jump operators of the harmonic oscillator, expressed in the transformed/truncated basis of the oscillator.
+
+        Yields
+        ------
+        Iterator[Array]
+            The decay (and excitation) jump operators of the harmonic oscillator.
+        """
+        decay_ops = self._get_decay_ops()
+        for decay_op in decay_ops:
+            yield self.process_op(decay_op)
+
+    def _get_deph_ops(self) -> Iterator[Array]:
+        """
+        _get_deph_ops Yields the dephasing jump operators of the harmonic oscillator in the native fock basis.
+
+        Yields
+        ------
+        Iterator[Array]
+            The dephasing jump operators of the harmonic oscillator.
+
+        Raises
+        ------
+        ValueError
+            If the dephasing rate of the harmonic oscillator has not been set.
+        """
+        if self._deph_rate is None:
+            raise ValueError("The deph rate of the transmon has not been set.")
+
+        deph_rate = 2 * self._deph_rate
+        number_op = self._get_number_op()
+
+        deph_op = math.sqrt(deph_rate) * number_op
+        yield deph_op
+
+    def get_deph_ops(self) -> Iterator[Array]:
+        """
+        get_deph_ops Yield the dephasing jump operators of the harmonic oscillator, expressed in the transformed/truncated basis of the oscillator.
+
+        Yields
+        ------
+        Iterator[Array]
+            The dephasing jump operators of the harmonic oscillator.
+        """
+        deph_ops = self._get_deph_ops()
+        for deph_op in deph_ops:
+            yield self.process_op(deph_op)
 
     @staticmethod
     def from_frequency(
@@ -367,8 +504,9 @@ class HarmonicOscillator(QuantumSystem):
         frequency: float,
         impedance: float,
         dim: int = 3,
-        relax_time: float | None = None,
-        deph_time: float | None = None,
+        decay_rate: float | None = None,
+        deph_rate: float | None = None,
+        thermal_photons: float = 0.0,
     ) -> HarmonicOscillator:
         """
         from_frequency Returns a HarmonicOscillator object from the frequency and impedence of the resonator.
@@ -383,10 +521,11 @@ class HarmonicOscillator(QuantumSystem):
             The characteristic impedance of the harmonic oscillator.
         dim : int, optional
             The dimensionality of the harmonic oscillator , by default 3
-        relax_time : float | None, optional
-            The relaxation time of the harmonic resonator, by default None
-        deph_time : float | None, optional
-            The dephasing time of the harmonic oscillatgor, by default None
+        decay_rate : float | None, optional
+            The decay rate of the harmonic resonator, by default None
+        deph_rate : float | None, optional
+            The pure dephasing rate of the harmonic oscillatgor, by default None
+
 
         Returns
         -------
@@ -430,7 +569,8 @@ class HarmonicOscillator(QuantumSystem):
             charging_energy=charging_energy,
             inductive_energy=inductive_energy,
             dim=dim,
-            relax_time=relax_time,
-            deph_time=deph_time,
+            decay_rate=decay_rate,
+            deph_rate=deph_rate,
+            thermal_photons=thermal_photons,
         )
         return oscillator
