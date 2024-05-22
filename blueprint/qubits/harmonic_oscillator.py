@@ -365,7 +365,7 @@ class HarmonicOscillator(QuantumSystem):
     def from_frequency(
         label: str,
         frequency: float,
-        impedence: float,
+        impedance: float,
         dim: int = 3,
         relax_time: float | None = None,
         deph_time: float | None = None,
@@ -379,8 +379,8 @@ class HarmonicOscillator(QuantumSystem):
             The label of the harmonic oscillator.
         frequency : float
             The frequency of the harmonic oscillator.
-        impedence : float
-            The characteristic impedence of the harmonic oscillator.
+        impedance : float
+            The characteristic impedance of the harmonic oscillator.
         dim : int, optional
             The dimensionality of the harmonic oscillator , by default 3
         relax_time : float | None, optional
@@ -411,18 +411,18 @@ class HarmonicOscillator(QuantumSystem):
         if frequency <= 0.0:
             raise ValueError("The frequency must be greater than zero.")
 
-        if not isinstance(impedence, float):
+        if not isinstance(impedance, float):
             raise ValueError(
-                f"The impedence must be a float, instead got type {type(impedence)}."
+                f"The impedence must be a float, instead got type {type(impedance)}."
             )
-        if impedence <= 0.0:
+        if impedance <= 0.0:
             raise ValueError("The impedence must be greater than zero.")
-        capacitance = 1 / (impedence * frequency)
+        capacitance = 1 / (impedance * frequency)
 
         redifined_e = e / math.sqrt(hbar)
         charging_energy = (redifined_e**2) / (2 * capacitance)
 
-        inductance = impedence / frequency
+        inductance = impedance / frequency
         inductive_energy = 1 / (4 * (redifined_e**2) * inductance)
 
         oscillator = HarmonicOscillator(
