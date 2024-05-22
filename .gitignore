@@ -170,4 +170,4 @@ cython_debug/
 
 # Jupyter notebooks
 .ipynb_checkpoints
-# *.ipynb
+*.ipynb
