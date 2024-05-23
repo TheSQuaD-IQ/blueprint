@@ -78,8 +78,8 @@ class Drive:
         self._prefactors: List[Partial] = []
 
         if isinstance(prefactor, Callable):
-            partial_prefactor = Partial(prefactor)
-            self._prefactors.append(partial_prefactor)
+            # partial_prefactor = Partial(prefactor)
+            self._prefactors.append(prefactor)
 
         elif isinstance(prefactor, Iterable):
             prefactors = list(prefactor)
@@ -97,8 +97,8 @@ class Drive:
                 if not isinstance(op_prefactor, Callable):
                     raise ValueError("Each prefactor in prefactors must be a callable.")
 
-                partial_prefactor = Partial(op_prefactor)
-                self._prefactors.append(partial_prefactor)
+                # partial_prefactor = Partial(op_prefactor)
+                self._prefactors.append(op_prefactor)
 
         else:
             raise ValueError(
@@ -293,8 +293,8 @@ class Drive:
             If a required positional argument is missing.
         """
         if finalize:
-            prefactors = []
-
+            prefactors = self._prefactors
+            """
             for prefactor in self._prefactors:
                 args = []
                 for pos_arg in prefactor.pos_only_args:
@@ -311,8 +311,9 @@ class Drive:
                     if keyword_arg in params:
                         keywords[keyword_arg] = params[keyword_arg]
 
-                finalized_prefactor = prefactor.finalize(*args, **keywords)
-                prefactors.append(finalized_prefactor)
+                # finalized_prefactor = prefactor.finalize(*args, **keywords)
+                prefactors.append(prefactor)
+                """
         else:
             prefactors = self._prefactors
 

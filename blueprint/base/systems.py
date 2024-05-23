@@ -258,7 +258,7 @@ class QuantumSystem(metaclass=ABCMeta):
             )
 
         drive = Drive(label, pulse, operator)
-        drive.set_params(**keywords)
+        # drive.set_params(**keywords)
         self._drives[label] = drive
 
     @abstractmethod
