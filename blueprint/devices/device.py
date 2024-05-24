@@ -1,7 +1,8 @@
 import math
-import yaml
 from pathlib import Path
 from typing import Iterable, Tuple, Dict, List, Callable, Iterator, Self, TypeAlias
+
+import yaml
 
 from jax import Array
 from jax import numpy as jnp
@@ -434,7 +435,7 @@ class Device:
         """
         bare_hamiltonian = self._get_bare_hamiltonian()
         hamiltonian = self.process_op(bare_hamiltonian)
-        return bare_hamiltonian
+        return hamiltonian
 
     def _get_int_hamiltonian(self) -> Array:
         """
@@ -501,12 +502,12 @@ class Device:
         for qubit in self.qubits:
             for drive in qubit.drives.values():
                 drive_hamiltonian = drive.get_hamiltonian(**params)
-                hamiltonian = jnp.add(hamiltonian, drive_hamiltonian)
+                hamiltonian = hamiltonian + drive_hamiltonian
 
         for coupling in self._couplings.values():
             for drive in coupling.drives.values():
                 drive_hamiltonian = drive.get_hamiltonian(**params)
-                hamiltonian = jnp.add(hamiltonian, drive_hamiltonian)
+                hamiltonian = hamiltonian + drive_hamiltonian
 
         return hamiltonian
 
@@ -544,6 +545,38 @@ class Device:
         """
         drive_hamiltonian = self._get_drive_hamiltonian(**params)
         return self.process_op(drive_hamiltonian)
+
+    def _get_jump_ops(self) -> Iterator[Array | None]:
+        """
+        _get_jump_ops Yields the jump operators associated with quantum system embedded in the device.
+        These correspond to either or both the energy relaxation and dephasing processes, depending on whether the values of the relaxation and dephasing times were provided for each quantum system, respectively.
+        This function returns these operators in the basis of each qubit.
+
+        Yields
+        ------
+        Iterator[Array]e
+            The jump operators for each qubit in the device.
+        """
+        for qubit in self._qubits:
+            jump_ops = qubit.get_jump_ops()
+            yield from jump_ops
+
+    def get_jump_ops(self) -> Iterator[Array | None]:
+        """
+        get_jump_ops Yields the jump operators associated with quantum system embedded in the device.
+        These correspond to either or both the energy relaxation and dephasing processes, depending on whether the values of the relaxation and dephasing times were provided for each quantum system, respectively.
+
+        Yields
+        ------
+        Iterator[Array]e
+            The jump operators for each qubit in the device.
+        """
+        jump_ops = self._get_jump_ops()
+        for jump_op in jump_ops:
+            if jump_op is None:
+                yield jump_op
+            else:
+                yield self.process_op(jump_op)
 
     def diagonalize(self, truncated_dim: int | None = None) -> None:
         """

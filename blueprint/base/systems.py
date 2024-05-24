@@ -340,6 +340,17 @@ class QuantumSystem(metaclass=ABCMeta):
             The charge operator of the quantum system.
         """
 
+    @abstractmethod
+    def get_jump_ops(self) -> Iterator[Array]:
+        """
+        get_jump_ops Returns the jump operators of the quantum system.
+
+        Yields
+        ------
+        Iterator[Array]
+            The jump operators of the quantum system.
+        """
+
     def _get_eigenvalues(self) -> Array:
         hamiltonian = self._get_hamiltonian()
         eig_vals = jsp.linalg.eigh(hamiltonian, eigvals_only=True)

@@ -1,5 +1,5 @@
 import math
-from typing import Union, Tuple, Callable
+from typing import Union, Tuple, Callable, Iterator
 from functools import wraps
 
 from scipy.optimize import minimize
@@ -455,6 +455,9 @@ class TunableTransmon(QuantumSystem):
             "The number operator is only available in the diagonal (energy) basis."
         )
 
+    def get_jump_ops(self) -> Iterator[Array]:
+        raise NotImplementedError("Jump operators are not implemented yet.")
+
     def get_potential(self, phases: Union[float, Array]) -> Array:
         """
         potential Returns the potential energy of the transmon.
@@ -522,7 +525,6 @@ class TunableTransmon(QuantumSystem):
         ops = (cosphi_op, sinphi_op)
 
         self.add_drive(label, prefactors, ops, **keywords)
-
 
     def add_charge_drive(
         self,
