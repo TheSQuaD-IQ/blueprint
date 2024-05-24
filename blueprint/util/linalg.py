@@ -225,6 +225,6 @@ def tidyup(op: Array, tol: float) -> Array:
         The tidyed up array containing only real and imaginary values larger than `tol`.
     """
     op_real, op_imag = op.real, op.imag
-    op_real = op.at[op.real < tol].set(0.0)
-    op_imag = op.at[op.imag < tol].set(0.0)
+    op_real = op.at[jnp.abs(op.real) < tol].set(0.0)
+    op_imag = op.at[jnp.abs(op.imag) < tol].set(0.0)
     return op_real + 1.0j * op_imag
