@@ -1,7 +1,7 @@
 """Fluxonium qubit module."""
 
 import math
-from typing import Callable
+from typing import Callable, Iterator
 
 from jax import Array
 from jax import numpy as jnp
@@ -586,6 +586,9 @@ class Fluxonium(QuantumSystem):
         hamiltonian = kinetic_term + potential_term
 
         return hamiltonian
+
+    def get_jump_ops(self) -> Iterator[Array]:
+        raise NotImplementedError("Jump operators are not implemented yet.")
 
     def add_charge_drive(
         self,
