@@ -200,7 +200,6 @@ class QuantumSystem(metaclass=ABCMeta):
         label: str,
         pulse: Callable | Iterable[Callable],
         operator: Array | Iterable[Array],
-        **keywords,
     ) -> None:
         """
         add_drive Adds a drive to the quantum system.
@@ -258,7 +257,6 @@ class QuantumSystem(metaclass=ABCMeta):
             )
 
         drive = Drive(label, pulse, operator)
-        # drive.set_params(**keywords)
         self._drives[label] = drive
 
     @abstractmethod
@@ -278,8 +276,7 @@ class QuantumSystem(metaclass=ABCMeta):
 
         for drive in self._drives.values():
             drive_hamiltonian = drive.get_hamiltonian(**params)
-
-            hamiltonian = jnp.add(hamiltonian, drive_hamiltonian)
+            hamiltonian = hamiltonian + drive_hamiltonian
         return hamiltonian
 
     def get_drive_hamiltonian_terms(
