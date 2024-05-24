@@ -487,7 +487,7 @@ class Device:
         hamiltonian = self.process_op(native_hamiltonian)
         return hamiltonian
 
-    def _get_drive_hamiltonian(self, **params) -> Array:
+    def _get_drive_hamiltonian(self, time: float) -> Array:
         """
         _get_drive_hamiltonian Returns the sum of the Hamiltonian of each of the drives
         applied to the qubits and couplings of the device.
@@ -501,19 +501,17 @@ class Device:
 
         for qubit in self.qubits:
             for drive in qubit.drives.values():
-                drive_hamiltonian = drive.get_hamiltonian(**params)
+                drive_hamiltonian = drive.get_hamiltonian(time)
                 hamiltonian = hamiltonian + drive_hamiltonian
 
         for coupling in self._couplings.values():
             for drive in coupling.drives.values():
-                drive_hamiltonian = drive.get_hamiltonian(**params)
+                drive_hamiltonian = drive.get_hamiltonian(time)
                 hamiltonian = hamiltonian + drive_hamiltonian
 
         return hamiltonian
 
-    def get_drive_hamiltonian_terms(
-        self, finalize: bool = True, **params
-    ) -> Iterator[Tuple[Callable, Array]]:
+    def get_drive_hamiltonian_terms(self) -> Iterator[Tuple[Callable, Array]]:
         """
         get_drive_hamiltonian_terms Returns an iterator over the
         `(prefactor, processed_op)` for each drive applied to the qubits and couplings
@@ -525,12 +523,12 @@ class Device:
             The total drive Hamiltonian of the device.
         """
         for qubit in self.qubits:
-            for prefactor, op in qubit.get_drive_hamiltonian_terms(finalize, **params):
+            for prefactor, op in qubit.get_drive_hamiltonian_terms():
                 yield prefactor, self.process_op(op)
 
         for coupling in self._couplings.values():
             for drive in coupling.drives.values():
-                for prefactor, op in drive.decompose(finalize, **params):
+                for prefactor, op in drive.decompose():
                     yield prefactor, self.process_op(op)
 
     def get_drive_hamiltonian(self, **params) -> Array:

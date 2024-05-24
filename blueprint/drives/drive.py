@@ -3,8 +3,6 @@ from typing import Union, Callable, Iterable, List, Iterator, Tuple
 from jax import Array
 from jax import numpy as jnp
 
-from ..util import Partial
-
 Numeric = Union[float, complex]
 
 
@@ -75,10 +73,9 @@ class Drive:
             )
 
         self._dim = dim
-        self._prefactors: List[Partial] = []
+        self._prefactors: List[Callable] = []
 
         if isinstance(prefactor, Callable):
-            # partial_prefactor = Partial(prefactor)
             self._prefactors.append(prefactor)
 
         elif isinstance(prefactor, Iterable):
@@ -97,7 +94,6 @@ class Drive:
                 if not isinstance(op_prefactor, Callable):
                     raise ValueError("Each prefactor in prefactors must be a callable.")
 
-                # partial_prefactor = Partial(op_prefactor)
                 self._prefactors.append(op_prefactor)
 
         else:
@@ -130,7 +126,7 @@ class Drive:
         return self._dim
 
     @property
-    def prefactors(self) -> List[Partial]:
+    def prefactors(self) -> List[Callable]:
         """
         prefactors Returns the prefactors of the time-dependent term.
 
@@ -153,53 +149,7 @@ class Drive:
         """
         return self._op
 
-    @property
-    def free_params(self) -> Tuple[str, ...]:
-        """
-        free_params Returns the free parameters of the possibly time-dependent drive term.
-
-        Returns
-        -------
-        Tuple[str]
-            The tuple of free parameters (str) of the possibly time-dependent drive term.
-        """
-        params = set()
-        for prefactor in self._prefactors:
-            params.update(prefactor.free_params)
-        return tuple(params)
-
-    @property
-    def params(self) -> Tuple[str, ...]:
-        """
-        params Returns the parameters of the possibly time-dependent drive term. This includes both free and fixed parameters.
-
-        Returns
-        -------
-        Tuple[str]
-            The tuple of parameters (str) of the possibly time-dependent drive term.
-        """
-        params = set()
-        for prefactor in self._prefactors:
-            params.update(prefactor.params)
-        return tuple(params)
-
-    def set_params(self, **keywords) -> None:
-        """
-        set_params Sets the parameters of the time-dependent term.
-
-        Parameters
-        ----------
-        **keywords
-            The parameters of the time-dependent term.
-        """
-        for prefactor in self._prefactors:
-            prefactor_params = set(prefactor.keyword_args)
-
-            for param, value in keywords.items():
-                if param in prefactor_params:
-                    prefactor.set_keyword(param, value)
-
-    def eval_prefactors(self, **params) -> Iterator[Numeric]:
+    def eval_prefactors(self, time: float) -> Iterator[Numeric]:
         """
         eval_prefactor Evaluates the prefactor of the time-dependent term.
 
@@ -209,23 +159,10 @@ class Drive:
             The evaluated prefactor.
         """
         for prefactor in self._prefactors:
-            args = []
-            for pos_arg in prefactor.pos_only_args:
-                if pos_arg not in params:
-                    raise ValueError(f"Missing required positional argument {pos_arg}.")
-                arg_val = params[pos_arg]
-                args.append(arg_val)
-
-            keyword_args = prefactor.keyword_args
-            keywords = {}
-            for keyword_arg in keyword_args:
-                if keyword_arg in params:
-                    keywords[keyword_arg] = params[keyword_arg]
-
-            prefactor_val = prefactor(*args, **keywords)
+            prefactor_val = prefactor(time)
             yield prefactor_val
 
-    def _get_hamiltonian(self, **params) -> Array:
+    def _get_hamiltonian(self, time: float) -> Array:
         """
         _get_hamiltonian Evaluates the prefactor and returns the Hamiltonian of the coupling term.
 
@@ -244,18 +181,19 @@ class Drive:
         ValueError
             If the evaluated prefactor is not a number (float or complex).
         """
-        prefactors = list(self.eval_prefactors(**params))
+        prefactors = list(self.eval_prefactors(time))
 
         hamiltonian = jnp.zeros((self._dim, self._dim))
         if isinstance(self._op, list):
             for prefactor, op in zip(prefactors, self._op):
-                hamiltonian = jnp.add(hamiltonian, prefactor * op)
-        else:
-            for prefactor in prefactors:
-                hamiltonian = jnp.add(hamiltonian, prefactor * self._op)
+                hamiltonian = hamiltonian + prefactor * op
+            return hamiltonian
+
+        for prefactor in prefactors:
+            hamiltonian = hamiltonian + prefactor * self._op
         return hamiltonian
 
-    def get_hamiltonian(self, **params) -> Array:
+    def get_hamiltonian(self, time: float) -> Array:
         """
         get_hamiltonian Returns the Hamiltonian of the coupling term.
 
@@ -269,11 +207,9 @@ class Drive:
         Array
             The coupling term Hamiltonian.
         """
-        return self._get_hamiltonian(**params)
+        return self._get_hamiltonian(time)
 
-    def decompose(
-        self, finalize: bool = True, **params
-    ) -> Iterator[Tuple[Callable, Array]]:
+    def decompose(self) -> Iterator[Tuple[Callable, Array]]:
         """
         decompose Decomposes the drive term into prefactors and operators.
 
@@ -292,33 +228,8 @@ class Drive:
         ValueError
             If a required positional argument is missing.
         """
-        if finalize:
-            prefactors = self._prefactors
-            """
-            for prefactor in self._prefactors:
-                args = []
-                for pos_arg in prefactor.pos_only_args:
-                    if pos_arg not in params:
-                        raise ValueError(
-                            f"Missing required positional argument {pos_arg}."
-                        )
-                    arg_val = params[pos_arg]
-                    args.append(arg_val)
-
-                keyword_args = prefactor.keyword_args
-                keywords = {}
-                for keyword_arg in keyword_args:
-                    if keyword_arg in params:
-                        keywords[keyword_arg] = params[keyword_arg]
-
-                # finalized_prefactor = prefactor.finalize(*args, **keywords)
-                prefactors.append(prefactor)
-                """
-        else:
-            prefactors = self._prefactors
-
         if isinstance(self._op, list):
-            yield from zip(prefactors, self._op)
+            yield from zip(self._prefactors, self._op)
         else:
-            for prefactor in prefactors:
+            for prefactor in self._prefactors:
                 yield prefactor, self._op

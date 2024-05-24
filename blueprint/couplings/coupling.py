@@ -239,15 +239,15 @@ class Coupling:
         hamiltonian = self._prefactor * self._operator
         return self.process_op(hamiltonian)
 
-    def _get_drive_hamiltonian(self, **params) -> Array:
+    def _get_drive_hamiltonian(self, time: float) -> Array:
         hamiltonian = jnp.zeros((self._dim, self._dim))
 
         for drive in self._drives.values():
-            drive_hamiltonian = drive.get_hamiltonian(**params)
-            hamiltonian = jnp.add(hamiltonian, drive_hamiltonian)
+            drive_hamiltonian = drive.get_hamiltonian(time)
+            hamiltonian = hamiltonian + drive_hamiltonian
         return hamiltonian
 
-    def get_drive_hamiltonian_terms(self, **params) -> Iterator[Tuple[Callable, Array]]:
+    def get_drive_hamiltonian_terms(self) -> Iterator[Tuple[Callable, Array]]:
         """
         get_drive_hamiltonian_terms
 
@@ -257,10 +257,10 @@ class Coupling:
             The total drive Hamiltonian.
         """
         for drive in self._drives.values():
-            for prefactor, op in drive.decompose(**params):
+            for prefactor, op in drive.decompose():
                 yield prefactor, self.process_op(op)
 
-    def get_drive_hamiltonian(self, **params) -> Array:
+    def get_drive_hamiltonian(self, time: float) -> Array:
         """
         get_drive_hamiltonian Returns the Hamiltonian of the drive terms of the coupler.
 
@@ -269,7 +269,7 @@ class Coupling:
         Array
             The drive Hamiltonian.
         """
-        drive_hamiltonian = self._get_drive_hamiltonian(**params)
+        drive_hamiltonian = self._get_drive_hamiltonian(time)
         return self.process_op(drive_hamiltonian)
 
     def set_transform(self, transform: Array) -> None:
@@ -332,7 +332,7 @@ class Coupling:
             op = op[: self._trunc_dim, : self._trunc_dim]
         return op
 
-    def add_drive(self, label: str, coupling_pulse: Callable, **keywords) -> None:
+    def add_drive(self, label: str, coupling_pulse: Callable) -> None:
         """
         add_drive Adds a drive to the coupling term.
 
@@ -359,5 +359,4 @@ class Coupling:
             return coup_prefactor - self._prefactor
 
         drive = Drive(label, prefactor, self._operator)
-        drive.set_params(**keywords)
         self._drives[label] = drive
