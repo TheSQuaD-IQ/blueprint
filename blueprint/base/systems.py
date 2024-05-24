@@ -307,10 +307,8 @@ class QuantumSystem(metaclass=ABCMeta):
         return self.process_op(drive_hamiltonian)
 
     def _get_diagonal_hamiltonian(self) -> Array:
-        dim = self._trunc_dim or self._dim
-
         eig_vals = self._get_eigenvalues()
-        hamiltonian = jnp.diag(eig_vals[:dim])
+        hamiltonian = jnp.diag(eig_vals)
         return hamiltonian
 
     def get_hamiltonian(self) -> Array:
@@ -324,9 +322,7 @@ class QuantumSystem(metaclass=ABCMeta):
         """
         if self.is_diagonalized:
             diag_hamiltonian = self._get_diagonal_hamiltonian()
-            hamiltonian = self.process_op(
-                diag_hamiltonian, diagonalize=False, truncate=False
-            )
+            hamiltonian = self.process_op(diag_hamiltonian, diagonalize=False)
             return hamiltonian
 
         native_hamiltonian = self._get_hamiltonian()

@@ -404,9 +404,8 @@ class Device:
         return norm_vals[:dim], eig_vecs[:, :dim]
 
     def _get_diagonal_hamiltonian(self) -> Array:
-        dim = self._trunc_dim or self._dim
         eig_vals = self.get_eigenvalues()
-        hamiltonian = jnp.diag(eig_vals[:dim])
+        hamiltonian = jnp.diag(eig_vals)
         return hamiltonian
 
     def _get_bare_hamiltonian(self) -> Array:
@@ -433,11 +432,6 @@ class Device:
         Array
             The bare Hamiltonian of the device.
         """
-        if self.is_diagonalized:
-            diag_hamiltonian = self._get_diagonal_hamiltonian()
-            hamiltonian = self.process_op(diag_hamiltonian, diagonalize=False)
-            return hamiltonian
-
         bare_hamiltonian = self._get_bare_hamiltonian()
         hamiltonian = self.process_op(bare_hamiltonian)
         return bare_hamiltonian
@@ -484,6 +478,10 @@ class Device:
         Array
             The full Hamiltonian of the device.
         """
+        if self.is_diagonalized:
+            diag_hamiltonian = self._get_diagonal_hamiltonian()
+            hamiltonian = self.process_op(diag_hamiltonian, diagonalize=False)
+            return hamiltonian
         native_hamiltonian = self._get_hamiltonian()
         hamiltonian = self.process_op(native_hamiltonian)
         return hamiltonian
