@@ -1,13 +1,12 @@
 from __future__ import annotations
 import math
-from typing import Callable, Iterator, Self
+from typing import Callable, Iterator, Any
 
 from scipy.constants import e, hbar
 from jax import numpy as jnp
 from jax import Array
 
 from ..base import QuantumSystem
-from ..drives import Drive
 
 
 class HarmonicOscillator(QuantumSystem):
@@ -436,17 +435,17 @@ class HarmonicOscillator(QuantumSystem):
         if self._decay_rate is None:
             raise ValueError("The decay rate of the transmon has not been set.")
 
-        decay_rate = self._decay_rate * (1 + self._n_thermal)
+        decay_prefactor = math.sqrt(self._decay_rate * (1 + self._n_thermal))
         low_op = self._get_low_op()
 
-        decay_op = math.sqrt(decay_rate) * low_op
+        decay_op = decay_prefactor * low_op
         yield decay_op
 
         if self._n_thermal > 0.0:
-            exc_rate = self._n_thermal * self._decay_rate
+            exc_prefactor = math.sqrt(self._n_thermal * self._decay_rate)
             raise_op = self._get_raise_op()
 
-            exc_op = math.sqrt(exc_rate) * raise_op
+            exc_op = exc_prefactor * raise_op
             yield exc_op
 
     def get_decay_ops(self) -> Iterator[Array]:
@@ -479,10 +478,10 @@ class HarmonicOscillator(QuantumSystem):
         if self._deph_rate is None:
             raise ValueError("The deph rate of the transmon has not been set.")
 
-        deph_rate = 2 * self._deph_rate
+        prefactor = math.sqrt(2 * self._deph_rate)
         number_op = self._get_number_op()
 
-        deph_op = math.sqrt(deph_rate) * number_op
+        deph_op = prefactor * number_op
         yield deph_op
 
     def get_deph_ops(self) -> Iterator[Array]:
@@ -497,6 +496,24 @@ class HarmonicOscillator(QuantumSystem):
         deph_ops = self._get_deph_ops()
         for deph_op in deph_ops:
             yield self.process_op(deph_op)
+
+    def get_jump_ops(self) -> Iterator[Array]:
+        """
+        get_jump_ops Yields the jump operators associated with the Kerr non-linear oscillator.
+        These correspond to either or both the energy relaxation and dephasing processes, depending on whether the values of the relaxation and dephasing times were provided, respectively.
+
+        Yields
+        ------
+        Iterator[Array]
+            The jump operators associated with the Kerr non-linear oscillator.
+        """
+        if self._decay_rate is not None:
+            decay_ops = self.get_decay_ops()
+            yield from decay_ops
+
+        if self._deph_rate is not None:
+            deph_ops = self.get_deph_ops()
+            yield from deph_ops
 
     @staticmethod
     def from_frequency(
