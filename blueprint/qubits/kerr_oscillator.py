@@ -23,8 +23,9 @@ class KerrOscillator(QuantumSystem):
         ext_flux: float = 0.0,
         asymmetry: float = 0.0,
         dim: int = 3,
-        relax_time: float | None = None,
-        deph_time: float | None = None,
+        decay_rate: float | None = None,
+        deph_rate: float | None = None,
+        thermal_photons: float = 0.0,
     ) -> None:
         if not isinstance(frequency, float):
             raise ValueError(
@@ -58,21 +59,32 @@ class KerrOscillator(QuantumSystem):
 
         super().__init__(label, dim)
 
-        # The relaxation and dephasing times
-        if relax_time is not None:
-            if relax_time <= 0.0:
-                raise ValueError("The relaxation time must be greater than zero.")
-        self._relax_time = relax_time
+        # The relaxation and pure dephasing rates
+        if decay_rate is not None:
+            if not isinstance(decay_rate, float):
+                raise ValueError(
+                    f"The decay rate must be a float, instead got type {type(decay_rate)}."
+                )
+            if decay_rate < 0.0:
+                raise ValueError("The decay rate must be greater than zero.")
+        self._decay_rate = decay_rate
 
-        if deph_time is not None:
-            if deph_time <= 0.0:
-                raise ValueError("The dephasing time must be greater than zero.")
-            if relax_time is not None:
-                if deph_time > 2 * relax_time:
-                    raise ValueError(
-                        "The dephasing time must be less than or equal to two times the relaxation time."
-                    )
-        self._deph_time = deph_time
+        if deph_rate is not None:
+            if not isinstance(deph_rate, float):
+                raise ValueError(
+                    f"The dephasing rate must be a float, instead got type {type(deph_rate)}."
+                )
+            if deph_rate < 0.0:
+                raise ValueError("The dephasing rate must be greater than zero.")
+        self._deph_rate = deph_rate
+
+        if not isinstance(thermal_photons, float):
+            raise ValueError(
+                f"The thermal photons must be a float, instead got type {type(thermal_photons)}."
+            )
+        if thermal_photons < 0.0:
+            raise ValueError("The thermal photons must be greater than zero.")
+        self._n_thermal = thermal_photons
 
     @property
     def approx_frequency(self) -> float:
@@ -600,47 +612,84 @@ class KerrOscillator(QuantumSystem):
         number_op = self._get_number_op()
         self.add_drive(label, detuning_pulse, number_op, **keywords)
 
-    def get_relaxation_op(self) -> Array:
+    def _get_decay_ops(self) -> Iterator[Array]:
         """
-        get_relaxation_op Returns the relaxation jump operator of the transmon.
+        _get_decay_ops Yields the decay (and excitation) jump operators of the harmonic oscillator in the native fock bais.
 
-        Returns
-        -------
-        Array
-            The relaxation jump operator.
+        Yields
+        ------
+        Iterator[Array]
+            The decay (and excitation) jump operators of the harmonic oscillator.
 
         Raises
         ------
         ValueError
-            If the relaxation time has not been set.
+            If the decay rate of the harmonic oscillator has not been set.
         """
-        if self._relax_time is None:
-            raise ValueError("The relaxation time has not been set.")
-        relax_rate = 1 / self._relax_time
-        prefactor = math.sqrt(relax_rate)
+        if self._decay_rate is None:
+            raise ValueError("The decay rate of the transmon has not been set.")
 
-        low_op = self.get_low_op()
-        relax_op = prefactor * low_op
-        return self.process_op(relax_op)
+        decay_prefactor = math.sqrt(self._decay_rate * (1 + self._n_thermal))
+        low_op = self._get_low_op()
 
-    def get_dephasing_op(self) -> Array:
-        if self._deph_time is None:
-            raise ValueError("The dephasing time has not been set.")
-        deph_rate = 1 / self._deph_time
-        if self._relax_time is None:
-            prefactor = math.sqrt(deph_rate)
+        decay_op = decay_prefactor * low_op
+        yield decay_op
 
-            number_op = self._get_number_op()
-            deph_op = prefactor * number_op
-            return self.process_op(deph_op)
+        if self._n_thermal > 0.0:
+            exc_prefactor = math.sqrt(self._n_thermal * self._decay_rate)
+            raise_op = self._get_raise_op()
 
-        relax_rate = 1 / self._relax_time
-        pure_deph_rate = deph_rate - 0.5 * relax_rate
-        prefactor = math.sqrt(pure_deph_rate)
+            exc_op = exc_prefactor * raise_op
+            yield exc_op
 
+    def get_decay_ops(self) -> Iterator[Array]:
+        """
+        get_decay_ops Yield the decay (and excitation) jump operators of the harmonic oscillator, expressed in the transformed/truncated basis of the oscillator.
+
+        Yields
+        ------
+        Iterator[Array]
+            The decay (and excitation) jump operators of the harmonic oscillator.
+        """
+        decay_ops = self._get_decay_ops()
+        for decay_op in decay_ops:
+            yield self.process_op(decay_op)
+
+    def _get_deph_ops(self) -> Iterator[Array]:
+        """
+        _get_deph_ops Yields the dephasing jump operators of the harmonic oscillator in the native fock basis.
+
+        Yields
+        ------
+        Iterator[Array]
+            The dephasing jump operators of the harmonic oscillator.
+
+        Raises
+        ------
+        ValueError
+            If the dephasing rate of the harmonic oscillator has not been set.
+        """
+        if self._deph_rate is None:
+            raise ValueError("The deph rate of the transmon has not been set.")
+
+        prefactor = math.sqrt(2 * self._deph_rate)
         number_op = self._get_number_op()
+
         deph_op = prefactor * number_op
-        return self.process_op(deph_op)
+        yield deph_op
+
+    def get_deph_ops(self) -> Iterator[Array]:
+        """
+        get_deph_ops Yield the dephasing jump operators of the harmonic oscillator, expressed in the transformed/truncated basis of the oscillator.
+
+        Yields
+        ------
+        Iterator[Array]
+            The dephasing jump operators of the harmonic oscillator.
+        """
+        deph_ops = self._get_deph_ops()
+        for deph_op in deph_ops:
+            yield self.process_op(deph_op)
 
     def get_jump_ops(self) -> Iterator[Array]:
         """
@@ -652,13 +701,13 @@ class KerrOscillator(QuantumSystem):
         Iterator[Array]
             The jump operators associated with the Kerr non-linear oscillator.
         """
-        if self._relax_time is not None:
-            relax_op = self.get_relaxation_op()
-            yield relax_op
+        if self._decay_rate is not None:
+            decay_ops = self.get_decay_ops()
+            yield from decay_ops
 
-        if self._deph_time is not None:
-            deph_op = self.get_dephasing_op()
-            yield deph_op
+        if self._deph_rate is not None:
+            deph_ops = self.get_deph_ops()
+            yield from deph_ops
 
     @staticmethod
     def from_energies(
@@ -668,8 +717,9 @@ class KerrOscillator(QuantumSystem):
         ext_flux: float = 0.0,
         asymmetry: float = 0.0,
         dim: int = 3,
-        relax_time: float | None = None,
-        deph_time: float | None = None,
+        decay_rate: float | None = None,
+        deph_rate: float | None = None,
+        thermal_photons: float = 0.0,
     ) -> KerrOscillator:
         """
         from_energies Create an AnharmonicOscillator from the charging and Josephson energies. This is so far assuming symmetric junctions.
@@ -724,6 +774,7 @@ class KerrOscillator(QuantumSystem):
             ext_flux=ext_flux,
             asymmetry=asymmetry,
             dim=dim,
-            relax_time=relax_time,
-            deph_time=deph_time,
+            decay_rate=decay_rate,
+            deph_rate=deph_rate,
+            thermal_photons=thermal_photons,
         )
