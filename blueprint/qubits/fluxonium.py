@@ -591,12 +591,7 @@ class Fluxonium(QuantumSystem):
         raise NotImplementedError("Jump operators are not implemented yet.")
 
     def add_charge_drive(
-        self,
-        label: str,
-        charge_pulse: Callable,
-        *,
-        include_fluctuations: bool = True,
-        **keywords,
+        self, label: str, charge_pulse: Callable, *, include_fluctuations: bool = True
     ) -> None:
         """
         add_charge_drive Applies a charge drive to the fluxonium.
@@ -612,7 +607,7 @@ class Fluxonium(QuantumSystem):
             Whether to include the charge operator fluctuations, by default True
         """
         charge_op = self._get_charge_op(include_fluctuations)
-        self.add_drive(label, charge_pulse, charge_op, **keywords)
+        self.add_drive(label, charge_pulse, charge_op)
 
     def add_flux_drive(
         self, label: str, flux_pulse: Callable, *, include_fluctuations: bool = True

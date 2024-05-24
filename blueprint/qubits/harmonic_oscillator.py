@@ -387,7 +387,6 @@ class HarmonicOscillator(QuantumSystem):
         charge_pulse: Callable,
         *,
         include_fluctuations: bool = True,
-        **keywords: Any,
     ) -> None:
         """
         add_charge_drive Applies a charge drive to the transmon.
@@ -416,7 +415,7 @@ class HarmonicOscillator(QuantumSystem):
             )
 
         charge_op = self._get_charge_op(include_fluctuations)
-        self.add_drive(label, charge_pulse, charge_op, **keywords)
+        self.add_drive(label, charge_pulse, charge_op)
 
     def _get_decay_ops(self) -> Iterator[Array]:
         """
