@@ -11,7 +11,7 @@ from .. import qubits as qubit_lib
 from ..base import QuantumSystem
 from ..couplings import Coupling
 from ..couplings import library as coupling_lib
-from ..util.linalg import transform_op, tensor_product, matrix_product
+from ..util.linalg import transform_op, tensor_product, matrix_product, tidyup
 from ..util.index import state_index, get_max_overlap_inds
 
 Numeric: TypeAlias = float | complex
@@ -581,6 +581,7 @@ class Device:
         *,
         diagonalize: bool = True,
         truncate: bool = True,
+        tidy: bool = False,  # Unused for now, will adapt later.
     ) -> Array:
         """
         process_op Processes the native operator into the transformed basis.
@@ -606,6 +607,14 @@ class Device:
                     "The truncation dimension is not set, making it impossible to perform this."
                 )
             op = op[: self._trunc_dim, : self._trunc_dim]
+
+        if tidy:
+            # TODO: Change tol for self.tidyup_tol class attribute that user can change.
+            dtype = op.dtype
+            if dtype == jnp.complex64 or dtype == jnp.float32:
+                op = tidyup(op, tol=1e-6)
+            elif dtype == jnp.complex128 or dtype == jnp.float64:
+                op = tidyup(op, tol=1e-12)
 
         return op
 

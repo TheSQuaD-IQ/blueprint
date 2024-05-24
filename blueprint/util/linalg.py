@@ -201,3 +201,30 @@ def is_diagonal(
     diag_op = jnp.diag(diag_elements)
     result = jnp.allclose(op, diag_op, rtol=rtol, atol=atol, equal_nan=equal_nan)
     return bool(result)
+
+
+def tidyup(op: Array, tol: float) -> Array:
+    """tidyup Tidy up the input matrix by truncating small values to zero.
+    The real and imaginary parts are treated separately. For example, the number
+    `1e-18 + 2j` will be truncated with a tolerance of `1e-15` to just `2j`.
+
+    Note:
+        Code adapted from
+        https://github.com/qutip/qutip/blob/master/qutip/core/data/tidyup.pyx.
+
+    Parameters
+    ----------
+    op : Array
+        The operator to tidy up.
+    tol: float
+        Absolute tolerance of the smallest real or imag values to keep in the Array.
+
+    Returns
+    -------
+    Array
+        The tidyed up array containing only real and imaginary values larger than `tol`.
+    """
+    op_real, op_imag = op.real, op.imag
+    op_real = op.at[op.real < tol].set(0.0)
+    op_imag = op.at[op.imag < tol].set(0.0)
+    return op_real + 1.0j * op_imag
