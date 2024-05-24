@@ -360,3 +360,23 @@ class Coupling:
 
         drive = Drive(label, prefactor, self._operator)
         self._drives[label] = drive
+
+    def remove_drive(self, label: str) -> None:
+        """
+        del_drive Removes a drive from the quantum system.
+
+        Parameters
+        ----------
+        label : str
+            The label of the drive.
+
+        Raises
+        ------
+        ValueError
+            If the drive with the specified label does not exist.
+        """
+        if label not in self._drives:
+            raise ValueError(
+                f"A drive with the label '{label}' does not exist in the quantum system."
+            )
+        del self._drives[label]
