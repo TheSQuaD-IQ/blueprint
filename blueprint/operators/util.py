@@ -1,3 +1,4 @@
+import math
 from typing import Any
 
 from jax import Array
@@ -46,7 +47,7 @@ def validate_ptm(ptm_op: Array, label: str | None = None) -> None:
             f"The Pauli transfer matrices is expected to have values in the range [-1, 1]: the provided {op_label} has a minimum value of {min_val}."
         )
     max_val = float(jnp.max(ptm_op))
-    if max_val > 1:
+    if max_val > 1 and not math.isclose(max_val, 1):
         raise ValueError(
             f"The Pauli transfer matrices is expected to have values in the range [-1, 1]: the provided {op_label} has a maximum value of {max_val}."
         )
