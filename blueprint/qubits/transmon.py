@@ -61,8 +61,9 @@ class TunableTransmon(QuantumSystem):
         ext_flux: float = 0.0,
         asymmetry: float = 0.0,
         charge_cutoff: int = 100,
-        relax_time: float | None = None,
-        deph_time: float | None = None,
+        decay_rate: float | None = None,
+        deph_rate: float | None = None,
+        thermal_photons: float = 0.0,
     ) -> None:
 
         # The transmon parameters (Josephson energy, charging energy, and gate charge)
@@ -98,19 +99,32 @@ class TunableTransmon(QuantumSystem):
         dim: int = 2 * self._ncut + 1
         super().__init__(label, dim)
 
-        # The relaxation and dephasing times
-        if relax_time is not None:
-            check_var_validity(relax_time, "relax_time", min_value=0.0)
-        self._relax_time = relax_time
+        # The relaxation and pure dephasing rates
+        if decay_rate is not None:
+            if not isinstance(decay_rate, float):
+                raise ValueError(
+                    f"The decay rate must be a float, instead got type {type(decay_rate)}."
+                )
+            if decay_rate < 0.0:
+                raise ValueError("The decay rate must be greater than zero.")
+        self._decay_rate = decay_rate
 
-        if deph_time is not None:
-            check_var_validity(deph_time, "deph_time", min_value=0.0)
-            if relax_time is not None:
-                if deph_time > 2 * relax_time:
-                    raise ValueError(
-                        "The dephasing time must be less than or equal to two times the relaxation time."
-                    )
-        self._deph_time = deph_time
+        if deph_rate is not None:
+            if not isinstance(deph_rate, float):
+                raise ValueError(
+                    f"The dephasing rate must be a float, instead got type {type(deph_rate)}."
+                )
+            if deph_rate < 0.0:
+                raise ValueError("The dephasing rate must be greater than zero.")
+        self._deph_rate = deph_rate
+
+        if not isinstance(thermal_photons, float):
+            raise ValueError(
+                f"The thermal photons must be a float, instead got type {type(thermal_photons)}."
+            )
+        if thermal_photons < 0.0:
+            raise ValueError("The thermal photons must be greater than zero.")
+        self._n_thermal = thermal_photons
 
     @property
     def charging_energy(self) -> float:
@@ -455,9 +469,6 @@ class TunableTransmon(QuantumSystem):
             "The number operator is only available in the diagonal (energy) basis."
         )
 
-    def get_jump_ops(self) -> Iterator[Array]:
-        raise NotImplementedError("Jump operators are not implemented yet.")
-
     def get_potential(self, phases: Union[float, Array]) -> Array:
         """
         potential Returns the potential energy of the transmon.
@@ -474,6 +485,72 @@ class TunableTransmon(QuantumSystem):
         """
         potential = -self.eff_josephson_energy * jnp.cos(phases)
         return potential
+
+    def get_decay_ops(self) -> Iterator[Array]:
+        """
+        get_decay_ops Yield the decay (and excitation) jump operators of the transmon,
+        expressed in the transformed/truncated basis of the qubit.
+
+        Yields
+        ------
+        Iterator[Array]
+            The decay (and excitation) jump operators of the transmon.
+        """
+        if self._decay_rate is None:
+            raise ValueError("The decay rate of the transmon has not been set.")
+
+        decay_prefactor = jnp.sqrt(self._decay_rate * (1 + self._n_thermal))
+        charge_op = self.get_charge_op()
+        low_op = jnp.triu(charge_op, k=0)
+
+        decay_op = decay_prefactor * low_op
+        yield decay_op
+
+        if self._n_thermal > 0.0:
+            exc_prefactor = jnp.sqrt(self._n_thermal * self._decay_rate)
+            raise_op = jnp.tril(charge_op, k=0)
+
+            exc_op = exc_prefactor * raise_op
+            yield exc_op
+
+    def get_deph_ops(self) -> Iterator[Array]:
+        """
+        get_deph_ops Yield the dephasing jump operators of the transmon,
+        expressed in the transformed/truncated basis of the qubit.
+
+        Yields
+        ------
+        Iterator[Array]
+            The dephasing jump operators of the transmon.
+        """
+        if self._deph_rate is None:
+            raise ValueError("The deph rate of the transmon has not been set.")
+
+        prefactor = jnp.sqrt(2 * self._deph_rate)
+        number_op = self.get_number_op()
+
+        deph_op = prefactor * number_op
+        yield deph_op
+
+    def get_jump_ops(self) -> Iterator[Array]:
+        """
+        get_jump_ops Yields the jump operators associated with the transmon.
+        These correspond to either or both the energy relaxation and dephasing processes,
+        depending on whether the values of the relaxation and dephasing times were provided,
+        respectively.
+
+        Yields
+        ------
+        Iterator[Array]
+            The jump operators associated with the transmon.
+        """
+        if self._decay_rate is not None:
+            decay_ops = self.get_decay_ops()
+            yield from decay_ops
+
+        if self._deph_rate is not None:
+            deph_ops = self.get_deph_ops()
+            yield from deph_ops
 
     def add_flux_drive(self, label: str, flux_pulse: Callable, **keywords) -> None:
         """
@@ -570,8 +647,9 @@ class TunableTransmon(QuantumSystem):
         offset_charge: float = 0.0,
         asymmetry: float = 0.0,
         charge_cutoff: int = 100,
-        relax_time: float | None = None,
-        deph_time: float | None = None,
+        decay_rate: float | None = None,
+        deph_rate: float | None = None,
+        thermal_photons: float = 0.0,
     ) -> "TunableTransmon":
         """
         from_params Create a TunableTransmon based on the qubit frequency and anharmonicity. This function also accepts other parameters, such as the external flux, offset charge, and junction asymmetry. The function will optimize the charging and Josephson energies to match the provided frequency and anharmonicity. The optimization is done using the scipy.optimize.minimize function. The optimization is done in the following way:
@@ -661,13 +739,14 @@ class TunableTransmon(QuantumSystem):
 
         charging_energy, josephson_energy = result.x
         return TunableTransmon(
-            label,
-            charging_energy,
-            josephson_energy,
-            offset_charge,
-            ext_flux,
-            asymmetry,
-            charge_cutoff,
-            relax_time,
-            deph_time,
+            label=label,
+            charging_energy=charging_energy,
+            josephson_energy=josephson_energy,
+            offset_charge=offset_charge,
+            ext_flux=ext_flux,
+            asymmetry=asymmetry,
+            charge_cutoff=charge_cutoff,
+            decay_rate=decay_rate,
+            deph_rate=deph_rate,
+            thermal_photons=thermal_photons,
         )

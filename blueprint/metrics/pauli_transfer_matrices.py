@@ -1,27 +1,24 @@
 import jax.numpy as jnp
 import math
-from jax.typing import DTypeLike
 
 """
 This file contains pauli transfer matrices for all basic qubit operations.
 Code adapted from https://github.com/QudevETH/PycQED_py3/blob/qudev_master/pycqed/simulations/pauli_transfer_matrices.py
 """
 
-DTYPE = jnp.complex128
-
 I = jnp.eye(4)
 # Pauli group
-X = jnp.array([[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, -1, 0], [0, 0, 0, -1]], dtype=DTYPE)
+X = jnp.array([[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, -1, 0], [0, 0, 0, -1]])
 
-Y = jnp.array([[1, 0, 0, 0], [0, -1, 0, 0], [0, 0, 1, 0], [0, 0, 0, -1]], dtype=DTYPE)
+Y = jnp.array([[1, 0, 0, 0], [0, -1, 0, 0], [0, 0, 1, 0], [0, 0, 0, -1]])
 
-Z = jnp.array([[1, 0, 0, 0], [0, -1, 0, 0], [0, 0, -1, 0], [0, 0, 0, 1]], dtype=DTYPE)
+Z = jnp.array([[1, 0, 0, 0], [0, -1, 0, 0], [0, 0, -1, 0], [0, 0, 0, 1]])
 
 # Exchange group
-S = jnp.array([[1, 0, 0, 0], [0, 0, 0, 1], [0, 1, 0, 0], [0, 0, 1, 0]], dtype=DTYPE)
+S = jnp.array([[1, 0, 0, 0], [0, 0, 0, 1], [0, 1, 0, 0], [0, 0, 1, 0]])
 S2 = jnp.dot(S, S)
 # Hadamard group
-H = jnp.array([[1, 0, 0, 0], [0, 0, 0, 1], [0, 0, -1, 0], [0, 1, 0, 0]], dtype=DTYPE)
+H = jnp.array([[1, 0, 0, 0], [0, 0, 0, 1], [0, 0, -1, 0], [0, 1, 0, 0]])
 
 CZ = jnp.array(
     [
@@ -41,8 +38,7 @@ CZ = jnp.array(
         [0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
         [0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
         [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-    ],
-    dtype=DTYPE,
+    ]
 )
 
 
@@ -54,7 +50,7 @@ def convert_to_rad(theta: float, unit: str = "rad"):
     raise ValueError(f"Expected unit to be rad or deg but got {unit = }.")
 
 
-def X_theta(theta: float, unit: str = "rad", dtype: DTypeLike = DTYPE):
+def X_theta(theta: float, unit: str = "rad"):
     """
     PTM of rotation of theta along the X axis
     """
@@ -66,13 +62,12 @@ def X_theta(theta: float, unit: str = "rad", dtype: DTypeLike = DTYPE):
             [0, 1, 0, 0],
             [0, 0, math.cos(theta), -math.sin(theta)],
             [0, 0, math.sin(theta), math.cos(theta)],
-        ],
-        dtype=dtype,
+        ]
     )
     return X
 
 
-def Y_theta(theta: float, unit: str = "rad", dtype: DTypeLike = DTYPE):
+def Y_theta(theta: float, unit: str = "rad"):
     """
     PTM of rotation of theta along the Y axis
     """
@@ -84,13 +79,12 @@ def Y_theta(theta: float, unit: str = "rad", dtype: DTypeLike = DTYPE):
             [0, math.cos(theta), 0, math.sin(theta)],
             [0, 0, 1, 0],
             [0, -math.sin(theta), 0, math.cos(theta)],
-        ],
-        dtype=dtype,
+        ]
     )
     return Y
 
 
-def Z_theta(theta: float, unit: str = "rad", dtype: DTypeLike = DTYPE):
+def Z_theta(theta: float, unit: str = "rad"):
     """
     PTM of rotation of theta along the Z axis
     """
@@ -102,7 +96,6 @@ def Z_theta(theta: float, unit: str = "rad", dtype: DTypeLike = DTYPE):
             [0, math.cos(theta), -math.sin(theta), 0],
             [0, math.sin(theta), math.cos(theta), 0],
             [0, 0, 0, 1],
-        ],
-        dtype=float,
+        ]
     )
-    return Y
+    return Z
