@@ -500,7 +500,7 @@ class TunableTransmon(QuantumSystem):
             raise ValueError("The decay rate of the transmon has not been set.")
 
         decay_prefactor = jnp.sqrt(self._decay_rate * (1 + self._n_thermal))
-        charge_op = self.get_charge_op()
+        charge_op = self.get_charge_op() / self.charge_zpf
         low_op = jnp.triu(charge_op, k=0)
 
         decay_op = decay_prefactor * low_op
