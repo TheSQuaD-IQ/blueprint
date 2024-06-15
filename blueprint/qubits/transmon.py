@@ -285,7 +285,7 @@ class TunableTransmon(QuantumSystem):
             raise ValueError(
                 "The charge zero-point fluctuations are only available in the diagonal basis."
             )
-        charge_op = self._get_charge_op()
+        charge_op = self._get_charge_op(include_charge_offset=False)
         diag_op = self.process_op(
             charge_op, diagonalize=True, embed=False, truncate=False
         )
@@ -313,29 +313,48 @@ class TunableTransmon(QuantumSystem):
         """
         return 1 / (2 * self.charge_zpf)
 
-    def _get_charge_op(self) -> Array:
+    def _get_charge_op(self, include_charge_offset: bool) -> Array:
         """
         _get_charge_op Returns the charge operator of the transmon in the charge basis.
 
+        Parameters
+        ----------
+        include_charge_offset : bool
+            Whether to include the charge offset
+
         Returns
         -------
         Array
-            The charge operator of the transmon, expressed in the charge basis.
+            The charge operator of the transmon expressed in the charge basis.
         """
+        charge_dim = 2 * self._ncut + 1
+
         charge_vals = jnp.arange(-self._ncut, self._ncut + 1)
-        op = jnp.diag(charge_vals)
-        return op
+        charge_op = jnp.diag(charge_vals)
 
-    def get_charge_op(self) -> Array:
+        if include_charge_offset:
+            id_op = jnp.identity(charge_dim)
+            offset_op = self._ng * id_op
+
+            offset_charge_op = charge_op - offset_op
+            return offset_charge_op
+        return charge_op
+
+    def get_charge_op(self, *, include_charge_offset: bool = True) -> Array:
         """
-        charge_op Returns the charge operator of the transmon.
+        get_charge_op Returns the charge operator of the transmon.
+
+        Parameters
+        ----------
+        include_charge_offset : bool, optional
+            Whether to include the charge offset, by default True
 
         Returns
         -------
         Array
-            The charge operator, in the current basis of the transmon.
+            The charge operator of the transmon.
         """
-        charge_op = self._get_charge_op()
+        charge_op = self._get_charge_op(include_charge_offset)
         processed_op = self.process_op(charge_op)
         return processed_op
 
@@ -404,13 +423,8 @@ class TunableTransmon(QuantumSystem):
         Array
             The kinetic term of the transmon Hamiltonian expressed in the charge basis.
         """
-        charge_dim = 2 * self._ncut + 1
-
-        n_op = self._get_charge_op()
-        id_op = jnp.identity(charge_dim)
-
-        n_offset_op = n_op - self._ng * id_op
-        kinetic_term = 4 * self._ec * n_offset_op @ n_offset_op
+        offset_charge_op = self._get_charge_op(include_charge_offset=True)
+        kinetic_term = 4 * self._ec * offset_charge_op @ offset_charge_op
         return kinetic_term
 
     def _get_potential_term(self) -> Array:
@@ -607,6 +621,8 @@ class TunableTransmon(QuantumSystem):
         self,
         label: str,
         charge_pulse: Callable,
+        *,
+        include_charge_offset: bool = True,
         **keywords,
     ) -> None:
         """
@@ -635,7 +651,7 @@ class TunableTransmon(QuantumSystem):
                 f"The charge pulse must be either a float or a Callable object, instead got type {type(charge_pulse)}."
             )
 
-        charge_op = self._get_charge_op()
+        charge_op = self._get_charge_op(include_charge_offset)
         self.add_drive(label, charge_pulse, charge_op, **keywords)
 
     @staticmethod

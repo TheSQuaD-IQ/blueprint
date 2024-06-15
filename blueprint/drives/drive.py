@@ -132,7 +132,7 @@ class Drive:
 
         Returns
         -------
-        List[Partial]
+        List[Callable]
             The prefactors of the time-dependent term.
         """
         return self._prefactors
@@ -186,11 +186,11 @@ class Drive:
         hamiltonian = jnp.zeros((self._dim, self._dim))
         if isinstance(self._op, list):
             for prefactor, op in zip(prefactors, self._op):
-                hamiltonian = hamiltonian + prefactor * op
+                hamiltonian += prefactor * op
             return hamiltonian
 
         for prefactor in prefactors:
-            hamiltonian = hamiltonian + prefactor * self._op
+            hamiltonian += prefactor * self._op
         return hamiltonian
 
     def get_hamiltonian(self, time: float) -> Array:

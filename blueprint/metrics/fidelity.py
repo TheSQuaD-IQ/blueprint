@@ -49,7 +49,7 @@ def entanglement_fidelity(ptm_op: Array, target_ptm_op: Array) -> float:
     # NOTE: The formula for the gate fidelity Fg of a PTM operator is given in arXiv:1202.5344. Note a small typo in the formula for the Hilbert space dimension d. See also arXiv:1509.02921.
     # The gate fidelity Fg is related to the entanglement fidelity Fe by the formula Fg = (d * Fe + 1) / (d + 1), see arXiv:quant-ph/0205035v2 as well.
     conj_op = jnp.conj(target_ptm_op)
-    # NOTE: that the operation above can be skipped for PTMs, but this formulat work for other superopators.
+    # NOTE: that the operation above can be skipped for PTMs, but this formula work for other superopators.
     ent_fid = jnp.trace(conj_op.T @ ptm_op) / pauli_dim
     return float(ent_fid)
 
