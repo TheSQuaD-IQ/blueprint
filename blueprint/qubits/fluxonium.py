@@ -1,71 +1,22 @@
 """Fluxonium qubit module."""
 
 import math
-from typing import Callable, Iterator
+from pathlib import Path
+from typing import Callable, Iterator, Self
 
+import yaml
 from jax import Array
 from jax import numpy as jnp
 
 from ..base import QuantumSystem
 from ..util.linalg import cosm
+from ..util.runtime_checks import check_positive, check_type
 
-
-def check_var_validity(
-    arg: float,
-    argname: str,
-    min_value: float | None = None,
-    max_value: float | None = None,
-) -> None:
-    """
-    check_var_validity Checks the validity of a variable.
-    Note that this function does not accept value equal to the minimum or maximum value.
-
-    Parameters
-    ----------
-    arg : float
-        The variable to check.
-    argname : str
-        The name of the variable.
-    min_value : float | None, optional
-        The minimum value that the variable can take , by default None
-    max_value : float | None, optional
-        The maximum value the variable can take , by default None
-
-    Raises
-    ------
-    ValueError
-        If the variable is not a float.
-    ValueError
-        If the variable is less than the minimum value.
-    ValueError
-        If the variable is greater than the maximum value.
-    """
-    if not isinstance(arg, float):
-        raise ValueError(
-            f"The {argname} is expected to be a float, instead got type {type(arg)}."
-        )
-
-    if min_value is not None:
-        if arg < min_value:
-            raise ValueError(
-                f"The {argname} must be greater than or equal to {min_value}."
-            )
-    if max_value is not None:
-        if arg > max_value:
-            raise ValueError(
-                f"The {argname} must be less than or equal to {max_value}."
-            )
+type Filestring = str | Path
 
 
 class Fluxonium(QuantumSystem):
-    """
-    Fluxonium _summary_
-
-    Parameters
-    ----------
-    QuantumSystem : _type_
-        _description_
-    """
+    """Fluxonium class."""
 
     def __init__(
         self,
@@ -103,33 +54,28 @@ class Fluxonium(QuantumSystem):
         ValueError
             If the Fock-basis cutoff is not an integer or is less than or equal to zero.
         """
-        check_var_validity(josephson_energy, "josephson_energy", min_value=0.0)
+        energies = (josephson_energy, charging_energy, inductive_energy)
+        energy_names = ("josephson_energy", "charging_energy", "inductive_energy")
+
+        for energy, name in zip(energies, energy_names):
+            check_type(energy, name, float)
+            check_positive(energy, name)
+
         self._ej = josephson_energy
-
-        check_var_validity(charging_energy, "charging_energy", min_value=0.0)
         self._ec = charging_energy
-
-        check_var_validity(inductive_energy, "inductive_energy", min_value=0.0)
         self._el = inductive_energy
 
-        check_var_validity(ext_flux, "ext_flux")
+        check_type(ext_flux, "ext_flux", float)
         self._ext_flux = ext_flux
 
         # The number of charge states to consider when constructing the Hamiltonian/operators
         # in the native (charge) basis.
-        if not isinstance(fock_cutoff, int):
-            raise ValueError(
-                f"The Fock-basis cutoff expected to be an integer, "
-                f"instead got type {type(fock_cutoff)}."
-            )
-        if fock_cutoff <= 0:
-            raise ValueError(
-                "The Fock-basis cutoff must be a non-negative integer or equal to zero."
-            )
+        check_type(fock_cutoff, "fock_cutoff", int)
+        check_positive(fock_cutoff, "fock_cutoff")
         self._fcut: int = fock_cutoff
 
         # The dimension of the Hilbert space
-        dim: int = self._fcut
+        dim: int = fock_cutoff
         super().__init__(label, dim)
 
     @property
@@ -624,3 +570,34 @@ class Fluxonium(QuantumSystem):
             This must be a callable object that returns the prefactor in front of the flux operator as a function of the time `t`.
         """
         raise NotImplementedError
+
+    @classmethod
+    def from_yaml(cls, filename: Filestring) -> Self:
+        """
+        from_yaml Initializes a device from a YAML file
+        which defines the parameters of the device.
+        The YAML file should contain a list of qubit parameters, including
+        the type of each qubit and the parameters required to initialize it.
+        The qubit type should be one of the qubit types defined in the blueprint.qubits module.
+
+        Parameters
+        ----------
+        filename : Filestring
+            The path to the YAML file containing the qubit parameters.
+            This can be provided either as a string or a pathlib.Path object.
+
+        Returns
+        -------
+        Self
+            The device initialized from the YAML file.
+
+        Raises
+        ------
+        ValueError
+            If the qubit type is not found in the qubits module.
+        """
+        with open(filename, mode="r", encoding="utf-8") as file:
+            parameters = yaml.safe_load(file)
+
+        qubit = cls(**parameters)
+        return qubit
