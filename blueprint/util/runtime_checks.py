@@ -22,7 +22,7 @@ def check_type(var: Any, name: str, *valid_types: Type) -> None:
     """
     if not isinstance(var, valid_types):
         var_type = type(var)
-        valid_typestrings = ", ".join(valid_types)
+        valid_typestrings = ", ".join(map(str, valid_types))
         raise ValueError(
             f"{name} is expected to be {valid_typestrings}."
             f"Instead, received a variable of type {var_type}."
