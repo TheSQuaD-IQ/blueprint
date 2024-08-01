@@ -7,6 +7,8 @@ from jax import Array
 
 from ..base import QuantumSystem
 
+type FloatLike = float | Array
+
 
 class TLSDefect(QuantumSystem):
     """
@@ -17,8 +19,8 @@ class TLSDefect(QuantumSystem):
         self,
         label: str,
         frequency: float,
-        decay_rate: float | None = None,
-        deph_rate: float | None = None,
+        decay_rate: FloatLike | None = None,
+        deph_rate: FloatLike | None = None,
         thermal_photons: float = 0.0,
         *,
         dim: int = 2,
@@ -35,22 +37,38 @@ class TLSDefect(QuantumSystem):
 
         # The relaxation and pure dephasing rates
         if decay_rate is not None:
-            if not isinstance(decay_rate, float):
+            if isinstance(decay_rate, float):
+                if decay_rate < 0.0:
+                    raise ValueError("The decay rate must be greater than zero.")
+            elif isinstance(decay_rate, Array):
+                num_dims = len(decay_rate.shape)
+                if num_dims > 2:
+                    raise ValueError("The decay rate must be a scalar or a 1D array.")
+                if jnp.any(decay_rate < 0.0):
+                    raise ValueError("The decay rates must be greater than zero.")
+            else:
                 raise ValueError(
-                    f"The decay rate must be a float, instead got type {type(decay_rate)}."
+                    f"The decay rate must be a float or a jax.Array, instead got type {type(decay_rate)}."
                 )
-            if decay_rate < 0.0:
-                raise ValueError("The decay rate must be greater than zero.")
         self._decay_rate = decay_rate
 
         if deph_rate is not None:
-            if not isinstance(deph_rate, float):
+            if isinstance(deph_rate, float):
+                if deph_rate < 0.0:
+                    raise ValueError("The dephasing rate must be greater than zero.")
+            elif isinstance(deph_rate, Array):
+                num_dims = len(deph_rate.shape)
+                if num_dims > 2:
+                    raise ValueError(
+                        "The dephasing rate must be a scalar or a 1D array."
+                    )
+                if jnp.any(deph_rate < 0.0):
+                    raise ValueError("The dephasing rates must be greater than zero.")
+            else:
                 raise ValueError(
-                    f"The dephasing rate must be a float, instead got type {type(deph_rate)}."
+                    f"The dephasing rate must be a float or a jax.Array, instead got type {type(deph_rate)}."
                 )
-            if deph_rate < 0.0:
-                raise ValueError("The dephasing rate must be greater than zero.")
-        self._deph_rate = deph_rate
+            self._deph_rate = deph_rate
 
         if not isinstance(thermal_photons, float):
             raise ValueError(
@@ -264,17 +282,19 @@ class TLSDefect(QuantumSystem):
         if self._decay_rate is None:
             raise ValueError("The decay rate of the TLS defect has not been set.")
 
-        decay_prefactor = math.sqrt(self._decay_rate * (1 + self._n_thermal))
+        decay_rate = jnp.atleast_1d(self._decay_rate)
+        n_thermal = jnp.atleast_1d(self._n_thermal)
+        decay_prefactors = jnp.sqrt(jnp.einsum("i, j -> ij", decay_rate, 1 + n_thermal))
         low_op = self._get_low_op()
 
-        decay_op = decay_prefactor * low_op
+        decay_op = jnp.squeeze(jnp.einsum("ij, kl -> ijkl", decay_prefactors, low_op))
         yield decay_op
 
         if self._n_thermal > 0.0:
-            exc_prefactor = math.sqrt(self._n_thermal * self._decay_rate)
+            exc_prefactors = jnp.sqrt(jnp.einsum("i, j -> ij", decay_rate, n_thermal))
             raise_op = self._get_raise_op()
 
-            exc_op = exc_prefactor * raise_op
+            exc_op = jnp.squeeze(jnp.einsum("ij, kl -> ijkl", exc_prefactors, raise_op))
             yield exc_op
 
     def get_decay_ops(self) -> Iterator[Array]:
