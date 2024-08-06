@@ -1,4 +1,4 @@
-from typing import Any, Type
+from typing import Any, Type, Iterable
 
 
 def check_type(var: Any, name: str, *valid_types: Type) -> None:
@@ -94,3 +94,25 @@ def check_positive(var: float, name: str) -> None:
         If the variable is not positive.
     """
     check_valid_interval(var, name, left_bound=0.0)
+
+
+def all_equal(sequence: Iterable) -> bool:
+    """
+    all_equal Checks if all elements in the sequence are equal.
+
+    Parameters
+    ----------
+    sequence : Iterable
+        The sequence to be checked.
+
+    Returns
+    -------
+    bool
+        Whether all elements in the sequence are equal.
+    """
+    iterator = iter(sequence)
+    try:
+        example_elem = next(iterator)
+    except StopIteration:
+        return True
+    return all(example_elem == elem for elem in iterator)
