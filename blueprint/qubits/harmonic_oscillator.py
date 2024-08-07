@@ -1,6 +1,6 @@
 from __future__ import annotations
 import math
-from typing import Callable, Iterator, Any
+from typing import Callable, Iterator
 
 from scipy.constants import e, hbar
 from jax import numpy as jnp
