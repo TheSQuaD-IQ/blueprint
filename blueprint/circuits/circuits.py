@@ -12,7 +12,7 @@ VALID_TYPES = {"charge", "flux", "detuning"}
 
 class Operation:
     """
-    _summary_: A class to represent a quantum operation, implemented by a group of pulses applied on the qubits.
+    A class to represent a quantum operation, implemented by a group of pulses applied on the qubits.
     """
 
     def __init__(
@@ -281,6 +281,33 @@ class Operation:
 
         raise ValueError("operation must be an Operation object")
 
+    def __iter__(self) -> Iterator[Tuple[str, Callable, str]]:
+        """
+        __iter__ Returns an iterator over the operations in the layer.
+
+        Returns
+        -------
+        Iterator[Operation]
+            An iterator over the operations in the layer.
+        """
+        return zip(self._qubits, self._pulses, self._types)
+
+    def __getitem__(self, index: int) -> Tuple[str, Callable, str]:
+        """
+        __getitem__ Returns the operation at the given index.
+
+        Parameters
+        ----------
+        index : int
+            The index of the operation to return.
+
+        Returns
+        -------
+        Tuple[str, Callable, str]
+            The operation at the given index.
+        """
+        return self._qubits[index], self._pulses[index], self._types[index]
+
     @property
     def name(self) -> str:
         """
@@ -431,7 +458,7 @@ class Layer:
 
         Parameters
         ----------
-        *operations : Operation
+        operations : Iterable[Operation]
             The operations that make up the layer.
 
         Raises
@@ -446,9 +473,6 @@ class Layer:
             If any operation has a different time than the others.
         """
         self._ops = list(operations)
-
-        if len(self._ops) == 0:
-            raise ValueError("Layer must contain at least one operation")
 
         for op in self._ops:
             if not isinstance(op, Operation):
