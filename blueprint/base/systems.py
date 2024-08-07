@@ -279,6 +279,12 @@ class QuantumSystem(metaclass=ABCMeta):
             )
         del self._drives[label]
 
+    def remove_drives(self) -> None:
+        """
+        del_drives Removes all drives from the quantum system.
+        """
+        self._drives = {}
+
     @abstractmethod
     def _get_hamiltonian(self) -> Array:
         pass

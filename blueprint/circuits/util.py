@@ -113,16 +113,19 @@ def apply_layer(
     end_time = layer.time + layer.duration
     times = jnp.linspace(layer.time, end_time, num_times)
 
+    for qubit in device.qubits:
+        qubit.remove_drives()
+
     for operation in layer:
         label = operation.drive_label
-        for qubit, pulse, pulse_type in operation:
+        for qubit_label, pulse, pulse_type in operation:
             match pulse_type:
                 case "charge":
-                    device[qubit].add_charge_drive(label, pulse)
+                    device[qubit_label].add_charge_drive(label, pulse)
                 case "flux":
-                    device[qubit].add_flux_drive(label, pulse)
+                    device[qubit_label].add_flux_drive(label, pulse)
                 case "detuning":
-                    device[qubit].add_detuning_drive(label, pulse)
+                    device[qubit_label].add_detuning_drive(label, pulse)
                 case _:
                     raise ValueError(f"Unknown pulse type: {pulse_type}")
 
