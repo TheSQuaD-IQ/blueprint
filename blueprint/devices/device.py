@@ -1,3 +1,5 @@
+"""This module defines the Device class, which is used to define a quantum device consisting of qubits and couplings between them. The Device class provides methods to diagonalize the Hamiltonian of the device, compute the eigenvalues and eigenvectors of the Hamiltonian, and process operators in the basis of the device. The Device class also provides methods to add qubits and couplings to the device, and to initialize a device from a YAML file."""
+
 import math
 from pathlib import Path
 from typing import Iterable, Tuple, Dict, List, Callable, Iterator, Self, TypeAlias
@@ -544,7 +546,7 @@ class Device:
         drive_hamiltonian = self._get_drive_hamiltonian(**params)
         return self.process_op(drive_hamiltonian)
 
-    def _get_jump_ops(self) -> Iterator[Array | None]:
+    def _get_jump_ops(self) -> Iterator[Array]:
         """
         _get_jump_ops Yields the jump operators associated with quantum system embedded in the device.
         These correspond to either or both the energy relaxation and dephasing processes, depending on whether the values of the relaxation and dephasing times were provided for each quantum system, respectively.
@@ -552,21 +554,21 @@ class Device:
 
         Yields
         ------
-        Iterator[Array]e
+        Iterator[Array]
             The jump operators for each qubit in the device.
         """
         for qubit in self._qubits:
             jump_ops = qubit.get_jump_ops()
             yield from jump_ops
 
-    def get_jump_ops(self) -> Iterator[Array | None]:
+    def get_jump_ops(self) -> Iterator[Array]:
         """
         get_jump_ops Yields the jump operators associated with quantum system embedded in the device.
         These correspond to either or both the energy relaxation and dephasing processes, depending on whether the values of the relaxation and dephasing times were provided for each quantum system, respectively.
 
         Yields
         ------
-        Iterator[Array]e
+        Iterator[Array]
             The jump operators for each qubit in the device.
         """
         jump_ops = self._get_jump_ops()
