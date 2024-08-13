@@ -113,7 +113,7 @@ class Fluxonium(QuantumSystem):
             )
         if josephson_energy <= 0.0:
             raise ValueError("The Josephson energy must be greater than zero.")
-        self._el = josephson_energy
+        self._ej = josephson_energy
 
     @property
     def charging_energy(self) -> float:
