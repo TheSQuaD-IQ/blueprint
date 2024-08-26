@@ -38,6 +38,27 @@ def state_index(state: Tuple[int, ...], dims: Tuple[int, ...]) -> int:
     return ind
 
 
+def assign_max_overlap_ind(overlaps: Array, ind: Array) -> Tuple[Array, Array]:
+    """
+    assign_max_overlap_ind Assigns the index of the state with the maximum overlap with the target state.
+
+    Parameters
+    ----------
+    overlaps : Array
+        The array of state overlaps between the states and the target states.
+    ind : Array
+        The index of the state for which the maximum overlap is to be found.
+
+    Returns
+    -------
+    Tuple[Array, Array]
+        The updated array of state overlaps and the index of the state with the maximum overlap.
+    """
+    max_overlap_ind = jnp.argmax(overlaps[ind])
+    filtered_overlaps = overlaps.at[:, max_overlap_ind].set(0)
+    return filtered_overlaps, max_overlap_ind
+
+
 def get_max_overlap_inds(states: Array, target_states: Array) -> Array:
     """
     max_overlap_inds Returns the indices of the states with the maximum overlap with the target states.
@@ -54,10 +75,24 @@ def get_max_overlap_inds(states: Array, target_states: Array) -> Array:
     Array
         The indices of the states with the maximum overlap with the target states.
     """
-    overlaps = state_overlap(states, target_states)
-    inds = jnp.argmax(overlaps, axis=-1)
+    state_dim, num_states = states.shape
+    target_state_dim, num_target_states = target_states.shape
 
-    return inds
+    if state_dim != target_state_dim:
+        raise ValueError("Input states must have the same dimension")
+
+    if num_states > num_target_states:
+        raise ValueError(
+            "The number of target states must be greater than the number of states"
+        )
+
+    state_overlaps = state_overlap(states, target_states)
+    state_inds = jnp.arange(num_states)
+
+    _, max_overlap_inds = jax.lax.scan(
+        assign_max_overlap_ind, state_overlaps, state_inds
+    )
+    return max_overlap_inds
 
 
 def get_next_ind(overlap_mat: Array, start_ind: Array) -> Tuple[Array, Array]:
