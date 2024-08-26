@@ -37,33 +37,19 @@ def state_overlap(state: Array, target_state: Array) -> Array:
     Array
         The overlap(s) between the state(s) and the target state(s).
     """
-    state_dim = len(state.shape)
-    target_dim = len(target_state.shape)
+    if state.ndim == 0:
+        raise ValueError("Input must be a vector or matrix")
 
-    out_inds = []
-    if state_dim == 1:
-        state_sublist = [0]
-    else:
-        state_sublist = [Ellipsis, 0, 1]
-        out_inds.append(1)
+    states = jnp.atleast_2d(state)
 
-    if target_dim == 1:
-        target_sublist = [0]
-    else:
-        target_sublist = [Ellipsis, 0, 2]
-        out_inds.append(2)
+    if target_state.ndim == 0:
+        raise ValueError("Input must be a vector or matrix")
 
-    out_sublist = [Ellipsis, *out_inds]
+    target_states = jnp.atleast_2d(target_state)
 
-    overlap = jnp.einsum(
-        state,
-        state_sublist,
-        target_state,
-        target_sublist,
-        out_sublist,
-    )
-
-    return jnp.abs(overlap)
+    vec_prod = jnp.einsum("...ij, ...ik -> ...jk", jnp.conj(states), target_states)
+    overlap = jnp.abs(vec_prod) ** 2
+    return jnp.squeeze(overlap)
 
 
 def expectation_value(states: Array, operator: Array) -> Array:
