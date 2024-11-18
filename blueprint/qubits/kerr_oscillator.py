@@ -337,7 +337,7 @@ class KerrOscillator(QuantumSystem):
         float
             The frequency shift.
         """
-        cos_term = abs(jnp.cos(0.5 * ext_flux))
+        cos_term = jnp.abs(jnp.cos(0.5 * ext_flux))
         sqrt_term = jnp.sqrt(1 + self.asymmetry**2 * jnp.tan(0.5 * ext_flux) ** 2)
 
         eff_ej = self.josephson_energy * cos_term * sqrt_term
@@ -367,8 +367,7 @@ class KerrOscillator(QuantumSystem):
         Array
             The raising (creation) operator of the transmon.
         """
-        dim = self._trunc_dim or self._dim
-        offdiag = jnp.sqrt(jnp.arange(1, dim))
+        offdiag = jnp.sqrt(jnp.arange(1, self._dim))
         return jnp.diag(offdiag, k=-1)
 
     def get_raise_op(self) -> Array:
@@ -392,8 +391,7 @@ class KerrOscillator(QuantumSystem):
         Array
             The lowering (annihilaton) operator of the transmon.
         """
-        dim = self._trunc_dim or self._dim
-        offdiag = jnp.sqrt(jnp.arange(1, dim))
+        offdiag = jnp.sqrt(jnp.arange(1, self._dim))
         return jnp.diag(offdiag, k=1)
 
     def get_low_op(self) -> Array:
@@ -417,8 +415,7 @@ class KerrOscillator(QuantumSystem):
         Array
             The number operator of the transmon.
         """
-        dim = self._trunc_dim or self._dim
-        diagonal = jnp.arange(dim)
+        diagonal = jnp.arange(self._dim)
         return jnp.diag(diagonal)
 
     def get_number_op(self) -> Array:
