@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Iterable
+import math
 
 import jax.numpy as jnp
 from jax import Array
@@ -247,6 +248,50 @@ def raised_cosine_drag_envelope(
             gate_times=gate_times,
             carrier_freqs=carrier_freqs,
             carrier_phases=carrier_phases,
+            drag_params=drag_params,
+        )
+    )
+
+
+def _raised_cosine_drag_envelope_awg(
+    t: float | Array,
+    /,
+    gate_times: Array,
+    awg_frequencies: Array,
+    drag_params: Array,
+) -> Array:
+    in_phase_envelope = (1 - jnp.cos(2 * jnp.pi / gate_times * t)) / 2
+    quadrature_envelope = (
+        drag_params * jnp.sin(2 * jnp.pi / gate_times * t) * (jnp.pi / gate_times)
+    )
+    S_I = in_phase_envelope * jnp.sin(
+        awg_frequencies * t
+    ) + quadrature_envelope * jnp.cos(
+        awg_frequencies * t
+    )  # / math.sqrt(2)
+    S_Q = in_phase_envelope * jnp.cos(
+        awg_frequencies * t
+    ) - quadrature_envelope * jnp.sin(
+        awg_frequencies * t
+    )  # / math.sqrt(2)
+    return jnp.stack([S_I, S_Q], axis=-1)
+
+
+def raised_cosine_drag_envelope_awg(
+    t: float | Array,
+    /,
+    gate_times: PulseParamType,
+    awg_frequencies: PulseParamType = 0.0,
+    drag_params: PulseParamType = 0.0,
+):
+    t, gate_times, awg_frequencies, drag_params = format_pulse_params(
+        [t, gate_times, awg_frequencies, drag_params]
+    )
+    return jnp.squeeze(
+        _raised_cosine_drag_envelope_awg(
+            t,
+            gate_times=gate_times,
+            awg_frequencies=awg_frequencies,
             drag_params=drag_params,
         )
     )

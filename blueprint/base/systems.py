@@ -390,11 +390,12 @@ class QuantumSystem(metaclass=ABCMeta):
             return eig_vals[:dim]
         return eig_vals
 
-    def _get_eigenstates(self) -> Tuple[Array, Array]:
+    def _get_eigenstates(self, dim: int | None = None) -> Tuple[Array, Array]:
         hamiltonian = self._get_hamiltonian()
         eig_vals, eig_vecs = jsp.linalg.eigh(hamiltonian, eigvals_only=False)
         norm_vals = eig_vals - eig_vals[0]
-        return norm_vals, eig_vecs
+        positive_eig_vecs = get_pos_eigenvectors(eig_vecs, dim)
+        return norm_vals[:dim], positive_eig_vecs
 
     def get_eigenstates(
         self, *, diagonalize: bool = True, truncate: bool = True
@@ -422,8 +423,8 @@ class QuantumSystem(metaclass=ABCMeta):
             eig_vecs = jnp.identity(dim)
             return eig_vals[:dim], eig_vecs
 
-        eig_vals, eig_vecs = self._get_eigenstates()
-        return eig_vals[:dim], eig_vecs[:, :dim]
+        eig_vals, eig_vecs = self._get_eigenstates(dim)
+        return eig_vals, eig_vecs
 
     def diagonalize(self, truncated_dim: int | None = None) -> None:
         """
@@ -452,7 +453,7 @@ class QuantumSystem(metaclass=ABCMeta):
         if truncated_dim is not None:
             self.truncated_dim = truncated_dim
 
-        _, eig_vecs = self.get_eigenstates(truncate=False)
+        _, eig_vecs = self.get_eigenstates(truncate=True)
 
         self._diagonalized = True
         self._transform = eig_vecs
@@ -719,11 +720,23 @@ def get_projector(subspace_states: Array) -> Array:
     return projector
 
 
-def get_pos_eigenvectors(eig_vecs: Array) -> Array:
-    vecs = eig_vecs.T
-    for ind, vec in enumerate(vecs):
-        vec_ind = jnp.argmax(abs(vec))
-        angle = jnp.angle(vec[vec_ind])
-        phase = jnp.exp(-1j * angle)
-        vecs.at[ind].set(phase * vec)
-    return jnp.transpose(vecs)
+def get_pos_eigenvectors(eig_vecs: Array, dim: int | None = None) -> Array:
+    if dim is None:
+        dim = eig_vecs.shape[1]
+    for idx in range(dim):
+        vec_ind = jnp.argwhere(abs(eig_vecs[:, idx]) > 1e-3)[0, 0]
+        angle = jnp.angle(eig_vecs[vec_ind, idx])
+        if not jnp.allclose(angle, 0.0):
+            phase = jnp.exp(-1j * angle)
+            eig_vecs = eig_vecs.at[vec_ind, idx].multiply(phase)
+    return eig_vecs[:, :dim]
+    # vecs = eig_vecs.T
+    # for ind, vec in enumerate(vecs):
+    #     # vec_ind = jnp.argmax(abs(vec))
+    #     vec_ind = jnp.argwhere(abs(vec) > 1e-3)[0, 0]
+    #     # max_val = jnp.max(abs(vec))
+    #     # vec_ind = jnp.argwhere(abs(vec) == max_val)[0, 0]
+    #     angle = jnp.angle(vec[vec_ind])
+    #     phase = jnp.exp(-1j * angle)
+    #     vecs = vecs.at[ind].set(phase * vec)
+    # return jnp.transpose(vecs)

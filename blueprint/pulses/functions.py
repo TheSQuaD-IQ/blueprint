@@ -10,9 +10,15 @@ from .envelopes import (
     _flat_envelope,
     _net_zero_envelope,
     _raised_cosine_envelope,
+    _raised_cosine_drag_envelope_awg,
     format_pulse_params,
 )
-from .filters import gaussian_filter_closure_func, prepare_gaussian_params
+from .filters import (
+    gaussian_filter_closure_func,
+    prepare_gaussian_params,
+    prepare_gaussian_IQmixer_params,
+    gaussian_filter_and_IQmixer_closure_func,
+)
 
 __all__ = ["flat_top_gaussian", "raised_cosine", "raised_cosine_gaussian_filtered"]
 
@@ -276,4 +282,72 @@ def raised_cosine_gaussian_filtered(
         pixel_times=pixel_times,
         pixel_amplitudes=pixel_amplitudes,
         gaussian_std=gaussian_std,
+    )
+
+
+def gaussian_filtered_IQmixed_func(
+    pixel_times: Array,
+    pixel_amplitudes: Array,
+    gaussian_std: PulseParamType,
+    LO_frequencies: Array,
+    LO_phases: Array,
+) -> Callable[[float], Array]:
+    mid_pixel_times, timescale, LO_frequencies, LO_phases = (
+        prepare_gaussian_IQmixer_params(
+            pixel_times=pixel_times,
+            pixel_amplitudes=pixel_amplitudes,
+            gaussian_std=gaussian_std,
+            LO_frequencies=LO_frequencies,
+            LO_phases=LO_phases,
+        )
+    )
+
+    # Shape (batch_filter?, ...all_amplitudes_dim)
+    return Partial(
+        gaussian_filter_and_IQmixer_closure_func,
+        mid_pixel_times=mid_pixel_times,
+        pixel_amplitudes=pixel_amplitudes,
+        timescale=timescale,
+        LO_frequencies=LO_frequencies,
+        LO_phases=LO_phases,
+    )
+
+
+def raised_cosine_drag_gaussian_filtered_IQ_mixed(
+    pixel_times: Array,
+    amplitudes: PulseParamType,
+    gate_times: PulseParamType,
+    awg_frequencies: PulseParamType,
+    drag_params: PulseParamType,
+    LO_frequencies: PulseParamType,
+    LO_phases: PulseParamType,
+    gaussian_std: PulseParamType,
+) -> Callable[[float], Array]:
+    (
+        pixel_times_expanded,
+        amplitudes,
+        gate_times,
+        awg_frequencies,
+        drag_params,
+    ) = format_pulse_params(
+        (pixel_times, amplitudes, gate_times, awg_frequencies, drag_params)
+    )
+    # Shape (Npix, time_dim?, freq_dim?, phase_dim?)
+    pixel_amplitudes = jnp.squeeze(
+        amplitudes
+        * _raised_cosine_drag_envelope_awg(
+            pixel_times_expanded,
+            gate_times=gate_times,
+            awg_frequencies=awg_frequencies,
+            drag_params=drag_params,
+        )
+    )
+
+    # Shape (batch_filter?, batch_amp?, batch_time?, batch_freq?, batch_phase?)
+    return gaussian_filtered_IQmixed_func(
+        pixel_times=pixel_times,
+        pixel_amplitudes=pixel_amplitudes,
+        gaussian_std=gaussian_std,
+        LO_frequencies=LO_frequencies,
+        LO_phases=LO_phases,
     )

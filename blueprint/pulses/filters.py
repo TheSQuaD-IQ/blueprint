@@ -4,7 +4,7 @@ import jax.numpy as jnp
 from jax import Array
 from jax.scipy.special import erf
 
-from .envelopes import PulseParamType
+from .envelopes import PulseParamType, format_pulse_params
 
 __all__ = ["prepare_gaussian_params", "gaussian_filter_closure_func"]
 
@@ -76,6 +76,58 @@ def gaussian_filter_closure_func(
             width dimension `s` first, followed by all other potential batching dims.
     """
     erfs = -0.5 * jnp.diff(erf((t - mid_pixel_times) * timescale), axis=0)
-    erfs = erfs / jnp.sum(erfs, axis=0)
+    # erfs = erfs / jnp.sum(erfs, axis=0)
     output_amps = jnp.einsum("ps,p...->s...", erfs, pixel_amplitudes)
     return jnp.squeeze(output_amps)
+
+
+def prepare_gaussian_IQmixer_params(
+    pixel_times: Array,
+    pixel_amplitudes: PulseParamType,
+    gaussian_std: PulseParamType,
+    LO_frequencies: PulseParamType,
+    LO_phases: PulseParamType,
+) -> tuple[Array, Array, Array, Array]:
+    mid_pixel_times, timescale = prepare_gaussian_params(
+        pixel_times, pixel_amplitudes, gaussian_std
+    )
+    LO_frequencies, LO_phases = format_pulse_params([LO_frequencies, LO_phases])
+    return (
+        mid_pixel_times.reshape(*mid_pixel_times.shape, 1, 1),
+        timescale.reshape(*timescale.shape, 1, 1),
+        LO_frequencies.reshape(1, 1, *LO_frequencies.shape),
+        LO_phases.reshape(1, 1, *LO_phases.shape),
+    )
+
+
+def gaussian_filter_and_IQmixer_closure_func(
+    t: float,
+    mid_pixel_times: Array,
+    pixel_amplitudes: Array,
+    timescale: Array,
+    LO_frequencies: Array,
+    LO_phases: Array,
+) -> Array:
+    """_summary_
+
+    Last dim of pixel_amplitudes needs to be the 2 quadrature for I and Q.
+
+    Args:
+        t (float): _description_
+        mid_pixel_times (Array): _description_
+        pixel_amplitudes (Array): _description_
+        timescale (Array): _description_
+        LO_frequencies (Array): _description_
+        LO_phases (Array): _description_
+
+    Returns:
+        Array: _description_
+    """
+    # First, filter the envelope, without the carrier.
+    erfs = -0.5 * jnp.diff(erf((t - mid_pixel_times) * timescale), axis=0)
+    output_amps = jnp.einsum("psfc,p...->sfc...", erfs, pixel_amplitudes)
+    # Then, IQ-mix with the LO to upconvert the signal to the desired frequency.
+    return jnp.squeeze(
+        output_amps[..., 0] * jnp.cos(LO_frequencies * t + LO_phases)
+        + output_amps[..., 1] * jnp.sin(LO_frequencies * t + LO_phases)
+    )
