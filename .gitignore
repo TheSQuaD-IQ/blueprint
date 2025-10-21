@@ -164,3 +164,15 @@ cython_debug/
 
 .pdf
 *.pdf
+
+# Mac OSX files
+.DS_Store
+
+# Jupyter notebooks
+.ipynb_checkpoints
+
+# notebook directory
+notebooks/
+
+# backup files
+backup/
