@@ -1,44 +1,37 @@
-[tool.poetry]
+[project]
 name = "blueprint"
-version = "0.1.0"
+version = "0.2.0"
 description = "A library implement a variety of superconducting circuit models and the tools required to perform fast and detail simulations of their dynamics."
-authors = ["Boris Varbanov <Boris.Mihailov.Varbanov@USherbrooke.ca>", "Élie Genois <Elie.Genois@USherbrooke.ca>"]
+license = "MIT"
 readme = "README.md"
+authors = [
+    { name = "Boris Varbanov", email = "Boris.Mihailov.Varbanov@USherbrooke.ca" },
+    { name = "Élie Genois", email = "Elie.Genois@USherbrooke.ca" },
+]
+requires-python = ">=3.13.7"
+dependencies = [
+    "cython>=3.1.5",
+    "dynamiqs>=0.3.3",
+    "equinox>=0.13.2",
+    "jax>=0.8.0",
+    "jaxtyping>=0.3.3",
+    "numpy>=2.3.4",
+    "optax>=0.2.6",
+    "pyyaml>=6.0.3",
+    "scipy>=1.16.2",
+]
 
-[tool.poetry.dependencies]
-python = "^3.11"
-cython = "^0.29.37"
-pybind11 = "^2.11.1"
-numpy = "^1.26.4"
-scipy = "^1.12.0"
-matplotlib = "^3.8.3"
-wheel = "^0.42.0"
-dynamiqs = {git = "https://github.com/dynamiqs/dynamiqs.git"}
-pyyaml = "^6.0.1"
-setuptools = "^70.0.0"
-
-[tool.poetry.group.dev.dependencies]
-black = "^24.2.0"
-
-[tool.poetry.group.cpu]
-optional = true
-
-[tool.poetry.group.cpu.dependencies]
-jax = {extras = ["cpu"], version = "^0.4.26"}
-
-[tool.poetry.group.cuda]
-optional = true
-
-[tool.poetry.group.cuda.dependencies]
-jax = {extras = ["cuda12"], version = "^0.4.26"}
-
-[tool.poetry.group.notebook]
-optional = true
-
-[tool.poetry.group.notebook.dependencies]
-ipykernel = {version = "^6.29.4"}
-jupytext = {version = "^1.16.1"}
+[project.optional-dependencies]
+notebook = []
 
 [build-system]
-requires = ["poetry-core"]
-build-backend = "poetry.core.masonry.api"
+requires = ["uv_build>=0.8.21,<0.9.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "ipykernel>=7.0.1",
+    "pytest>=8.4.2",
+]
+
+[tool.uv]
