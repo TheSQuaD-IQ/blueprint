@@ -67,7 +67,7 @@ def get_branches(
     drive_pulse: Pulse,
     drive_op: Array,
     drive_period: float,
-    init_time: float = 0.0,
+    init_time: float | Scalar = 0.0,
     method: Method | None = None,
     options: Options | None = None,
 ) -> Tuple[Array, Array]:
@@ -87,7 +87,7 @@ def get_branches(
         The operator of the drive.
     drive_period : float
         The period of the drive.
-    init_time : float, optional
+    init_time : float | Scalar, optional
         The initial time for which to simulate the system, by default 0.0
     method : Method | None, optional
         The dynamiqs integration method, by default None which defaults to the Tsit5 method.
