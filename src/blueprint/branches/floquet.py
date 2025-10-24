@@ -103,8 +103,7 @@ def get_branches(
     method = method or Tsit5()
     options = options or Options()
 
-    # Can the save times be just a single number?
-    save_times = jnp.linspace(init_time, drive_period, 2)
+    save_times = jnp.atleast_1d(init_time)
 
     hamiltonian_term = dq.constant(hamiltonian)
     drive_term = dq.modulated(drive_pulse, drive_op)
@@ -120,17 +119,18 @@ def get_branches(
     )
 
     quasienergies = result.quasienergies
-    modes = jnp.squeeze(result.modes.to_jax())
-
-    final_modes = jnp.take(modes, -1, -3)
-    final_modes = jnp.moveaxis(final_modes, -1, -2)
+    modes = result.modes.to_jax()
+    # Remove the redundant axis corresponding to the time and the one used for the right-hand vectors
+    modes = jnp.squeeze(modes)
+    # Move the last two axes so that the the modes are the column vectors of the array
+    modes = jnp.moveaxis(modes, -1, -2)
 
     _, states = jnp.linalg.eigh(hamiltonian)
-    inds = get_branch_inds(final_modes, states)
+    inds = get_branch_inds(modes, states)
 
     branch_quasienergies = jnp.take_along_axis(quasienergies, inds, -1)
 
     exp_inds = jnp.expand_dims(inds, -2)
-    branches = jnp.take_along_axis(final_modes, exp_inds, -1)
+    branches = jnp.take_along_axis(modes, exp_inds, -1)
 
     return branch_quasienergies, branches
