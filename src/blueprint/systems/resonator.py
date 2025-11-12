@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import math
 from typing import Callable, Self, Tuple
 
@@ -34,7 +36,7 @@ class ResonatorParams(Module):
         *,
         device_ind: int | None = None,
         device_dims: Tuple[int, ...] | None = None,
-    ) -> Self:
+    ) -> ResonatorParams:
         """
         from_frequency Creates a ResonatorParams object from the frequency and impedance of the resonator.
 
@@ -197,7 +199,7 @@ class Resonator(System):
         )
 
         for label, drive in self.drives.items():
-            embedded_resonator.add_drive(label, drive)
+            embedded_resonator.drives[label] = drive
 
         return embedded_resonator
 

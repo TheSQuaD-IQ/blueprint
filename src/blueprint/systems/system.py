@@ -114,7 +114,7 @@ class System(Module):
         """
         return any(self.drives)
 
-    def add_drive(self, label: str, drive: "Drive") -> None:
+    def add_drive(self, drive: "Drive") -> None:
         """
         add_drive Adds a drive to the quantum system.
 
@@ -128,7 +128,7 @@ class System(Module):
         Self
             The quantum system with the drive added.
         """
-        self.drives[label] = drive
+        self.drives[drive.label] = drive
 
     @abstractmethod
     def embed(self, device_ind: int, device_dims: Tuple[int, ...]) -> Self:

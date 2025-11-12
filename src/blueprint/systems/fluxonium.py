@@ -227,7 +227,7 @@ class Fluxonium(System):
         )
 
         for label, drive in self.drives.items():
-            embedded_fluxonium.add_drive(label, drive)
+            embedded_fluxonium.drives[label] = drive
 
         return embedded_fluxonium
 
@@ -549,7 +549,7 @@ class Fluxonium(System):
         norm_vals = eig_vals - eig_vals[0]
         return norm_vals, eig_states
 
-    def get_eigenstates(self) -> Array:
+    def get_eigenstates(self) -> Tuple[Array, Array]:
         eig_states = jnp.identity(self.dim, dtype=complex)
         return self._eig_vals, eig_states
 
@@ -557,14 +557,14 @@ class Fluxonium(System):
         """
         add_charge_drive Adds a charge drive to the fluxonium.
         """
-        drive = ChargeDrive(pulse)
+        drive = ChargeDrive(label, pulse)
         self.drives[label] = drive
 
     def add_flux_drive(self, label: str, pulse: Pulse) -> None:
         """
         add_flux_drive Adds a flux drive to the fluxonium.
         """
-        drive = FluxDrive(pulse)
+        drive = FluxDrive(label, pulse)
         self.drives[label] = drive
 
     @classmethod

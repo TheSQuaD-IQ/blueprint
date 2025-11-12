@@ -465,7 +465,7 @@ class ChargeTransmon(BaseTransmon):
             device_dims=device_dims,
         )
         for label, drive in self.drives.items():
-            transmon.add_drive(label, drive)
+            transmon.drives[label] = drive
         return transmon
 
     def process_op(self, operator: Array) -> Array:
@@ -574,7 +574,7 @@ class Transmon(BaseTransmon):
         )
 
         for label, drive in self.drives.items():
-            transmon.add_drive(label, drive)
+            transmon.drives[label] = drive
         return transmon
 
     def process_op(self, operator: Array) -> Array:
