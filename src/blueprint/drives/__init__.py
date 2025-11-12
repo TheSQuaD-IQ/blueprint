@@ -1,5 +1,5 @@
 from .drive import BaseDrive, CompositeDrive
-from .library import ChargeDrive, CosFluxDrive, FluxDrive, SinFluxDrive
+from .library import ChargeDrive, CosFluxDrive, FluxDrive, SinFluxDrive, DetuningDrive
 
 __all__ = [
     "BaseDrive",
@@ -8,4 +8,5 @@ __all__ = [
     "CosFluxDrive",
     "FluxDrive",
     "SinFluxDrive",
+    "DetuningDrive",
 ]

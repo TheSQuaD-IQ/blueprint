@@ -51,3 +51,15 @@ class SinFluxDrive(Drive):
 
     def get_drive_op(self, system: System) -> Array:
         return system.get_sinflux_op()  # type: ignore
+
+
+class DetuningDrive(Drive):
+    """
+    Drive module
+    """
+
+    label: str = field(static=True, converter=str)
+    pulse: Pulse
+
+    def get_drive_op(self, system: System) -> Array:
+        return system.get_number_op()  # type: ignore
