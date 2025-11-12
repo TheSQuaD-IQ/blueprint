@@ -1,6 +1,6 @@
 from operator import mul
 from functools import reduce
-from typing import Iterable
+from typing import Sequence
 
 from jax import Array
 from jax import numpy as jnp
@@ -78,7 +78,7 @@ def tensor_product(*ops: Array) -> Array:
     return tree_reduce(jnp.kron, ops)
 
 
-def matrix_product(ops: Iterable[Array]) -> Array:
+def matrix_product(ops: Sequence[Array]) -> Array:
     """
     matrix_product Returns the matrix product of a list of operators.
 
@@ -117,7 +117,7 @@ def transform_op(op: Array, transform_mat: Array) -> Array:
 def embed_op(
     op: Array,
     ind: int,
-    dims: Iterable[int],
+    dims: Sequence[int],
 ) -> Array:
     """
     embed_operator Embeds an operator into a larger Hilbert space.
@@ -146,6 +146,7 @@ def embed_op(
     embedded_op = jnp.kron(op, right_identity)
     embedded_op = jnp.kron(left_identity, embedded_op)
     return embedded_op
+
 
 def tidyup(op: Array, tol: float) -> Array:
     """tidyup Tidy up the input matrix by truncating small values to zero.
