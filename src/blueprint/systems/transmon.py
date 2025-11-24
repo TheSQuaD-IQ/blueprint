@@ -515,7 +515,7 @@ class Transmon(BaseTransmon):
         charging_energy: ArrayLike,
         josephson_energy: ArrayLike,
         offset_charge: ArrayLike,
-        charge_cutoff: ArrayLike,
+        charge_cutoff: int,
         dim: int,
         device_ind: int | None = None,
         device_dims: Tuple[int, ...] | None = None,
