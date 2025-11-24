@@ -22,7 +22,7 @@ dependencies = [
 
 [project.optional-dependencies]
 cuda = [
-    "jax[cuda12]",
+    "jax[cuda12] (>=0.4.36,<0.7)",
 ]
 
 [tool.poetry]
