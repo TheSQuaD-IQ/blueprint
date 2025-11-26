@@ -1,5 +1,7 @@
+from __future__ import annotations
+
 from abc import abstractmethod
-from typing import Callable, Tuple, Self
+from typing import Callable, Tuple
 
 from jax import numpy as jnp
 from jax import scipy as jsp
@@ -17,43 +19,43 @@ type Pulse = Callable[[float], Scalar | Array]
 class BaseTransmon(System):
     """Transmon qubit model."""
 
-    _ec: Array
-    _ej: Array
-    _ng: Array
+    _ec: Scalar
+    _ej: Scalar
+    _ng: Scalar
     _ncut: int = field(static=True)
 
     @property
-    def charging_energy(self) -> float:
+    def charging_energy(self) -> Scalar:
         """
         charging_energy Returns the charging energy of the transmon.
 
         Returns
         -------
-        float
+        Scalar
             The charging energy of the transmon.
         """
         return self._ec
 
     @property
-    def josephson_energy(self) -> float:
+    def josephson_energy(self) -> Scalar:
         """
         josephson_energy Returns the Josephson energy of the transmon.
 
         Returns
         -------
-        float
+        Scalar
             The Josephson energy of the transmon.
         """
         return self._ej
 
     @property
-    def offset_charge(self) -> float:
+    def offset_charge(self) -> Scalar:
         """
         offset_charge Returns the offset charge of the transmon
 
         Returns
         -------
-        float
+        Scalar
             The offset charge of the transmon.
         """
         return self._ng
@@ -83,20 +85,20 @@ class BaseTransmon(System):
         """
 
     @property
-    def approx_frequency(self) -> Array:
+    def approx_frequency(self) -> Scalar:
         """
         approx_frequency Returns the approximate 0-1 frequency of the transmon.
 
         Returns
         -------
-        float
+        Scalar
             The approximate transmon 0-1 frequency.
         """
         sqrt_term = jnp.sqrt(8 * self._ec * self._ej)
         return sqrt_term - self._ec
 
     @property
-    def charge_zpf(self) -> float:
+    def charge_zpf(self) -> Scalar:
         """
         charge_zpf Returns the zero-point fluctuations of the charge variable of the transmon.
         Note that this is only defined in the energy eigenbasis of the transmon, meaning
@@ -109,7 +111,7 @@ class BaseTransmon(System):
 
         Raises
         ------
-        ValueError
+        Scalar
             If the transmon is not diagonalized.
         """
         charge_fluctuations = (self._ej / (32 * self._ec)) ** 0.25
@@ -124,7 +126,7 @@ class BaseTransmon(System):
         return charge_fluctuations
 
     @property
-    def flux_zpf(self) -> float:
+    def flux_zpf(self) -> Scalar:
         """
         charge_zpf Returns the zero-point fluctuations of the flux variable of the transmon.
         Note that this is only defined in the energy eigenbasis of the transmon, meaning
@@ -132,13 +134,8 @@ class BaseTransmon(System):
 
         Returns
         -------
-        float
+        Scalar
             The zero-point fluctuations of the flux variable.
-
-        Raises
-        ------
-        ValueError
-            If the transmon is not diagonalized.
         """
         flux_fluctuations = (2 * self._ec / self._ej) ** 0.25
         # flux_fluctuations =  1 / (2 * self.charge_zpf)
@@ -443,7 +440,7 @@ class ChargeTransmon(BaseTransmon):
         """
         return False
 
-    def embed(self, device_ind: int, device_dims: Tuple[int, ...]) -> Self:
+    def embed(self, device_ind: int, device_dims: Tuple[int, ...]) -> ChargeTransmon:
         """
         embed Embeds the transmon into a larger Hilbert space.
 
@@ -489,7 +486,7 @@ class ChargeTransmon(BaseTransmon):
             The processed operator.
         """
         if self.is_embedded:
-            operator = embed_op(operator, self.device_ind, self.device_dims)
+            operator = embed_op(operator, self.device_ind, self.device_dims)  # type: ignore
         return operator
 
     def get_hamiltonian(self) -> Array:
@@ -550,7 +547,7 @@ class Transmon(BaseTransmon):
         """
         return True
 
-    def embed(self, device_ind: int, device_dims: Tuple[int, ...]) -> Self:
+    def embed(self, device_ind: int, device_dims: Tuple[int, ...]) -> Transmon:
         """
         embed Embeds the transmon into a larger Hilbert space.
 
@@ -600,7 +597,7 @@ class Transmon(BaseTransmon):
         transformed_op = transform_op(operator, self._eig_states)
 
         if self.is_embedded:
-            return embed_op(transformed_op, self.device_ind, self.device_dims)
+            return embed_op(transformed_op, self.device_ind, self.device_dims)  # type: ignore
 
         return transformed_op
 
@@ -621,13 +618,13 @@ class Transmon(BaseTransmon):
         hamiltonian = jnp.diag(self._eig_vals)
 
         if self.is_embedded:
-            return embed_op(hamiltonian, self.device_ind, self.device_dims)
+            return embed_op(hamiltonian, self.device_ind, self.device_dims)  # type: ignore
 
         return hamiltonian
 
     def get_eigenvalues(self) -> Array:
         return self._eig_vals
 
-    def get_eigenstates(self) -> Array:
+    def get_eigenstates(self) -> Tuple[Array, Array]:
         eig_states = jnp.identity(self.dim, dtype=jnp.complex128)
         return self._eig_vals, eig_states
