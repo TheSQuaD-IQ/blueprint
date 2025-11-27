@@ -5,9 +5,11 @@ from typing import Callable, Tuple
 
 from jax import numpy as jnp
 from jax import scipy as jsp
-from jaxtyping import Scalar, ArrayLike, Array
+from jaxtyping import Scalar, ArrayLike, Array, PyTree
 
 from equinox import field
+
+from optimistix import minimise, BFGS
 
 from .system import System
 from ..drives import ChargeDrive, FluxDrive, CosFluxDrive, SinFluxDrive
@@ -407,9 +409,9 @@ class ChargeTransmon(BaseTransmon):
     def __init__(
         self,
         label: str,
-        charging_energy: ArrayLike,
-        josephson_energy: ArrayLike,
-        offset_charge: ArrayLike,
+        charging_energy: float | Scalar,
+        josephson_energy: float | Scalar,
+        offset_charge: float | Scalar,
         charge_cutoff: int,
         device_ind: int | None = None,
         device_dims: Tuple[int, ...] | None = None,
@@ -509,9 +511,9 @@ class Transmon(BaseTransmon):
     def __init__(
         self,
         label: str,
-        charging_energy: ArrayLike,
-        josephson_energy: ArrayLike,
-        offset_charge: ArrayLike,
+        charging_energy: float | Scalar,
+        josephson_energy: float | Scalar,
+        offset_charge: float | Scalar,
         charge_cutoff: int,
         dim: int,
         device_ind: int | None = None,
@@ -628,3 +630,101 @@ class Transmon(BaseTransmon):
     def get_eigenstates(self) -> Tuple[Array, Array]:
         eig_states = jnp.identity(self.dim, dtype=jnp.complex128)
         return self._eig_vals, eig_states
+
+    @staticmethod
+    def from_frequencies(
+        label: str,
+        frequency: float | Scalar,
+        anharmonicity: float | Scalar,
+        offset_charge: float | Scalar,
+        charge_cutoff: int,
+        dim: int,
+        *,
+        atol: float = 1e-8,
+        rtol: float = 1e-8,
+    ) -> Transmon:
+        """
+        from_params Create a Transmon based on the qubit frequency and anharmonicity. The function will optimize the charging and Josephson energies to match the provided frequency and anharmonicity. The optimization is done using the scipy.optimize.minimize function. The optimization is done in the following way:
+        1. Calculate the initial guesses for the maximum Josephson energy and Charging energy based on the provided frequency and anharmonicity.
+        2. Define an objective function that calculates the difference between the provided frequency and anharmonicity and the calculated frequency and anharmonicity based on the charging and Josephson energies. The objective function is the sum of the squared differences between the provided and calculated values.
+        3. Optimize the objective function to find the charging and Josephson energies that best match the provided frequency and anharmonicity.
+
+        Parameters
+        ----------
+        label : str
+            The label of the transmon.
+        frequency : float
+            The target qubit frequency.
+        anharmonicity : float
+            The target qubit anharmonicity (should be negative).
+        offset_charge : float
+            The offset charge of the transmon.
+        charge_cutoff : int
+            The number of charge states to consider.
+        dim : int
+            The dimension of the transmon Hilbert space.
+
+        Returns
+        -------
+        Transmon
+            The Transmon instance.
+
+        Raises
+        ------
+        ValueError
+            If the frequency is not a float.
+        ValueError
+            If the anharmonicity is not a float.
+        ValueError
+            If the anharmonicity is positive.
+        ValueError
+            If the optimization fails.
+        """
+        if not isinstance(frequency, float | Scalar):
+            raise ValueError(
+                f"The maximum frequency expected to be a float, instead got type {type(frequency)}."
+            )
+        if not isinstance(anharmonicity, float | Scalar):
+            raise ValueError(
+                f"The anharmonicity expected to be a float, instead got type {type(anharmonicity)}."
+            )
+        if anharmonicity >= 0.0:
+            raise ValueError(
+                "The anharmonicity is expected to be negative (and not equal to 0.0) for a transmon qubits."
+            )
+
+        anharmonicity = jnp.asarray(anharmonicity)
+        frequency = jnp.asarray(frequency)
+
+        init_ec = -anharmonicity
+        init_ej = (frequency + init_ec) ** 2 / (8 * init_ec)
+
+        def objective_func(x, _) -> Array:
+            charging_energy, josephson_energy = x
+            transmon = Transmon(
+                label,
+                charging_energy,
+                josephson_energy,
+                offset_charge,
+                charge_cutoff,
+                dim,
+            )
+            freq_diff = frequency - transmon.fundamental_frequency
+            anharm_diff = anharmonicity - transmon.anharmonicity
+            result = freq_diff**2 + anharm_diff**2
+            return result
+
+        init_guess = (init_ej, init_ec)
+        solver = BFGS(rtol, atol)
+        solution = minimise(objective_func, solver, init_guess)
+
+        charging_energy, josephson_energy = solution.value
+        transmon = Transmon(
+            label=label,
+            charging_energy=charging_energy,
+            josephson_energy=josephson_energy,
+            offset_charge=offset_charge,
+            charge_cutoff=charge_cutoff,
+            dim=dim,
+        )
+        return transmon
