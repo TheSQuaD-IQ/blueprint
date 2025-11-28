@@ -280,9 +280,9 @@ class Device(Module):
         norm_vals = eig_vals - eig_vals[0]
         return norm_vals, eig_states
 
-    def get_bare_hamiltonian_timeqarray(self) -> ConstantTimeQArray:
+    def get_bare_hamiltonian_qarray(self) -> ConstantTimeQArray:
         """
-        get_bare_hamiltonian_timeqarray Returns the bare Hamiltonian as a TimeArray.
+        get_bare_hamiltonian_qarray Returns the bare Hamiltonian as a TimeArray.
 
         Returns
         -------
@@ -292,9 +292,9 @@ class Device(Module):
         bare_hamiltonian = self.get_bare_hamiltonian()
         return constant(bare_hamiltonian)
 
-    def get_hamiltonian_timeqarray(self) -> ConstantTimeQArray:
+    def get_hamiltonian_qarray(self) -> ConstantTimeQArray:
         """
-        get_hamiltonian_timeqarray Returns the Hamiltonian as a TimeArray.
+        get_hamiltonian_qarray Returns the Hamiltonian as a TimeArray.
 
         Returns
         -------
@@ -304,14 +304,14 @@ class Device(Module):
         hamiltonian = self.get_hamiltonian()
         return constant(hamiltonian)
 
-    def get_drive_timeqarray(self) -> SummedTimeQArray:
+    def get_drive_qarray(self) -> SummedTimeQArray:
         """
-        get_drive_hamiltonian_timeqarray Returns the drive Hamiltonian as a TimeArray.
+        get_drive_hamiltonian_qarray Returns the drive Hamiltonian as a TimeArray.
 
         Returns
         -------
         TimeArray
             The drive Hamiltonian as a TimeArray.
         """
-        time_arrays = [system.get_drive_timeqarray() for system in self.systems]
+        time_arrays = [system.get_drive_qarray() for system in self.systems]
         return SummedTimeQArray(time_arrays)

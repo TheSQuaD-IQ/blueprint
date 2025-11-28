@@ -277,9 +277,9 @@ class System(Module):
         comp_energy = self.get_energy_diff(1, 0)
         return comp_energy
 
-    def get_hamiltonian_timeqarray(self) -> TimeQArray:
+    def get_hamiltonian_qarray(self) -> TimeQArray:
         """
-        get_hamiltonian_timeqarray Returns the Hamiltonian of the quantum system as a TimeQArray.
+        get_hamiltonian_qarray Returns the Hamiltonian of the quantum system as a TimeQArray.
 
         Returns
         -------
@@ -289,9 +289,9 @@ class System(Module):
         hamiltonian = self.get_hamiltonian()
         return constant(hamiltonian)
 
-    def get_drive_timeqarray(self) -> TimeQArray:
+    def get_drive_qarray(self) -> TimeQArray:
         """
-        get_drive_timeqarray
+        get_drive_qarray
         Returns the drive Hamiltonian of the quantum system as a TimeQArray.
 
 
@@ -303,7 +303,7 @@ class System(Module):
         if not self.is_driven:
             raise ValueError("The quantum system is not driven.")
 
-        time_arrays = [drive.as_timeqarray(self) for drive in self.drive_iter]
+        time_arrays = [drive.as_qarray(self) for drive in self.drive_iter]
 
         return SummedTimeQArray(time_arrays)
 

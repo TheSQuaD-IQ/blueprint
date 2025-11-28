@@ -58,9 +58,9 @@ class Coupling(Module):
         hamiltonian = self.strength * coupling_op
         return hamiltonian
 
-    def as_timeqarray(self, system: System, other_system: System) -> ConstantTimeQArray:
+    def as_qarray(self, system: System, other_system: System) -> ConstantTimeQArray:
         """
-        as_timeqarray Returns the coupling Hamiltonian as a TimeArray object.
+        as_qarray Returns the coupling Hamiltonian as a TimeArray object.
 
         Parameters
         ----------
@@ -120,11 +120,9 @@ class TunableCoupling(Module):
         hamiltonian = strength * coupling_op
         return hamiltonian
 
-    def as_timeqarray(
-        self, system: System, other_system: System
-    ) -> ModulatedTimeQArray:
+    def as_qarray(self, system: System, other_system: System) -> ModulatedTimeQArray:
         """
-        as_timeqarray Returns the coupling Hamiltonian as a TimeArray object.
+        as_qarray Returns the coupling Hamiltonian as a TimeArray object.
 
         Parameters
         ----------
