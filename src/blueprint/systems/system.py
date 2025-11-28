@@ -1,4 +1,5 @@
 from abc import abstractmethod
+from operator import is_
 from typing import Tuple, Self, Dict, Iterator, TYPE_CHECKING
 
 from jax import numpy as jnp
@@ -303,7 +304,7 @@ class System(Module):
         if not self.is_driven:
             raise ValueError("The quantum system is not driven.")
 
-        time_arrays = [drive.as_qarray(self) for drive in self.drive_iter]
+        time_arrays = [drive.get_hamiltonian_qarray(self) for drive in self.drive_iter]
 
         return SummedTimeQArray(time_arrays)
 

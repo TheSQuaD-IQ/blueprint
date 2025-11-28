@@ -22,9 +22,9 @@ class BaseDrive(Module):
     label: AbstractVar[str]
 
     @abstractmethod
-    def as_qarray(self, system: System) -> TimeQArray:
+    def get_hamiltonian_qarray(self, system: System) -> TimeQArray:
         """
-        as_qarray Returns the drive Hamiltonian as a modulated dynamiqs.TimeArray object.
+        get_hamiltonian_qarray Returns the drive Hamiltonian as a modulated dynamiqs.TimeArray object.
 
         Parameters
         ----------
@@ -75,7 +75,7 @@ class Drive(BaseDrive):
             The operator that the drive is acting on.
         """
 
-    def as_qarray(self, system) -> ModulatedTimeQArray:
+    def get_hamiltonian_qarray(self, system) -> ModulatedTimeQArray:
         drive_op = self.get_drive_op(system)
         time_array = modulated(self.pulse, drive_op)
         return time_array
@@ -92,8 +92,8 @@ class CompositeDrive(BaseDrive):
     label: str = field(static=True, converter=str)
     drives: Tuple[Drive, ...] = field(converter=tuple)
 
-    def as_qarray(self, system: System) -> SummedTimeQArray:
-        time_arrays = [drive.as_qarray(system) for drive in self.drives]
+    def get_hamiltonian_qarray(self, system: System) -> SummedTimeQArray:
+        time_arrays = [drive.get_hamiltonian_qarray(system) for drive in self.drives]
         time_array = SummedTimeQArray(time_arrays)
         return time_array
 
