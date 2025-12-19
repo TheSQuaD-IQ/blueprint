@@ -55,35 +55,35 @@ class Basis(Module):
     @property
     def dtype(self) -> jnp.dtype:
         """
-        dtype Returns the data type of the operators.
+        dtype Data type of the basis operators.
 
         Returns
         -------
         jnp.dtype
-            The data type of the operators.
+            Data type of the operators array.
         """
         return self.operators.dtype
 
     @property
     def shape(self) -> Tuple[int, ...]:
         """
-        shape Returns the shape of the operators.
+        shape Shape of the operators array.
 
         Returns
         -------
-        Tuple[int, int, int]
-            The shape of the operators.
+        Tuple[int, ...]
+            Shape of the operators array (pauli_dim, hilbert_dim, hilbert_dim).
         """
         return self.operators.shape
 
     def get_operator_norms(self) -> Array:
         """
-        get_operator_norms Returns the norms of each of the operators.
+        get_operator_norms Return vector of norms for each operator in the basis.
 
         Returns
         -------
         Array
-            The norms of each of the operators.
+            Norms for each basis operator (shape ``(pauli_dim,)``).
         """
         inner_prods = jnp.einsum("aij, aji -> a", self.operators, self.operators)
         operator_norms = jnp.sqrt(inner_prods)
@@ -91,12 +91,12 @@ class Basis(Module):
 
     def normalize(self) -> Basis:
         """
-        normalize Returns a normalized operator basis.
+        normalize Return a normalized `Basis` where each operator has unit norm.
 
         Returns
         -------
-        Self
-            A normalized operator basis.
+        Basis
+            Normalized basis instance.
         """
         operator_norms = self.get_operator_norms()
         normalized_operators = self.operators / operator_norms[:, None, None]
@@ -110,7 +110,7 @@ class Basis(Module):
         Returns
         -------
         Array
-            Whether the operator basis is normalized.
+            Boolean scalar indicating whether basis operators are normalized.
         """
         inner_prods = jnp.einsum("aij, aji -> a", self.operators, self.operators)
         expected_vec = jnp.ones(self.pauli_dim)
@@ -124,7 +124,7 @@ class Basis(Module):
         Returns
         -------
         Array
-            Whether the operator basis is orthogonal.
+            Boolean scalar indicating orthogonality of the basis.
         """
         inner_prods = jnp.einsum("aij, bji -> ab", self.operators, self.operators)
         diag_elements = jnp.diag(inner_prods)
@@ -139,7 +139,7 @@ class Basis(Module):
         Returns
         -------
         Array
-            Whether the operator basis is orthonormal.
+            Boolean scalar indicating orthonormality of the basis.
         """
         inner_prods = jnp.einsum("aij, bji -> ab", self.operators, self.operators)
         expected_prods = jnp.eye(self.pauli_dim)
@@ -147,53 +147,51 @@ class Basis(Module):
 
     def to_vector(self, operator: Array) -> Array:
         """
-        to_vector When given a operator representation of a state,
-        returns the vector representation of the state in the operator basis.
+        to_vector Project an operator into the basis to obtain its vector representation.
 
         Parameters
         ----------
         operator : Array
-            The operator to be converted to a vector.
+            Operator to project (shape ``(hilbert_dim, hilbert_dim)``).
 
         Returns
         -------
         Array
-            The vector representation of the state in the operator basis.
+            Vector representation of the operator (shape ``(pauli_dim,)``).
         """
         vector = jnp.einsum("aij, ji -> a", self.operators, operator)
         return vector
 
     def to_operator(self, vector: Array) -> Array:
         """
-        to_operator Converts a vector representation of a state in the operator basis,
-        returns the operator representation of the state.
+        to_operator Reconstruct an operator from its vector representation in the basis.
 
         Parameters
         ----------
         vector : Array
-            The vector representation of the state in the operator basis.
+            Vector of coefficients (shape ``(pauli_dim,)``).
 
         Returns
         -------
         Array
-            The operator representation of the state.
+            Operator reconstructed from the basis (shape ``(hilbert_dim, hilbert_dim)``).
         """
         operator = jnp.einsum("aij, a -> ij", self.operators, vector)
         return operator
 
     def truncate_hilbert_dim(self, trunc_dim: int) -> Basis:
         """
-        truncate_hilbert_dim Truncates the operator basis to a new Hilbert space dimension.
+        truncate_hilbert_dim Return a new `Basis` truncated to `trunc_dim` Hilbert dimension.
 
         Parameters
         ----------
         trunc_dim : int
-            The new Hilbert space dimension.
+            New Hilbert-space dimension (must be <= current dimension).
 
         Returns
         -------
         Basis
-            The truncated operator basis.
+            Truncated basis instance.
         """
         if trunc_dim > self.hilbert_dim:
             raise ValueError("New dimension must be less than the current dimension.")
@@ -205,17 +203,17 @@ class Basis(Module):
 
     def expand_hilbert_dim(self, exp_dim: int) -> Basis:
         """
-        expand_hilbert_dim Expands the operator basis to a new Hilbert space dimension.
+        expand_hilbert_dim Return a new `Basis` expanded to `exp_dim` Hilbert dimension.
 
         Parameters
         ----------
         exp_dim : int
-            The new Hilbert space dimension.
+            New Hilbert-space dimension (must be > current dimension).
 
         Returns
         -------
         Basis
-            The expanded operator basis.
+            Expanded basis instance.
         """
         if exp_dim <= self.hilbert_dim:
             raise ValueError(

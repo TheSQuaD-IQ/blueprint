@@ -1,4 +1,4 @@
-from functools import partial, lru_cache
+from functools import partial
 
 from jax import jit, Array
 from jax import numpy as jnp
@@ -9,19 +9,19 @@ from .basis import Basis
 @partial(jit, static_argnames=("i", "dim"))
 def get_z_basis_op(i: int, dim: int) -> Array:
     """
-    get_z_basis_op Returns the non-identity diagonal operators of the generalized Gell-Mann operator basis.
+    get_z_basis_op Return a non-identity diagonal generalized Gell-Mann operator.
 
     Parameters
     ----------
     i : int
-        The index of the index that takes a value different from 0 or 1.
+        Index selecting which diagonal operator to construct.
     dim : int
-        The dimension of the Hilbert space of the system.
+        Hilbert-space dimension.
 
     Returns
     -------
     Array
-        The diagonal operator for the given index.
+        Diagonal operator (shape ``(dim, dim)``).
     """
     diag_elements = jnp.zeros(dim, dtype=complex)
     norm_factor = jnp.sqrt(2 / (i * (i + 1)))
@@ -32,24 +32,21 @@ def get_z_basis_op(i: int, dim: int) -> Array:
 
 
 @partial(jit, static_argnames=("i", "j", "dim"))
-def get_x_basis_op(i: int, j: int, dim: int):
+def get_x_basis_op(i: int, j: int, dim: int) -> Array:
     """
-    get_x_basis_op Returns the real symmeytic off-diagonal operators
-    of the generalized Gell-Mann operator basis.
+    get_x_basis_op Return a symmetric real off-diagonal generalized Gell-Mann operator.
 
     Parameters
     ----------
-    i : int
-        The row index of the non-zero value of the operator.
-    j : int
-        The column index of the non-zero value of the operator.
+    i, j : int
+        Row and column indices for the non-zero entries (i < j).
     dim : int
-        The dimension of the Hilbert space of the system.
+        Hilbert-space dimension.
 
     Returns
     -------
     Array
-        The real off-diagonal operator for pair of non-trivial value indices.
+        Off-diagonal operator (shape ``(dim, dim)``).
     """
     shape = (dim, dim)
     operator = jnp.zeros(shape, dtype=complex)
@@ -61,22 +58,19 @@ def get_x_basis_op(i: int, j: int, dim: int):
 @partial(jit, static_argnames=("i", "j", "dim"))
 def get_y_basis_op(i: int, j: int, dim: int) -> Array:
     """
-    get_y_basis_op Returns the imaginary anti-symmetric off-diagonal operators
-    of the generalized Gell-Mann operator basis.
+    get_y_basis_op Return an anti-symmetric imaginary off-diagonal generalized Gell-Mann operator.
 
     Parameters
     ----------
-    i : int
-        The row index of the non-zero value of the operator.
-    j : int
-        The column index of the non-zero value of the operator.
+    i, j : int
+        Row and column indices for the non-zero entries (i < j).
     dim : int
-        The dimension of the Hilbert space of the system.
+        Hilbert-space dimension.
 
     Returns
     -------
     Array
-        The imaginary off-diagonal operator for pair of non-trivial value indices.
+        Off-diagonal operator (shape ``(dim, dim)``).
     """
     shape = (dim, dim)
     operator = jnp.zeros(shape, dtype=complex)
@@ -85,26 +79,21 @@ def get_y_basis_op(i: int, j: int, dim: int) -> Array:
     return operator
 
 
-@lru_cache(maxsize=8)
 def get_gellmann_basis(hilbert_dim: int, normalize: bool = True) -> Basis:
     """
-    get_gellmann_basis Returns the generalized Gell-Mann operator basis
-    for a system with a given Hilbert space dimension hilbert_dim.
-
-    if hilbert_dim = 2, the basis is the Pauli basis.
-    if hilbert_dim = 3, the basis is the Gell-Mann basis.
+    get_gellmann_basis Construct the generalized Gell-Mann basis for given Hilbert dimension.
 
     Parameters
     ----------
     hilbert_dim : int
-        The dimension of the Hilbert space of the system.
+        Hilbert-space dimension.
     normalize : bool, optional
-        Whether to normalize the basis operators, by default True
+        If True, normalize basis operators to unit norm.
 
     Returns
     -------
     Basis
-        The Gell-Mann operator basis.
+        Operator basis instance.
     """
     operator_list = []
     labels = []
@@ -139,26 +128,21 @@ def get_gellmann_basis(hilbert_dim: int, normalize: bool = True) -> Basis:
     return basis
 
 
-@lru_cache(maxsize=8)
 def get_general_basis(hilbert_dim: int, normalize: bool = True) -> Basis:
     """
-    get_gellmann_basis Returns the generalized Gell-Mann operator basis
-    for a system with a given Hilbert space dimension hilbert_dim.
-
-    if hilbert_dim = 2, the basis is the Pauli basis.
-    if hilbert_dim = 3, the basis is the Gell-Mann basis.
+    get_general_basis Construct a general operator basis for given Hilbert dimension.
 
     Parameters
     ----------
     hilbert_dim : int
-        The dimension of the Hilbert space of the system.
+        Hilbert-space dimension.
     normalize : bool, optional
-        Whether to normalize the basis operators, by default True
+        If True, normalize basis operators to unit norm.
 
     Returns
     -------
     Basis
-        The Gell-Mann operator basis.
+        Operator basis instance.
     """
     shape = (hilbert_dim, hilbert_dim, hilbert_dim)
     diag_ops = jnp.zeros(shape, dtype=complex)
@@ -194,4 +178,22 @@ def get_general_basis(hilbert_dim: int, normalize: bool = True) -> Basis:
         return basis
 
     basis = Basis(operators, labels)
+    return basis
+
+
+def get_pauli_basis(normalize: bool = True) -> Basis:
+    """
+    get_pauli_basis Return the single-qubit Pauli operator basis.
+
+    Parameters
+    ----------
+    normalize : bool, optional
+        If True, normalize operators to unit norm.
+
+    Returns
+    -------
+    Basis
+        Pauli operator basis instance.
+    """
+    basis = get_gellmann_basis(hilbert_dim=2, normalize=normalize)
     return basis
