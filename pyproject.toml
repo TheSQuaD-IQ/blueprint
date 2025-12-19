@@ -17,7 +17,8 @@ dependencies = [
     "jax (>=0.4.36,<0.7) ; extra != 'cuda'",
     "jaxtyping (>=0.3.3,<0.4.0)",
     "equinox (>=0.13.2,<0.14.0)",
-    "dynamiqs (>=0.3.4,<0.4.0)"
+    "dynamiqs (>=0.3.4,<0.4.0)",
+    "optax (>=0.2.6,<0.3.0)"
 ]
 
 [project.optional-dependencies]
