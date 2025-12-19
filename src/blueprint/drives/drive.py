@@ -24,35 +24,35 @@ class BaseDrive(Module):
     @abstractmethod
     def get_hamiltonian_qarray(self, system: System) -> TimeQArray:
         """
-        get_hamiltonian_qarray Returns the drive Hamiltonian as a modulated dynamiqs.TimeArray object.
+        get_hamiltonian_qarray Return the drive Hamiltonian as a modulated dynamiqs TimeQArray.
 
         Parameters
         ----------
         system : System
-            The quantum system that the drive is acting on.
+            Quantum system the drive acts on.
 
         Returns
         -------
-        TimeArray
-            The modulated dynamiqs.TimeArray object representing the drive Hamiltonian.
+        TimeQArray
+            Modulated time-dependent Hamiltonian for the drive.
         """
 
     @abstractmethod
     def get_hamiltonian(self, system: System, time: ScalarLike) -> Array:
         """
-        get_hamiltonian Returns the drive Hamiltonian evaluated at a given time.
+        get_hamiltonian Return the time-dependent drive Hamiltonian evaluated at ``time``.
 
         Parameters
         ----------
         system : System
-            The quantum system that the drive is acting on.
+            Quantum system the drive acts on.
         time : ScalarLike
-            The time at which to evaluate the pulse amplitude.
+            Time at which to evaluate the Hamiltonian.
 
         Returns
         -------
         Array
-            The drive Hamiltonian evaluated at the given time.
+            Hamiltonian matrix at the given time.
         """
 
 
@@ -62,17 +62,17 @@ class Drive(BaseDrive):
     @abstractmethod
     def get_drive_op(self, system: System) -> Array:
         """
-        get_drive_op Returns the operator that the drive is acting on.
+        get_drive_op Return the operator that the drive couples to on ``system``.
 
         Parameters
         ----------
         system : System
-            The quantum system that the drive is acting on.
+            Quantum system the drive acts on.
 
         Returns
         -------
         Array
-            The operator that the drive is acting on.
+            Operator matrix that the drive couples to.
         """
 
     def get_hamiltonian_qarray(self, system) -> ModulatedTimeQArray:
@@ -87,7 +87,7 @@ class Drive(BaseDrive):
 
 
 class CompositeDrive(BaseDrive):
-    """Abstract class for a composite drives that can be expressed as a sum of products of operators and their corresponding time-dependent prefactors."""
+    """Composite drive composed of a sum of `Drive` instances."""
 
     label: str = field(static=True, converter=str)
     drives: Tuple[Drive, ...] = field(converter=tuple)
