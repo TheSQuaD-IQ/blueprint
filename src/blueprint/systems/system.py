@@ -58,120 +58,115 @@ class System(Module):
     @property
     def is_embedded(self) -> bool:
         """
-        is_embedded Returns whether the quantum system has been embedded in a larger Hilbert space.
+        is_embedded Whether the quantum system has been embedded in a larger Hilbert space.
 
         Returns
         -------
         bool
-            Whether the quantum system has been embedded.
+            True if the system has a device embedding index.
         """
         return self.device_ind is not None
 
     @property
     def drive_iter(self) -> Iterator["Drive"]:
         """
-        drives Returns the drives acting on the quantum system.
+        drive_iter Iterator over drives attached to the system.
 
         Returns
         -------
-        Tuple[Drive, ...]
-            The drives acting on the quantum system.
+        Iterator[Drive]
+            Iterator over drive instances.
         """
         return iter(self.drives.values())
 
     @property
     def drive_labels(self) -> Tuple[str, ...]:
         """
-        drive_labels Returns the labels of the drives acting on the quantum system.
+        drive_labelsLabels of drives attached to the system.
 
         Returns
         -------
         Tuple[str, ...]
-            The labels of the drives acting on the quantum system.
+            Tuple of drive labels.
         """
         return tuple(self.drives.keys())
 
     @property
     def num_drives(self) -> int:
         """
-        num_drives Returns the number of drives acting on the quantum system.
+        num_drives Number of drives attached to the system.
 
         Returns
         -------
         int
-            The number of drives acting on the quantum system.
+            Count of drives.
         """
         return len(self.drives)
 
     @property
     def is_driven(self) -> bool:
         """
-        is_driven Returns whether the quantum system is driven.
+        is_driven Whether the system has any drives attached.
 
         Returns
         -------
         bool
-            Whether the quantum system is driven.
+            True if one or more drives are present.
         """
         return any(self.drives)
 
     def add_drive(self, drive: "Drive") -> None:
         """
-        add_drive Adds a drive to the quantum system.
+        add_drive Attach a drive to the system.
 
         Parameters
         ----------
         drive : Drive
-            The drive to add to the quantum system.
-
-        Returns
-        -------
-        Self
-            The quantum system with the drive added.
+            Drive instance to attach.
         """
         self.drives[drive.label] = drive
 
     @abstractmethod
     def embed(self, device_ind: int, device_dims: Tuple[int, ...]) -> Self:
         """
-        embed Embeds the quantum system into a larger Hilbert space.
+        embed Embed the system into a larger device Hilbert space.
 
         Parameters
         ----------
-        ind : int
-            The index of the quantum system in the larger Hilbert space.
-        device_dims : Tuple[int]
-            The dimension of each quantum system (including this one) in the full device.
+        device_ind : int
+            Index of this system in the device ordering.
+        device_dims : Tuple[int, ...]
+            Dimensions of each subsystem in the device.
         """
 
     @abstractmethod
     def get_hamiltonian(self) -> Array:
         """
-        get_hamiltonian Returns the Hamiltonian of the quantum system.
-        If the system has been diagonalized, the Hamiltonian is transformed to the energy basis.
-        If the system has been truncated, the Hamiltonian is truncated to the truncated dimension.
-        If the system has been embedded, the Hamiltonian is embedded in the larger Hilbert space.
+        get_hamiltonian Return the system Hamiltonian in the current basis/embedding.
+
+        Notes
+        -----
+        Implementations may return diagonalized or truncated Hamiltonians
+        depending on system configuration.
 
         Returns
         -------
         Array
-            The Hamiltonian of the quantum system.
+            Hamiltonian matrix for the system.
         """
 
     def get_drive_hamiltonian(self, time: ScalarLike) -> Array:
-        """
-        get_drive_hamiltonian Returns the Hamiltonian of the quantum system
-        with the drives included.
+        """get_drive_hamiltonian Return the system Hamiltonian including drives evaluated at `time`.
 
         Parameters
         ----------
         time : ScalarLike
-            The time at which to evaluate the drives.
+            Time at which to evaluate drives.
 
         Returns
         -------
         Array
-            The Hamiltonian of the quantum system with the drives included.
+            Time-dependent Hamiltonian matrix including drives.
         """
         hamiltonian_shape = (self.dim, self.dim)
         drive_hamiltonian = jnp.zeros(hamiltonian_shape)
@@ -183,52 +178,47 @@ class System(Module):
     @abstractmethod
     def get_eigenvalues(self) -> Array:
         """
-        _get_eigenvalues Returns the eigenvalues of the Hamiltonian of the quantum system.
+        get_eigenvalues Return eigenvalues of the system Hamiltonian.
 
         Returns
         -------
         Array
-            The eigenvalues of the Hamiltonian.
+            Eigenvalues of the Hamiltonian.
         """
 
     @abstractmethod
     def get_eigenstates(self) -> Tuple[Array, Array]:
         """
-        _get_eigenstates Returns the eigenvalues and eigenvectors
-        of the Hamiltonian of the quantum system.
+        get_eigenstates Return eigenvalues and eigenvectors of the system Hamiltonian.
 
         Returns
         -------
         Tuple[Array, Array]
-            The eigenvalues and eigenvectors of the Hamilton
+            Tuple of (eigenvalues, eigenvectors).
         """
 
     def get_energy_diff(self, level: int, other_level: int) -> Array:
         """
-        get_energy_diff Returns the energy difference between two levels of the quantum system.
+        get_energy_diff Return the energy difference between two eigenlevels.
 
         Parameters
         ----------
         level : int
-            The level of the system for which to calculate the energy difference.
+            First energy level index.
         other_level : int
-            The other level of the system for which to calculate the energy difference.
+            Second energy level index.
 
         Returns
         -------
         Array
-            The energy difference between the two levels.
+            Energy difference ``E[level] - E[other_level]``.
 
         Raises
         ------
         TypeError
-            If the level is not an integer.
+            If provided level indices are not integers.
         ValueError
-            If the level is not between 0 and the dimension of the system.
-        TypeError
-            If the other_level is not an integer.
-        ValueError
-            If the other_level is not between 0 and the dimension of the system.
+            If indices are out of range for the system dimension.
         """
         if not isinstance(level, int):
             raise TypeError("level must be an integer.")
@@ -280,26 +270,24 @@ class System(Module):
 
     def get_hamiltonian_qarray(self) -> TimeQArray:
         """
-        get_hamiltonian_qarray Returns the Hamiltonian of the quantum system as a TimeQArray.
+        get_hamiltonian_qarray Return the Hamiltonian wrapped as a constant TimeQArray.
 
         Returns
         -------
         TimeQArray
-            The Hamiltonian of the quantum system as a TimeArray.
+            Constant time-dependent representation of the Hamiltonian.
         """
         hamiltonian = self.get_hamiltonian()
         return constant(hamiltonian)
 
     def get_drive_qarray(self) -> TimeQArray:
         """
-        get_drive_qarray
-        Returns the drive Hamiltonian of the quantum system as a TimeQArray.
-
+        get_drive_qarray Return summed TimeQArray of the system's drive Hamiltonians.
 
         Returns
         -------
-        TimeArray
-            The Hamiltonian of the quantum system with the drives included as a TimeArray.
+        TimeQArray
+            Time-dependent Hamiltonian for drives as a TimeQArray.
         """
         if not self.is_driven:
             raise ValueError("The quantum system is not driven.")
@@ -310,17 +298,17 @@ class System(Module):
 
     def embed_op(self, operator: Array) -> Array:
         """
-        embed_op Embeds the operator in a larger Hilbert space.
+        embed_op Embed an operator into the device Hilbert space if needed.
 
         Parameters
         ----------
         operator : Array
-            The operator to embed.
+            Operator to embed.
 
         Returns
         -------
         Array
-            The embedded operator.
+            Embedded operator or original operator if no embedding is set.
         """
         if self.is_embedded:
             return embed_op(operator, self.device_ind, self.device_dims)

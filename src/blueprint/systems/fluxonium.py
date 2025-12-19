@@ -1,4 +1,4 @@
-"""Fluxonium qubit module."""
+"""Fluxonium qubit model module."""
 
 from pathlib import Path
 from typing import Callable, Self, Tuple
@@ -19,7 +19,7 @@ type Pulse = Callable[[float], Scalar | Array]
 
 
 class FluxoniumParameters(Module):
-    """Dataclass for storing the parameters of a fluxonium."""
+    """Dataclass for fluxonium parameter storage."""
 
     label: str = field(static=True)
     charging_energy: ArrayLike
@@ -34,7 +34,7 @@ class FluxoniumParameters(Module):
 
 
 class Fluxonium(System):
-    """Fluxonium class for the fluxonium qubit."""
+    """Fluxonium qubit system implementation."""
 
     _ec: Array
     _el: Array
@@ -58,21 +58,24 @@ class Fluxonium(System):
         device_dims: Tuple[int, ...] | None = None,
     ) -> None:
         """
-        __init__ Initializes the fluxonium qubit.
+        __init__ Initialize a Fluxonium instance.
 
         Parameters
         ----------
-        josephson_energy : float | Array
-            The Josephson energy of the fluxonium.
-        charging_energy : float | Array
-            The charging energy of the fluxonium.
-        inductive_energy : float | Array
-            The inductive energy of the fluxonium.
-        ext_flux : float | Array
-            The external flux applied though the loop of the fluxonium.
+        label : str
+            System label.
+        charging_energy, inductive_energy, josephson_energy : float or Array
+            Fluxonium energy parameters.
+        ext_flux : float or Array
+            External magnetic flux through loop.
+        harmonic_cutoff : int
+            Harmonic cutoff used for native oscillator basis.
         dim : int
-            The dimension of the Hilbert space to consider when expressing the fluxonium inm the
-            fock basis.
+            Hilbert-space dimension for returned operators/eigenstates.
+        device_ind : int or None, optional
+            Embedding index if part of a device.
+        device_dims : tuple or None, optional
+            Device subsystem dimensions if embedding.
         """
         self.label = str(label)
 
@@ -96,122 +99,121 @@ class Fluxonium(System):
     @property
     def charging_energy(self) -> float:
         """
-        charging_energy Returns the josephson energy of the fluxonium.
+        charging_energy Charging energy parameter E_C for fluxonium.
 
-        Returns:
+        Returns
         -------
-        float:
-            The charging energy of the fluxonium.
+        float
+            Charging energy.
         """
         return self._ec
 
     @property
     def josephson_energy(self) -> float:
         """
-        josephson_energy Returns the josephson energy of the fluxonium.
+        josephson_energy Josephson energy parameter E_J for fluxonium.
 
-        Returns:
+        Returns
         -------
-        float:
-            The josephson energy of the fluxonium.
+        float
+            Josephson energy.
         """
         return self._ej
 
     @property
     def inductive_energy(self) -> float:
         """
-        inductive_energy Returns the inductive energy of the fluxonium.
+        inductive_energy Inductive energy parameter for fluxonium.
 
-        Returns:
+        Returns
         -------
-        float:
-            The inductive energy of the fluxonium.
+        float
+            Inductive energy.
         """
         return self._el
 
     @property
     def external_flux(self) -> float:
         """
-        external_flux Returns the external flux of the fluxonium.
+        external_flux External flux threading the fluxonium loop.
 
         Returns
         -------
         float
-            The external flux of the fluxonium.
+            External flux value.
         """
         return self._ext_flux
 
     @property
     def harmonic_cutoff(self) -> int:
         """
-        harmonic_cutoff Returns the harmonic cutoff of the fluxonium.
+        harmonic_cutoff Harmonic basis cutoff used for native oscillator representation.
 
         Returns
         -------
         int
-            The harmonic cutoff of the fluxonium.
+            Harmonic cutoff integer.
         """
         return self._hcut
 
     @property
     def is_diagonal(self) -> bool:
         """
-        is_diagonal Returns whether the fluxonium is diagonalized.
+        is_diagonal Whether the fluxonium is represented in its eigenbasis.
 
         Returns
         -------
         bool
-            Whether the fluxonium is diagonalized.
+            True when eigenbasis representation is used.
         """
         return True
 
     @property
     def plasma_frequency(self) -> float:
         """
-        plasma_frequency Returns the plasma frequency of the fluxonium.
+        plasma_frequency Plasma frequency sqrt(8 E_C E_L) for the harmonic approximation.
 
         Returns
         -------
         float
-            The plasma frequency of the fluxonium.
+            Plasma frequency value.
         """
         return jnp.sqrt(8 * self._ec * self._el)
 
     @property
     def charge_zpf(self) -> float:
         """
-        charge_zpf Returns the zero-point fluctuations of the harmonic charge variable.
+        charge_zpfHarmonic-oscillator charge zero-point fluctuation.
 
         Returns
         -------
         float
-            The zero-point fluctuations of the charge.
+            Charge ZPF.
         """
         return (self._el / (32 * self._ec)) ** 0.25
 
     @property
     def flux_zpf(self) -> float:
         """
-        flux_zpf Returns the zero-point fluctuations of the harmonic flux variable.
+        flux_zpf Harmonic-oscillator flux zero-point fluctuation.
 
         Returns
         -------
         float
-            The zero-point fluctuations of the flux.
+            Flux ZPF.
         """
         return (2 * self._ec / self._el) ** 0.25
 
     def embed(self, device_ind: int, device_dims: Tuple[int, ...]) -> Self:
         """
-        embed Embeds the fluxonium into a larger Hilbert space.
+        embed Embed fluxonium into a larger device Hilbert space.
 
         Parameters
         ----------
-        ind : int
-            The index of the fluxonium in the larger Hilbert space.
-        device_dims : Tuple[int]
-            The dimension of each quantum system (including this fluxonium)
-            in the full device.
+        device_ind : int
+            Index of this system within the device.
+        device_dims : tuple
+            Device subsystem dimensions.
         """
 
         embedded_fluxonium = Fluxonium(
@@ -233,35 +235,29 @@ class Fluxonium(System):
 
     def process_op(self, operator: Array) -> Array:
         """
-        process_op Processes an operator of the transmon.
-        This includes diagonalizing the operator for operators in the charge basis,
-        and embedding it in a larger Hilbert space.
+        process_op Process an operator (transform to energy basis and embed if needed).
 
         Parameters
         ----------
         operator : Array
-            The operator to process.
-        diagonalize : bool, optional
-            Whether to transform the operator to the energy eigenbasis of the transmon, by default True
-        embed : bool, optional
-            Whether to embed the operator in a larger Hilbert space , by default True
+            Operator in native basis.
 
         Returns
         -------
         Array
-            The processed operator.
+            Operator in current system representation.
         """
         transformed_op = transform_op(operator, self._eig_states)
         return self.embed_op(transformed_op)
 
     def _get_raise_op(self) -> Array:
         """
-        _get_raise_op Returns the raising (creation) operator of the fluxonium.
+        _get_raise_op Construct raising operator for native harmonic basis.
 
         Returns
         -------
         Array
-            The raising operator, in the Fock basis.
+            Creation operator matrix.
         """
         offdiag = jnp.sqrt(jnp.arange(1, self._hcut))
         raise_op = jnp.diag(offdiag, k=-1)
@@ -269,24 +265,24 @@ class Fluxonium(System):
 
     def get_raise_op(self) -> Array:
         """
-        get_raise_op Returns the raising (creation) operator of the fluxonium.
+        get_raise_op Return raising operator in the fluxonium's current representation.
 
         Returns
         -------
         Array
-            The raising operator, in the current basis of the fluxonium.
+            Raising operator in current basis.
         """
         raise_op = self._get_raise_op()
         return self.process_op(raise_op)
 
     def _get_low_op(self) -> Array:
         """
-        _get_low_op Returns the lowering (annihilaton) operator of the fluxonium.
+        _get_low_op Construct lowering operator for native harmonic basis.
 
         Returns
         -------
         Array
-            The lowering (annihilaton) operator of the fluxonium.
+            Lowering operator matrix.
         """
         offdiag = jnp.sqrt(jnp.arange(1, self._hcut))
         low_op = jnp.diag(offdiag, k=1)
@@ -294,36 +290,24 @@ class Fluxonium(System):
 
     def get_low_op(self) -> Array:
         """
-        get_low_op Returns the creation operator of the fluxonium.
+        get_low_op Return lowering operator in the fluxonium's current representation.
 
         Returns
         -------
         Array
-            The lowering (annihilaton) operator in the current basis of the fluxonium.
+            Lowering operator in current basis.
         """
         low_op = self._get_low_op()
         return self.process_op(low_op)
 
-    def _get_number_op(self) -> Array:
-        """
-        _get_number_op Returns the number operator of the fluxonium.
-
-        Returns
-        -------
-        Array
-            The number operator of the fluxonium.
-        """
-        diag_elems = jnp.arange(self._hcut)
-        return jnp.diag(diag_elems)
-
     def get_number_op(self) -> Array:
         """
-        get_number_op Returns the number operator of the fluxonium.
+        get_number_op Return number operator in current representation (embedded to `dim`).
 
         Returns
         -------
         Array
-            The number operator of the fluxonium.
+            Number operator in current basis.
         """
         diag_elems = jnp.arange(self.dim)
         num_op = jnp.diag(diag_elems)
@@ -331,12 +315,12 @@ class Fluxonium(System):
 
     def _get_charge_op(self) -> Array:
         """
-        _get_number_op Returns the number operator of the fluxonium.
+        _get_charge_op Construct native charge operator from raising/lowering ops.
 
         Returns
         -------
         Array
-            The number operator of the fluxonium.
+            Charge operator in native basis.
         """
         low_op = self._get_low_op()
         raise_op = self._get_raise_op()
@@ -345,12 +329,12 @@ class Fluxonium(System):
 
     def get_charge_op(self) -> Array:
         """
-        get_charge_op Returns the charge operator of the fluxonium.
+        get_charge_op Return charge operator in current representation.
 
         Returns
         -------
         Array
-            The charge operator, in the current basis of the fluxonium.
+            Charge operator in current basis.
         """
         charge_op = self._get_charge_op()
         processed_op = self.process_op(charge_op)
@@ -358,12 +342,12 @@ class Fluxonium(System):
 
     def _get_flux_op(self) -> Array:
         """
-        _get_charge_op Returns the flux operator of the fluxonium.
+        _get_flux_op Construct native flux operator from raising/lowering ops.
 
         Returns
         -------
         Array
-            The flux operator, in the Fock basis.
+            Flux operator in native basis.
         """
         low_op = self._get_low_op()
         raise_op = self._get_raise_op()
@@ -372,12 +356,12 @@ class Fluxonium(System):
 
     def get_flux_op(self) -> Array:
         """
-        get_flux_op Returns the flux operator of the fluxonium.
+        get_flux_op Return flux operator in current representation.
 
         Returns
         -------
         Array
-            The flux operator, in the current basis of the fluxonium.
+            Flux operator in current basis.
         """
         flux_op = self._get_flux_op()
         processed_op = self.process_op(flux_op)
@@ -385,12 +369,12 @@ class Fluxonium(System):
 
     def _get_cosflux_op(self) -> Array:
         """
-        _get_cosflux_op Returns the cos(phi) operator of the fluxonium in the fock basis.
+        _get_cosflux_op Construct cos(flux) operator in native Fock basis.
 
         Returns
         -------
         Array
-            The cos(phi) operator of the fluxonium, in the Fock basis.
+            cos(flux) operator matrix.
         """
         flux_op = self._get_flux_op()
         cosflux_op = cosm(flux_op)
@@ -398,12 +382,12 @@ class Fluxonium(System):
 
     def get_cosflux_op(self) -> Array:
         """
-        get_cosflux_op Returns the cos(phi) operator of the fluxonium.
+        get_cosflux_op Return cos(flux) operator in current representation.
 
         Returns
         -------
         Array
-            The cos(phi) operator of the fluxonium, in the current basis of the fluxonium.
+            cos(flux) operator in current basis.
         """
         cosflux_op = self._get_cosflux_op()
         processed_op = self.process_op(cosflux_op)
@@ -411,36 +395,41 @@ class Fluxonium(System):
 
     def _get_identity_op(self) -> Array:
         """
-        get_identity_op Returns the identity operator of the transmon.
+        _get_identity_op Return identity operator for native harmonic cutoff dimension.
 
         Returns
         -------
         Array
-            The identity operator of the transmon.
+            Identity matrix.
         """
         id_op = jnp.identity(self._hcut)
         return id_op
 
     def get_identity_op(self) -> Array:
         """
-        get_identity_op Returns the identity operator of the transmon.
+        get_identity_op Return identity operator embedded to the configured `dim`.
 
         Returns
         -------
         Array
-            The identity operator of the transmon.
+            Identity operator in current representation.
         """
         id_op = jnp.identity(self.dim)
         return self.embed_op(id_op)
 
     def get_transition_op(self, start_ind: int, end_ind: int) -> Array:
         """
-        get_collapse_ops Returns the collapse operators of the fluxonium.
+        get_transition_op Return an outer-product transition operator between two levels.
+
+        Parameters
+        ----------
+        start_ind, end_ind : int
+            Level indices for transition ``|end><start|``.
 
         Returns
         -------
         Array
-            The collapse operators of the fluxonium.
+            Transition operator embedded to device dimension.
         """
         eig_states = jnp.identity(self.dim)
 
@@ -451,12 +440,12 @@ class Fluxonium(System):
 
     def _get_kinetic_term(self) -> Array:
         """
-        _get_kinetic_term Returns the kinetic term of the fluxonium in the fock basis.
+        _get_kinetic_term Construct kinetic term for fluxonium in native Fock basis.
 
         Returns
         -------
         Array
-            The kinetic term of the fluxonium, in the Fock basis.
+            Kinetic term matrix.
         """
 
         n_op = self._get_charge_op()
@@ -465,12 +454,12 @@ class Fluxonium(System):
 
     def _get_potential_term(self) -> Array:
         """
-        _get_potential_term Returns the potential term of the fluxonium in the fock basis.
+        _get_potential_term Construct potential term for fluxonium in native Fock basis.
 
         Returns
         -------
         Array
-            The potential term of the fluxonium, in the Fock basis.
+            Potential term matrix.
         """
         cosflux_op = self._get_cosflux_op()
         flux_op = self._get_flux_op()
@@ -491,13 +480,12 @@ class Fluxonium(System):
         return oscillator_term
 
     def _get_hamiltonian(self) -> Array:
-        """
-        _get_hamiltonian Returns the Hamiltonian of the fluxonium in the fock basis.
+        """_get_hamiltonian Construct the native fluxonium Hamiltonian (kinetic + potential).
 
         Returns
         -------
         Array
-            The Hamiltonian of the fluxonium, in the Fock basis.
+            Hamiltonian matrix in native Fock basis.
         """
         # id_op = jnp.identity(self._hcut)
         # oscillator_term = self._get_oscillator_term()
@@ -519,12 +507,12 @@ class Fluxonium(System):
 
     def _get_eigenvalues(self) -> Array:
         """
-        _get_eigenvalues Returns the eigenvalues of the Hamiltonian of the quantum system.
+        _get_eigenvalues Return eigenvalues of native Hamiltonian (ground energy offset).
 
         Returns
         -------
         Array
-            The eigenvalues of the Hamiltonian.
+            Eigenvalues with ground state set to zero.
         """
         hamiltonian = self._get_hamiltonian()
         eig_vals = jsp.linalg.eigh(hamiltonian, eigvals_only=True)
@@ -536,13 +524,12 @@ class Fluxonium(System):
 
     def _get_eigenstates(self) -> Tuple[Array, Array]:
         """
-        _get_eigenstates Returns the eigenvalues and eigenvectors
-        of the Hamiltonian of the quantum system.
+        _get_eigenstates Return eigenvalues and eigenvectors of native Hamiltonian.
 
         Returns
         -------
         Tuple[Array, Array]
-            The eigenvalues and eigenvectors of the Hamilton
+            Tuple of (eigenvalues, eigenvectors).
         """
         hamiltonian = self._get_hamiltonian()
         eig_vals, eig_states = jsp.linalg.eigh(hamiltonian)
@@ -555,32 +542,29 @@ class Fluxonium(System):
 
     def add_charge_drive(self, label: str, pulse: Pulse) -> None:
         """
-        add_charge_drive Adds a charge drive to the fluxonium.
-        """
+        add_charge_drive Attach a charge drive to the fluxonium."""
         drive = ChargeDrive(label, pulse)
         self.drives[label] = drive
 
     def add_flux_drive(self, label: str, pulse: Pulse) -> None:
         """
-        add_flux_drive Adds a flux drive to the fluxonium.
-        """
+        add_flux_drive Attach a flux drive to the fluxonium."""
         drive = FluxDrive(label, pulse)
         self.drives[label] = drive
 
     @classmethod
     def from_params(cls, parameters: FluxoniumParameters) -> Self:
-        """
-        from_params Initializes a fluxonium from a set of parameters.
+        """from_params Construct a Fluxonium instance from a `FluxoniumParameters` object.
 
         Parameters
         ----------
         parameters : FluxoniumParameters
-            The parameters of the fluxonium.
+            Parameter container for the fluxonium.
 
         Returns
         -------
-        Self
-            The fluxonium initialized from the parameters.
+        Fluxonium
+            Constructed qubit instance.
         """
         qubit = cls(
             label=parameters.label,
@@ -598,32 +582,20 @@ class Fluxonium(System):
     @classmethod
     def from_yaml(cls, filename: Filestring) -> Self:
         """
-        from_yaml Initializes a fluxonium from a YAML file
-        which defines the parameters of the fluxonium.
-        The YAML file should contain the following fields:
-        - label: str
-        - charging_energy: float
-        - inductive_energy: float
-        - josephson_energy: float
-        - ext_flux: float
-        - harmonic_cutoff: int
-        - dim: int
-        - device_ind: Optional[int]
-        - device_dims: Optional[Tuple[int, ...]]
+        from_yaml Load Fluxonium parameters from a YAML file and construct instance.
 
-        Note that the drives acting on the qubit must be initialized seperately.
+        The YAML file must contain required fluxonium fields (label, energies,
+        cutoff, dim, etc.). Drives are not loaded and must be attached separately.
 
         Parameters
         ----------
-        filename : Filestring
-            The path to the YAML file containing the qubit parameters.
-            This can be provided either as a string or a pathlib.Path object.
+        filename : str or Path
+            Path to YAML file containing fluxonium parameters.
 
         Returns
         -------
-        Self
-            The fluxonium initialized from the YAML file.
-
+        Fluxonium
+            Constructed fluxonium instance.
         """
         with open(filename, mode="r", encoding="utf-8") as file:
             parameters = yaml.safe_load(file)

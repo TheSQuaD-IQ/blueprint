@@ -17,7 +17,7 @@ type Pulse = Callable[[float], Scalar | Array]
 
 
 class ResonatorParams(Module):
-    """Dataclass for storing the parameters of a fluxonium."""
+    """Parameters container for a resonator (helper dataclass)."""
 
     label: str = field(static=True)
     charging_energy: ArrayLike
@@ -38,27 +38,27 @@ class ResonatorParams(Module):
         device_dims: Tuple[int, ...] | None = None,
     ) -> ResonatorParams:
         """
-        from_frequency Creates a ResonatorParams object from the frequency and impedance of the resonator.
+        from_frequency Create ResonatorParams from frequency and impedance.
 
         Parameters
         ----------
         label : str
-            The label of the resonator.
+            Resonator label.
         frequency : float
-            The frequency of the resonator.
+            Resonator frequency.
         impedance : float
-            The characteristic impedance of the resonator.
+            Characteristic impedance.
         dim : int
-            The dimensionality of the resonator.
-        device_ind : int | None, optional
-            The index of the resonator in the device , by default None
-        device_dims : Tuple[int, ...] | None, optional
-            The dimension of each system in the device, by default None
+            Hilbert-space dimension to model.
+        device_ind : int or None, optional
+            Device embedding index if applicable.
+        device_dims : tuple or None, optional
+            Device subsystem dimensions if embedding.
 
         Returns
         -------
         ResonatorParams
-            The resulting ResonatorParams object.
+            Constructed parameters object.
         """
         capacitance = 1 / (impedance * frequency)
 
@@ -80,7 +80,7 @@ class ResonatorParams(Module):
 
 
 class Resonator(System):
-    """Resonator class for representing a resonator."""
+    """Resonator model implementation."""
 
     _ec: Array
     _el: Array
@@ -107,48 +107,48 @@ class Resonator(System):
     @property
     def charging_energy(self) -> float:
         """
-        charging_energy Returns the charging energy of the resonator.
+        charging_energy Charging energy parameter E_C for the resonator.
 
         Returns
         -------
         float
-            The charging energy of the resonator.
+            Charging energy value.
         """
         return self._ec
 
     @property
     def inductive_energy(self) -> float:
         """
-        inductive_energy Returns the inductive energy of the resonator.
+        inductive_energy Inductive energy parameter for the resonator.
 
         Returns
         -------
         float
-            The inductive energy of the resonator.
+            Inductive energy value.
         """
         return self._el
 
     @property
     def is_diagonal(self) -> bool:
         """
-        is_diagonal Returns whether the fluxonium is diagonalized.
+        is_diagonal Whether the resonator representation is diagonal in its native basis.
 
         Returns
         -------
         bool
-            Whether the fluxonium is diagonalized.
+            True if represented in energy eigenbasis.
         """
         return True
 
     @property
     def plasma_frequency(self) -> Array:
         """
-        plasma_frequency Returns the plasma_frequency of the resonator.
+        plasma_frequency Plasma frequency of the resonator (sqrt(8 E_C E_L)).
 
         Returns
         -------
         Array
-            The plasma_frequency of the resonator.
+            Plasma frequency value.
         """
         freq = jnp.sqrt(8 * self._ec * self._el)
         return freq
@@ -156,37 +156,37 @@ class Resonator(System):
     @property
     def charge_zpf(self) -> float:
         """
-        charge_zpf Returns the zero-point fluctuations of the charge.
+        charge_zpf Charge zero-point fluctuations for the resonator.
 
         Returns
         -------
         float
-            The zero-point fluctuations of the charge.
+            Charge zero-point fluctuation.
         """
         return (self._el / (32 * self._ec)) ** 0.25
 
     @property
     def flux_zpf(self) -> float:
         """
-        flux_zpf Returns the zero-point fluctuations of the flux.
+        flux_zpf Flux zero-point fluctuations for the resonator.
 
         Returns
         -------
         float
-            The zero-point fluctuations of the flux.
+            Flux zero-point fluctuation.
         """
         return (2 * self._ec / self._el) ** 0.25
 
     def embed(self, device_ind: int, device_dims: Tuple[int, ...]) -> Self:
         """
-        embed Embeds the resonator into a larger Hilbert space.
+        embed Embed resonator into a larger device Hilbert space.
 
         Parameters
         ----------
-        ind : int
-            The index of the resonator in the larger Hilbert space.
-        device_dims : Tuple[int]
-            The dimension of each quantum system (including this resonator) in the full device.
+        device_ind : int
+            Embedding index of this resonator.
+        device_dims : tuple
+            Subsystem dimensions for the device.
         """
 
         embedded_resonator = Resonator(
@@ -205,23 +205,17 @@ class Resonator(System):
 
     def process_op(self, operator: Array) -> Array:
         """
-        process_op Processes an operator of the transmon.
-        This includes diagonalizing the operator for operators in the charge basis,
-        and embedding it in a larger Hilbert space.
+        process_op Process an operator according to system configuration (embed/diag).
 
         Parameters
         ----------
         operator : Array
-            The operator to process.
-        diagonalize : bool, optional
-            Whether to transform the operator to the energy eigenbasis of the transmon, by default True
-        embed : bool, optional
-            Whether to embed the operator in a larger Hilbert space , by default True
+            Operator to process (native basis).
 
         Returns
         -------
         Array
-            The processed operator.
+            Operator in current system representation.
         """
         if self.is_embedded:
             operator = embed_op(operator, self.device_ind, self.device_dims)
@@ -230,12 +224,12 @@ class Resonator(System):
 
     def _get_raise_op(self) -> Array:
         """
-        _get_raise_op Returns the raising (creation) operator of the resonator.
+        _get_raise_op Construct raising (creation) operator in Fock basis.
 
         Returns
         -------
         Array
-            The raising (creation) operator of the resonator.
+            Creation operator matrix.
         """
         offdiag = jnp.sqrt(jnp.arange(1, self.dim))
         raise_op = jnp.diag(offdiag, k=-1)
@@ -243,24 +237,24 @@ class Resonator(System):
 
     def get_raise_op(self) -> Array:
         """
-        get_creation_op Returns the raising (creation) operator of the resonator.
+        get_raise_op Return raising operator in the system's current representation.
 
         Returns
         -------
         Array
-            The raising (creation) operator in the current basis of the resonator.
+            Raising operator in current basis.
         """
         raise_op = self._get_raise_op()
         return self.process_op(raise_op)
 
     def _get_low_op(self) -> Array:
         """
-        _get_low_op Returns the lowering (annihilaton) operator of the resonator.
+        _get_low_op Construct lowering (annihilation) operator in Fock basis.
 
         Returns
         -------
         Array
-            The lowering (annihilaton) operator of the resonator.
+            Lowering operator matrix.
         """
         offdiag = jnp.sqrt(jnp.arange(1, self.dim))
         low_op = jnp.diag(offdiag, k=1)
@@ -268,24 +262,24 @@ class Resonator(System):
 
     def get_low_op(self) -> Array:
         """
-        get_low_op Returns the lowering (annihilation) operator of the resonator.
+        get_low_op Return lowering operator in the system's current representation.
 
         Returns
         -------
         Array
-            The lowering (annihilaton) operator in the current basis of the resonator.
+            Lowering operator in current basis.
         """
         low_op = self._get_low_op()
         return self.process_op(low_op)
 
     def _get_number_op(self) -> Array:
         """
-        get_number_op Returns the number operator of the resonator.
+        _get_number_op Construct number operator in Fock basis.
 
         Returns
         -------
         Array
-            The number operator of the resonator.
+            Number operator matrix.
         """
         diag_elems = jnp.arange(self.dim)
         number_op = jnp.diag(diag_elems)
@@ -293,48 +287,48 @@ class Resonator(System):
 
     def get_number_op(self) -> Array:
         """
-        get_number_op Returns the number operator of the resonator.
+        get_number_op Return number operator in the current representation.
 
         Returns
         -------
         Array
-            The number operator in the current basis of the resonator.
+            Number operator in current basis.
         """
         number_op = self._get_number_op()
         return self.process_op(number_op)
 
     def _get_identity_op(self) -> Array:
         """
-        get_identity_op Returns the identity operator of the transmon.
+        _get_identity_op Return identity operator in native Fock basis.
 
         Returns
         -------
         Array
-            The identity operator of the transmon.
+            Identity matrix.
         """
         id_op = jnp.identity(self.dim)
         return id_op
 
     def get_identity_op(self) -> Array:
         """
-        get_identity_op Returns the identity operator of the transmon.
+        get_identity_op Return identity operator in current representation.
 
         Returns
         -------
         Array
-            The identity operator of the transmon.
+            Identity operator in current basis.
         """
         id_op = self._get_identity_op()
         return self.process_op(id_op)
 
     def _get_charge_op(self) -> Array:
         """
-        _get_charge_op Returns the charge operator of the resonator in the Fock basis.
+        _get_charge_op Construct native charge operator in Fock basis.
 
         Returns
         -------
         Array
-            The charge operator of the resonator, expressed in the Fock basis.
+            Charge operator in native basis.
         """
         low_op = self._get_low_op()
         raise_op = self._get_raise_op()
@@ -343,12 +337,12 @@ class Resonator(System):
 
     def get_charge_op(self) -> Array:
         """
-        get_charge_op Returns the charge operator of the resonator.
+        get_charge_op Return charge operator in current representation.
 
         Returns
         -------
         Array
-            The charge operator, in the current basis of the resonator.
+            Charge operator in current basis.
         """
         charge_op = self._get_charge_op()
         processed_op = self.process_op(charge_op)
@@ -356,12 +350,12 @@ class Resonator(System):
 
     def _get_flux_op(self) -> Array:
         """
-        _get_flux_op Returns the flux operator of the resonator in the Fock basis.
+        _get_flux_op Construct native flux operator in Fock basis.
 
         Returns
         -------
         Array
-            The flux operator of the resonator, expressed in the Fock basis.
+            Flux operator in native basis.
         """
         low_op = self._get_low_op()
         raise_op = self._get_raise_op()
@@ -370,12 +364,12 @@ class Resonator(System):
 
     def get_flux_op(self) -> Array:
         """
-        get_flux_op Returns the flux operator of the resonator.
+        get_flux_op Return flux operator in current representation.
 
         Returns
         -------
         Array
-            The flux operator, in the current basis of the resonator.
+            Flux operator in current basis.
         """
         charge_op = self._get_flux_op()
         processed_op = self.process_op(charge_op)
@@ -383,12 +377,12 @@ class Resonator(System):
 
     def _get_hamiltonian(self) -> Array:
         """
-        _get_hamiltonian Returns the Hamiltonian of the fluxonium.
+        _get_hamiltonian Construct native Hamiltonian (simple harmonic oscillator approximation).
 
         Returns
         -------
         Array
-            The Hamiltonian of the fluxonium.
+            Hamiltonian matrix in native basis.
         """
         number_op = self._get_number_op()
         hamiltonian = self.plasma_frequency * number_op

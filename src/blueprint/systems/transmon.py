@@ -5,7 +5,7 @@ from typing import Callable, Tuple
 
 from jax import numpy as jnp
 from jax import scipy as jsp
-from jaxtyping import Scalar, ArrayLike, Array, PyTree
+from jaxtyping import Scalar, Array
 
 from equinox import field
 
@@ -19,7 +19,7 @@ type Pulse = Callable[[float], Scalar | Array]
 
 
 class BaseTransmon(System):
-    """Transmon qubit model."""
+    """Base class for Transmon-like qubit models."""
 
     _ec: Scalar
     _ej: Scalar
@@ -29,48 +29,48 @@ class BaseTransmon(System):
     @property
     def charging_energy(self) -> Scalar:
         """
-        charging_energy Returns the charging energy of the transmon.
+        charging_energy Charging energy parameter E_C.
 
         Returns
         -------
         Scalar
-            The charging energy of the transmon.
+            Charging energy of the transmon.
         """
         return self._ec
 
     @property
     def josephson_energy(self) -> Scalar:
         """
-        josephson_energy Returns the Josephson energy of the transmon.
+        josephson_energy Josephson energy parameter E_J.
 
         Returns
         -------
         Scalar
-            The Josephson energy of the transmon.
+            Josephson energy of the transmon.
         """
         return self._ej
 
     @property
     def offset_charge(self) -> Scalar:
         """
-        offset_charge Returns the offset charge of the transmon
+        offset_charge Offset charge (n_g) of the transmon.
 
         Returns
         -------
         Scalar
-            The offset charge of the transmon.
+            Offset charge parameter.
         """
         return self._ng
 
     @property
     def charge_cutoff(self) -> int:
         """
-        charge_cutoff Returns the number of charge states to consider.
+        charge_cutoff Number of charge basis states retained (n_cut).
 
         Returns
         -------
         int
-            The number of charge states to consider.
+            Charge cutoff used in computations.
         """
         return self._ncut
 
@@ -78,23 +78,23 @@ class BaseTransmon(System):
     @abstractmethod
     def is_diagonal(self) -> bool:
         """
-        is_diagonal Returns whether the transmon is diagonalized.
+        is_diagonal Whether the transmon Hamiltonian is diagonalized.
 
         Returns
         -------
         bool
-            Whether the transmon is diagonalized.
+            True if the system is represented in its energy basis.
         """
 
     @property
     def approx_frequency(self) -> Scalar:
         """
-        approx_frequency Returns the approximate 0-1 frequency of the transmon.
+        approx_frequency Approximate 0-1 transition frequency (anharmonic oscillator approx).
 
         Returns
         -------
         Scalar
-            The approximate transmon 0-1 frequency.
+            Approximate 0-1 frequency.
         """
         sqrt_term = jnp.sqrt(8 * self._ec * self._ej)
         return sqrt_term - self._ec
@@ -102,19 +102,17 @@ class BaseTransmon(System):
     @property
     def charge_zpf(self) -> Scalar:
         """
-        charge_zpf Returns the zero-point fluctuations of the charge variable of the transmon.
-        Note that this is only defined in the energy eigenbasis of the transmon, meaning
-        that the transmon must be diagonalized before calling this property.
+        charge_zpfZero-point fluctuations of the charge variable (in energy basis).
+
+        Notes
+        -----
+        This assumes the system is diagonalized; otherwise values may be
+        meaningless.
 
         Returns
         -------
-        float
-            The zero-point fluctuations of the charge variable.
-
-        Raises
-        ------
         Scalar
-            If the transmon is not diagonalized.
+            Charge zero-point fluctuation.
         """
         charge_fluctuations = (self._ej / (32 * self._ec)) ** 0.25
 
@@ -130,14 +128,12 @@ class BaseTransmon(System):
     @property
     def flux_zpf(self) -> Scalar:
         """
-        charge_zpf Returns the zero-point fluctuations of the flux variable of the transmon.
-        Note that this is only defined in the energy eigenbasis of the transmon, meaning
-        that the transmon must be diagonalized before calling this property.
+        flux_zpf Zero-point fluctuations of the flux variable (in energy basis).
 
         Returns
         -------
         Scalar
-            The zero-point fluctuations of the flux variable.
+            Flux zero-point fluctuation.
         """
         flux_fluctuations = (2 * self._ec / self._ej) ** 0.25
         # flux_fluctuations =  1 / (2 * self.charge_zpf)
@@ -146,32 +142,27 @@ class BaseTransmon(System):
     @abstractmethod
     def process_op(self, operator: Array) -> Array:
         """
-        process_op Processes an operator of the transmon.
+        process_op Process an operator into the transmon's current basis/embedding.
 
         Parameters
         ----------
         operator : Array
-            The operator to process.
+            Operator in the native basis.
 
         Returns
         -------
         Array
-            The processed operator.
+            Operator in the system's current representation.
         """
 
     def _get_charge_op(self) -> Array:
         """
-        _get_charge_op Returns the charge operator of the transmon in the charge basis.
-
-        Parameters
-        ----------
-        include_charge_offset : bool
-            Whether to include the charge offset
+        _get_charge_op Construct the native (charge-basis) charge operator including offset.
 
         Returns
         -------
         Array
-            The charge operator of the transmon expressed in the charge basis.
+            Charge operator in the native charge basis.
         """
         charge_vals = jnp.arange(-self._ncut, self._ncut + 1)
         charge_op = jnp.diag(charge_vals)
@@ -184,24 +175,24 @@ class BaseTransmon(System):
 
     def get_charge_op(self) -> Array:
         """
-        get_charge_op Returns the charge operator of the fluxonium.
+        get_charge_op Return the charge operator in the system's current basis.
 
         Returns
         -------
         Array
-            The charge operator, in the current basis of the fluxonium.
+            Charge operator in current representation.
         """
         native_op = self._get_charge_op()
         return self.process_op(native_op)
 
     def _get_cosphi_op(self) -> Array:
         """
-        _get_cosphi_op Returns the cos(phi) operator of the transmon in the charge basis.
+        _get_cosphi_op Construct the native cos(phi) operator in the charge basis.
 
         Returns
         -------
         Array
-            The cos(phi) operator of the transmon expressed in the charge basis.
+            cos(phi) operator in native basis.
         """
         offdiag_elems = jnp.ones(2 * self._ncut, dtype=jnp.complex64)
         superdiag_mat = jnp.diag(0.5 * offdiag_elems, 1)
@@ -211,12 +202,12 @@ class BaseTransmon(System):
 
     def get_cosphi_op(self) -> Array:
         """
-        cosphi_op Returns the cos(phi) operator of the transmon.
+        get_cosphi_op Return cos(phi) operator in the system's current basis.
 
         Returns
         -------
         Array
-            The cos(phi) operator in the current basis of the transmon.
+            cos(phi) operator in current representation.
         """
         native_op = self._get_cosphi_op()
         op = self.process_op(native_op)
@@ -224,12 +215,12 @@ class BaseTransmon(System):
 
     def _get_sinphi_op(self) -> Array:
         """
-        _get_cosphi_op Returns the cos(phi) operator of the transmon in the charge basis.
+        _get_sinphi_op Construct the native sin(phi) operator in the charge basis.
 
         Returns
         -------
         Array
-            The cos(phi) operator of the transmon expressed in the charge basis.
+            sin(phi) operator in native basis.
         """
         offdiag_elems = jnp.ones(2 * self._ncut)
         superdiag_mat = jnp.diag(0.5j * offdiag_elems, 1)
@@ -239,12 +230,12 @@ class BaseTransmon(System):
 
     def get_sinphi_op(self) -> Array:
         """
-        cosphi_op Returns the cos(phi) operator of the transmon.
+        get_sinphi_op Return sin(phi) operator in the system's current basis.
 
         Returns
         -------
         Array
-            The cos(phi) operator in the current basis of the transmon.
+            sin(phi) operator in current representation.
         """
         native_op = self._get_sinphi_op()
         op = self.process_op(native_op)
@@ -252,12 +243,12 @@ class BaseTransmon(System):
 
     def _get_identity_op(self) -> Array:
         """
-        _get_identity_op Returns the identity operator of the transmon in the charge basis.
+        _get_identity_op Return identity operator in the native charge basis.
 
         Returns
         -------
         Array
-            The identity operator of the transmon expressed in the charge basis.
+            Identity matrix for the native charge basis.
         """
         charge_dim = 2 * self._ncut + 1
         id_op = jnp.identity(charge_dim)
@@ -265,12 +256,12 @@ class BaseTransmon(System):
 
     def get_identity_op(self) -> Array:
         """
-        get_identity_op Returns the identity operator of the transmon.
+        get_identity_op Return identity operator in the system's current basis.
 
         Returns
         -------
         Array
-            The identity operator of the transmon.
+            Identity operator in current representation.
         """
         id_op = jnp.identity(self.dim)
         processed_op = self.process_op(id_op)
@@ -278,12 +269,12 @@ class BaseTransmon(System):
 
     def _get_kinetic_term(self) -> Array:
         """
-        _get_kinetic_term Returns the kinetic term of the Hamiltonian in the charge basis.
+        _get_kinetic_term Construct kinetic term of the transmon Hamiltonian in charge basis.
 
         Returns
         -------
         Array
-            The kinetic term of the transmon Hamiltonian expressed in the charge basis.
+            Kinetic term matrix in native basis.
         """
         offset_charge_op = self._get_charge_op()
         kinetic_term = 4 * self._ec * offset_charge_op @ offset_charge_op
@@ -291,12 +282,12 @@ class BaseTransmon(System):
 
     def _get_potential_term(self) -> Array:
         """
-        _get_potential_term Returns the potential term of the Hamiltonian in the charge basis.
+        _get_potential_term Construct potential (Josephson) term of the Hamiltonian in charge basis.
 
         Returns
         -------
         Array
-            The potential term of the transmon Hamiltonian expressed in the charge basis.
+            Potential term matrix in native basis.
         """
         cosphi_op = self._get_cosphi_op()
 
@@ -305,12 +296,12 @@ class BaseTransmon(System):
 
     def _get_hamiltonian(self) -> Array:
         """
-        _get_hamiltonian Returns the Hamiltonian of the transmon in the charge basis.
+        _get_hamiltonian Construct full transmon Hamiltonian in the native charge basis.
 
         Returns
         -------
         Array
-            The Hamiltonian of the transmon expressed in the charge basis.
+            Hamiltonian matrix in native basis.
         """
         kinetic_term = self._get_kinetic_term()
         potential_term = self._get_potential_term()
@@ -319,12 +310,12 @@ class BaseTransmon(System):
 
     def _get_eigenvalues(self) -> Array:
         """
-        _get_eigenvalues Returns the eigenvalues of the Hamiltonian of the quantum system.
+        _get_eigenvalues Return eigenvalues of the native Hamiltonian (ground energy offset).
 
         Returns
         -------
         Array
-            The eigenvalues of the Hamiltonian.
+            Eigenvalues with ground state set to zero.
         """
         hamiltonian = self._get_hamiltonian()
         eig_vals = jsp.linalg.eigh(hamiltonian, eigvals_only=True)
@@ -333,13 +324,12 @@ class BaseTransmon(System):
 
     def _get_eigenstates(self) -> Tuple[Array, Array]:
         """
-        _get_eigenstates Returns the eigenvalues and eigenvectors
-        of the Hamiltonian of the quantum system.
+        _get_eigenstates Return eigenvalues and eigenvectors of the native Hamiltonian.
 
         Returns
         -------
         Tuple[Array, Array]
-            The eigenvalues and eigenvectors of the Hamilton
+            Tuple of (eigenvalues, eigenvectors).
         """
         hamiltonian = self._get_hamiltonian()
         eig_vals, eig_states = jsp.linalg.eigh(hamiltonian)
@@ -644,7 +634,7 @@ class Transmon(BaseTransmon):
         rtol: float = 1e-8,
     ) -> Transmon:
         """
-        from_params Create a Transmon based on the qubit frequency and anharmonicity. The function will optimize the charging and Josephson energies to match the provided frequency and anharmonicity. The optimization is done using the scipy.optimize.minimize function. The optimization is done in the following way:
+        from_frequencies Create a Transmon based on the qubit frequency and anharmonicity. The function will optimize the charging and Josephson energies to match the provided frequency and anharmonicity. The optimization is done using the scipy.optimize.minimize function. The optimization is done in the following way:
         1. Calculate the initial guesses for the maximum Josephson energy and Charging energy based on the provided frequency and anharmonicity.
         2. Define an objective function that calculates the difference between the provided frequency and anharmonicity and the calculated frequency and anharmonicity based on the charging and Josephson energies. The objective function is the sum of the squared differences between the provided and calculated values.
         3. Optimize the objective function to find the charging and Josephson energies that best match the provided frequency and anharmonicity.
