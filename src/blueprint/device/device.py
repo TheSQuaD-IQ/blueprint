@@ -51,144 +51,147 @@ class Device(Module):
     @property
     def systems(self) -> List[System]:
         """
-        systems Returns the list of systems in the device.
+        systems List systems in the device.
 
         Returns
         -------
         List[System]
-            The list of systems in the device.
+            Systems contained in the device.
         """
         return list(self._systems.values())
 
     @property
     def system_labels(self) -> List[str]:
         """
-        system_labels Returns the labels of the systems in the device.
+        system_labels Labels of systems in the device.
 
         Returns
         -------
         List[str]
-            The labels of the systems in the device.
+            Labels of systems in the device.
         """
         return list(self._systems.keys())
 
     @property
     def num_systems(self) -> int:
         """
-        num_systems Returns the number of systems in the device.
+        num_systems Number of systems in the device.
 
         Returns
         -------
         int
-            The number of systems in the device.
+            Count of systems.
         """
         return len(self._systems)
 
     @property
     def couplings(self) -> List[Coupling]:
         """
-        couplings Returns the list of couplings in the device.
+        couplings List couplings registered with the device.
 
         Returns
         -------
         List[Coupling]
-            The list of couplings in the device.
+            Coupling instances.
         """
         return list(self._couplings.values())
 
     @property
     def coupling_labels(self) -> List[str]:
         """
-        coupling_labels Returns the labels of the couplings in the device.
+        coupling_labelsLabels of couplings in the device.
 
         Returns
         -------
         List[str]
-            The labels of the couplings in the device.
+            Coupling labels.
         """
         return list(self._couplings.keys())
 
     @property
     def num_couplings(self) -> int:
         """
-        num_couplings Returns the number of couplings in the device.
+        num_couplings Number of couplings in the device.
 
         Returns
         -------
         int
-            The number of couplings in the device.
+            Count of couplings.
         """
         return len(self._couplings)
 
     def get_system(self, label: str) -> System:
         """
-        get_system Returns a system from the device.
+        get_system Return a `System` by label.
 
         Parameters
         ----------
         label : str
-            The label of the system to be returned.
+            Label of the requested system.
 
         Returns
         -------
         System
-            The system with the given label.
+            System instance with matching label.
         """
         return self._systems[label]
 
     def get_system_index(self, label: str) -> int | None:
         """
-        get_system_index Returns the index of a system in the device.
+        get_system_index Return device index for a named system.
 
         Parameters
         ----------
         label : str
-            The label of the system.
+            System label.
 
         Returns
         -------
-        int | None
-            The index of the system.
+        int or None
+            Index of system within device embedding (or ``None``).
         """
         return self._systems[label].device_ind
 
     def add_coupling(self, system: str, other_system: str, coupling: Coupling) -> None:
         """
-        add_coupling Adds a coupling to the device.
+        add_coupling Add a coupling to the device.
 
         Parameters
         ----------
+        system : str
+            Label of the first system in the coupling.
+        other_system : str
+            Label of the second system in the coupling.
         coupling : Coupling
-            The coupling to be added.
+            Coupling instance to register.
         """
         self._couplings[coupling.label] = coupling
         self._coupled_systems[coupling.label] = (system, other_system)
 
     def get_coupling(self, label: str) -> Coupling:
         """
-        get_coupling Returns a coupling from the device.
+        get_coupling Return a registered `Coupling` by label.
 
         Parameters
         ----------
         label : str
-            The label of the coupling to be returned.
+            Label of the coupling.
 
         Returns
         -------
         Coupling
-            The coupling with the given label.
+            Coupling instance.
         """
         return self._couplings[label]
 
     def get_bare_hamiltonian(self) -> Array:
         """
-        get_bare_hamiltonian Returns the bare Hamiltonian of the device.
-        This function will also transform the Hamiltonian into the diagonalized basis if the device is diagonalized or truncate the Hamiltonian if the device is truncated.
+        get_bare_hamiltonian Compute the bare (non-interacting) Hamiltonian of the device.
 
         Returns
         -------
         Array
-            The bare Hamiltonian of the device.
+            Bare Hamiltonian matrix of the device.
         """
         hamiltonian_shape = (self.dim, self.dim)
         bare_hamiltonian = jnp.zeros(hamiltonian_shape)
@@ -199,12 +202,12 @@ class Device(Module):
 
     def get_int_hamiltonian(self) -> Array:
         """
-        get_int_hamiltonian Returns the interaction Hamiltonian of the device.
+        get_int_hamiltonian Compute the interaction Hamiltonian from registered couplings.
 
         Returns
         -------
         Array
-            The interaction Hamiltonian of the device.
+            Interaction Hamiltonian matrix.
         """
         hamiltonian_shape = (self.dim, self.dim)
         int_hamiltonian = jnp.zeros(hamiltonian_shape)
@@ -219,12 +222,12 @@ class Device(Module):
 
     def get_hamiltonian(self) -> Array:
         """
-        get_himiltonian Returns the full Hamiltonian of the device.
+        get_hamiltonian Return the total device Hamiltonian (bare + interaction).
 
         Returns
         -------
         Array
-            The full Hamiltonian of the device.
+            Total Hamiltonian matrix for the device.
         """
         bare_hamiltonian = self.get_bare_hamiltonian()
         int_hamiltonian = self.get_int_hamiltonian()
@@ -232,17 +235,17 @@ class Device(Module):
 
     def get_drive_hamiltonian(self, time: ScalarLike) -> Array:
         """
-        get_drive_hamiltonian Returns the drive Hamiltonian of the device.
+        get_drive_hamiltonian Return the total time-dependent drive Hamiltonian at `time`.
 
         Parameters
         ----------
         time : ScalarLike
-            The time at which the drive Hamiltonian is evaluated.
+            Time at which to evaluate drive Hamiltonians.
 
         Returns
         -------
         Array
-            The drive Hamiltonian of the device.
+            Drive Hamiltonian matrix at the given time.
         """
         hamiltonian_shape = (self.dim, self.dim)
         drive_hamiltonian = jnp.zeros(hamiltonian_shape)
@@ -253,12 +256,12 @@ class Device(Module):
 
     def get_eigenvalues(self) -> Array:
         """
-        get_eigenvalues Returns the eigenvalues of the Hamiltonian of the quantum system.
+        get_eigenvalues Return eigenvalues of the total device Hamiltonian, offset by the ground state.
 
         Returns
         -------
         Array
-            The eigenvalues of the Hamiltonian.
+            Eigenvalues normalized to have ground state energy zero.
         """
         hamiltonian = self.get_hamiltonian()
         eig_vals = eigh(hamiltonian, eigvals_only=True)
@@ -267,13 +270,12 @@ class Device(Module):
 
     def get_eigenstates(self) -> Tuple[Array, Array]:
         """
-        get_eigenstates Returns the eigenvalues and eigenvectors
-        of the Hamiltonian of the quantum system.
+        get_eigenstates Return eigenvalues and eigenvectors of the total Hamiltonian.
 
         Returns
         -------
         Tuple[Array, Array]
-            The eigenvalues and eigenvectors of the Hamilton
+            Tuple of (eigenvalues, eigenvectors).
         """
         hamiltonian = self.get_hamiltonian()
         eig_vals, eig_states = eigh(hamiltonian)
@@ -282,36 +284,36 @@ class Device(Module):
 
     def get_bare_hamiltonian_qarray(self) -> ConstantTimeQArray:
         """
-        get_bare_hamiltonian_qarray Returns the bare Hamiltonian as a TimeArray.
+        get_bare_hamiltonian_qarray Return bare Hamiltonian wrapped in a constant TimeQArray.
 
         Returns
         -------
-        TimeArray
-            The bare Hamiltonian as a TimeArray.
+        ConstantTimeQArray
+            Constant time-dependent Hamiltonian object.
         """
         bare_hamiltonian = self.get_bare_hamiltonian()
         return constant(bare_hamiltonian)
 
     def get_hamiltonian_qarray(self) -> ConstantTimeQArray:
         """
-        get_hamiltonian_qarray Returns the Hamiltonian as a TimeArray.
+        get_hamiltonian_qarray Return total Hamiltonian wrapped in a constant TimeQArray.
 
         Returns
         -------
-        TimeArray
-            The Hamiltonian as a TimeArray.
+        ConstantTimeQArray
+            Constant time-dependent Hamiltonian object.
         """
         hamiltonian = self.get_hamiltonian()
         return constant(hamiltonian)
 
     def get_drive_qarray(self) -> SummedTimeQArray:
         """
-        get_drive_hamiltonian_qarray Returns the drive Hamiltonian as a TimeArray.
+        get_drive_qarray Return summed TimeQArray of drive Hamiltonians from subsystems.
 
         Returns
         -------
-        TimeArray
-            The drive Hamiltonian as a TimeArray.
+        SummedTimeQArray
+            TimeQArray representing total drive Hamiltonian.
         """
         time_arrays = [system.get_drive_qarray() for system in self.systems]
         return SummedTimeQArray(time_arrays)
