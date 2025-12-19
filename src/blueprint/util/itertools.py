@@ -4,13 +4,17 @@ from jax import numpy as jnp
 
 def cartesian_product(*variables: Array) -> Array:
     """
-    cartesian_product Returns the Cartesian product of the input variables.
-    Each input variable is expected to be a vector.
+    cartesian_product Return the Cartesian product of input 1-D arrays.
+
+    Parameters
+    ----------
+    *variables : Array
+        One-dimensional arrays whose Cartesian product is desired.
 
     Returns
     -------
     Array
-        The Cartesian product of the input variables.
+        2-D array of shape (prod(len(vars)), num_vars) with the Cartesian product.
     """
     num_vars = len(variables)
     meshgrid = jnp.meshgrid(*variables, indexing="ij")

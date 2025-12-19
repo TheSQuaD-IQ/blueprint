@@ -27,8 +27,7 @@ def cosm(op: Array) -> Array:
 
 
 def sinm(op: Array) -> Array:
-    """
-    cosm Returns the matrix sine of the given operator.
+    """sinm Returns the matrix sine of the given operator.
 
     Parameters
     ----------
@@ -58,7 +57,7 @@ def dag(operator: Array) -> Array:
     Array
         The conjugate-transposed input operator.
     """
-    return jnp.conj(jnp.transpose(operator))
+    return jnp.conj(jnp.matrix_transpose(operator))
 
 
 def tensor_product(*ops: Array) -> Array:
@@ -128,8 +127,8 @@ def embed_op(
         The operator to embed.
     ind : int
         The index of the qubit in the larger Hilbert space.
-    dims : int
-        The dimension of the qubit in the larger Hilbert space.
+    dims : Sequence[int]
+        The Hilbert-space dimensions for each subsystem (sequence of ints).
 
     Returns
     -------
@@ -167,7 +166,7 @@ def tidyup(op: Array, tol: float) -> Array:
     Returns
     -------
     Array
-        The tidyed up array containing only real and imaginary values larger than `tol`.
+        The tidied-up array containing only real and imaginary values larger than `tol`.
     """
     op_real, op_imag = op.real, op.imag
     op_real = op.at[jnp.abs(op.real) < tol].set(0.0)

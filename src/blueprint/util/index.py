@@ -11,19 +11,20 @@ from .quantum import state_overlap
 
 def assign_max_overlap_ind(overlaps: Array, ind: Array) -> Tuple[Array, Array]:
     """
-    assign_max_overlap_ind Assigns the index of the state with the maximum overlap with the target state.
+    assign_max_overlap_ind Select the index with maximum overlap and zero that column.
 
     Parameters
     ----------
     overlaps : Array
-        The array of state overlaps between the states and the target states.
+        Array of overlaps between states and target states (shape ``(N, M)``).
     ind : Array
-        The index of the state for which the maximum overlap is to be found.
+        Index or indices selecting which column(s) to inspect.
 
     Returns
     -------
     Tuple[Array, Array]
-        The updated array of state overlaps and the index of the state with the maximum overlap.
+        Tuple of (updated_overlaps, max_index) where the chosen column in
+        ``updated_overlaps`` has been zeroed.
     """
     max_overlap_ind = jnp.argmax(overlaps[ind])
     filtered_overlaps = overlaps.at[:, max_overlap_ind].set(0)
@@ -32,19 +33,19 @@ def assign_max_overlap_ind(overlaps: Array, ind: Array) -> Tuple[Array, Array]:
 
 def get_max_overlap_inds(states: Array, target_states: Array) -> Array:
     """
-    max_overlap_inds Returns the indices of the states with the maximum overlap with the target states.
+    get_max_overlap_inds Return indices of states that maximize overlap with target states.
 
     Parameters
     ----------
     states : Array
-        The states to compare.
+        Matrix of states with shape ``(dim, num_states)`` (columns are states).
     target_states : Array
-        The target states.
+        Target state vectors with compatible shape.
 
     Returns
     -------
     Array
-        The indices of the states with the maximum overlap with the target states.
+        Indices of the best-matching states for each target state.
     """
     _, num_states = states.shape
 
