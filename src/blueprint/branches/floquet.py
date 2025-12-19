@@ -18,22 +18,19 @@ type Pulse = Callable[[float], Scalar | Array]
 @jit
 def assign_branch_inds(prev_modes: Array, next_modes: Array) -> Tuple[Array, Array]:
     """
-    assign_branch_inds Assigns the branch indices for the given modes based
-    on their overlap with the previous modes, which are assumed to have been sorted.
+    assign_branch_inds Sort `next_modes` to match ordering of `prev_modes` using overlaps.
 
     Parameters
     ----------
     prev_modes : Array
-        The previous floquet modes of the driven hamiltonian. These are assumed to
-        be sorted already.
+        Reference modes (assumed sorted).
     next_modes : Array
-        The next floquet modes of the driven hamiltonian. These are not sorted.
-        The sorting is done based on the overlap with the previous modes.
+        Modes to be sorted according to overlap with `prev_modes`.
 
     Returns
     -------
     Tuple[Array, Array]
-        The sorted modes and the sorting indices.
+        Tuple of (sorted_modes, sort_indices).
     """
     sort_inds = get_max_overlap_inds(prev_modes, next_modes)
     sorted_modes = next_modes[:, sort_inds]
@@ -42,21 +39,19 @@ def assign_branch_inds(prev_modes: Array, next_modes: Array) -> Tuple[Array, Arr
 
 def get_branch_inds(modes: Array, states: Array) -> Array:
     """
-    get_branch_inds Assigns the branch indices for the given modes and states.
+    get_branch_inds Compute branch sorting indices for Floquet modes across drive amplitudes.
 
     Parameters
     ----------
     modes : Array
-        The final floquet modes of the driven hamiltonian for the different
-        drive amplitudes considered in the simulation.
+        Floquet modes for each drive amplitude.
     states : Array
-        The eigenstates of the driven system. # ? Should this not be the undriven system?
+        Reference eigenstates used to initialize sorting.
 
     Returns
     -------
     Array
-        The sorting indices of the modes and quasienergies that are adiabatic
-        with respect to the increasing drive amplitude.
+        Sorting indices for modes and quasienergies.
     """
     _, inds = jax.lax.scan(assign_branch_inds, states, modes)
     return inds
@@ -72,33 +67,29 @@ def get_branches(
     options: Options | None = None,
 ) -> Tuple[Array, Array]:
     """
-    get_branches Calculates the branches of the driven system using the Floquet method.
+    get_branches Compute Floquet branches (modes and quasienergies) for a driven system.
 
     Parameters
     ----------
     hamiltonian : Array
-        The hamiltonian of the system, excluding the drive.
-    drive_pulse : Pulse
-        The pulse of the drive. This is a callable function/object
-        that takes a single float argument corresponding to time and returns the array of the drive amplitudes at that time.
-        The floquet assignment is adabatic with respect to the drive amplitudes.
-        This does not multiple drive periods. For batching over periods, see jax.vmap.
-    drive_operator : Array
-        The operator of the drive.
+        Static part of the system Hamiltonian (shape ``(d,d)``).
+    drive_pulse : callable
+        Time-dependent drive amplitude function.
+    drive_op : Array
+        Operator coupled by the drive (shape ``(d,d)``).
     drive_period : float
-        The period of the drive.
-    init_time : float | Scalar, optional
-        The initial time for which to simulate the system, by default 0.0
-    method : Method | None, optional
-        The dynamiqs integration method, by default None which defaults to the Tsit5 method.
-    options : Options | None, optional
-        The dynamiqs solver options, by default None. If None, the default options are used. See dynamiqs.floquet for the valid options available for the method used.
+        Period of the drive.
+    init_time : float or Scalar, optional
+        Initial time for the Floquet calculation.
+    method : Method or None, optional
+        Integration method for dynamiqs; defaults to Tsit5.
+    options : Options or None, optional
+        Solver options for dynamiqs.
 
     Returns
     -------
     Tuple[Array, Array]
-        The sorted final floquet modes and quasienergies of the driven system.
-        The modes are sorted according to the branch indices, which are assigned based on the overlap with the previous modes as a function of the drive power.
+        Tuple of (branch_quasienergies, branches) where branches are sorted modes.
     """
     method = method or Tsit5()
     options = options or Options()

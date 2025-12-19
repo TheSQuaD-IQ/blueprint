@@ -11,20 +11,22 @@ from ..util.index import get_max_overlap_inds
 
 def get_next_ind(overlap_mat: Array, start_ind: Array) -> Tuple[Array, Array]:
     """
-    get_next_ind Finds the next branch index given the current branch index and an overlap matrix.
-    The overlap matrix holds the information between
+    get_next_ind Find the next branch index given an overlap matrix and a start index.
 
     Parameters
     ----------
     overlap_mat : Array
-
+        Overlap matrix where entry (i, j) gives overlap metric used for
+        selecting indices.
     start_ind : Array
-        _description_
+        Index (or indices) used to select the column from which to choose the
+        next index.
 
     Returns
     -------
     Tuple[Array, Array]
-        The updated overlap matrix and the next branch index.
+        Tuple containing the updated overlap matrix (with the chosen row set to
+        zero) and the chosen next index.
     """
     next_ind = jnp.argmax(overlap_mat[:, start_ind])
     overlap_mat = overlap_mat.at[next_ind].set(0.0)
@@ -35,20 +37,19 @@ def get_next_inds(
     prev_carry: Tuple[Array, Array], _
 ) -> Tuple[Tuple[Array, Array], Array]:
     """
-    get_next_inds Finds the set of branch indices for the next branch given the current branch indices.
-    Each of the set of branch indicies correspond to the resonator being fixed in a certain state.
+    get_next_inds Compute the next set of branch indices for a scan carry.
 
     Parameters
     ----------
-    prev_carry : Tuple[Array, Array]
-        The overlap matrix and the previous branch indices.
+    prev_carry : tuple
+        Tuple containing the overlap matrix and the previous branch indices.
     _ : None
-        Useless argument introduced to fit the signature of `jax.lax.scan`.
+        Placeholder to fit the ``jax.lax.scan`` function signature.
 
     Returns
     -------
     Tuple[Tuple[Array, Array], Array]
-        The updated carry (overlap matrix and next branch indices) and the next branch indices (which are passed again for saving).
+        Updated carry and the next branch indices.
     """
     overlap_mat, prev_inds = prev_carry
     overlap_mat, next_inds = jax.lax.scan(get_next_ind, overlap_mat, prev_inds)
@@ -61,21 +62,23 @@ def assign_branch_inds(
     overlap_mat: Array, ground_inds: Array, num_branches: int
 ) -> Array:
     """
-    assign_branch_inds Assigns an index to each branch of the resonator.
+    assign_branch_inds Assign indices to each branch of the resonator using overlaps.
 
     Parameters
     ----------
     overlap_mat : Array
-        The overlap matrix.
+        The overlap matrix used to decide branch assignment.
     ground_inds : Array
-        The indices of the ground state.
+        Indices corresponding to the ground branch states.
     num_branches : int
-        The number of resonator branches. Typically, this is the dimensionality of the resonator.
+        Number of resonator branches. Typically the dimensionality of the
+        resonator (must be an integer).
 
     Returns
     -------
     Array
-        The branch indices.
+        Array of branch indices with shape ``(num_branches, n_ground)`` before
+        raveling.
     """
     overlap_mat = overlap_mat.at[ground_inds].set(0)
     init = (overlap_mat, ground_inds)
@@ -87,34 +90,30 @@ def assign_branch_inds(
 
 def get_branch_inds(states: Array, raise_op: Array, ground_inds: Array) -> Array:
     """
-    get_branch_inds Returns the indices of the states with maximum overlap with the states obtained by applying the raising operator to the input states.
+    get_branch_inds Return indices of states grouped into resonator branches.
 
     Parameters
     ----------
     states : Array
-        The eigenstates of the system.
+        Eigenstates of the system with shape ``(dim, num_states)`` where each
+        column is a state vector.
     raise_op : Array
-        The raising operator of the resonator.
+        Raising operator for the resonator expanded to the system Hilbert
+        space (square matrix of shape ``(dim, dim)``).
     ground_inds : Array
-        The indices of the states corresponding to the resonator being in the ground state.
+        Indices of the product-state vectors corresponding to the resonator's
+        ground states.
 
     Returns
     -------
     Array
-        The indices of each of the branches of the resonator.
+        Ravelled indices that select branch-ordered states from the state
+        matrix.
 
     Raises
     ------
     ValueError
-        If the states are not a matrix of column vectors.
-    ValueError
-        If the number of states is greater than the dimension of the Hilbert space.
-    ValueError
-        If the raising operator is not a square matrix.
-    ValueError
-        If the raising operator does not have the same dimension as the Hilbert space of the states.
-    ValueError
-        If the number of ground states is greater than the dimension of the Hilbert space.
+        If inputs do not have expected shapes or sizes.
     """
     num_dims = len(states.shape)
     if num_dims != 2:
@@ -152,7 +151,8 @@ def get_branch_inds(states: Array, raise_op: Array, ground_inds: Array) -> Array
         jnp.einsum("ia, ij, jb -> ab", jnp.conj(states), raise_op, states)
     )
 
-    num_branches = dim / num_inds
+    # number of branches must be an integer
+    num_branches = int(dim // num_inds)
     # Assign the remaining branch indices
     inds = assign_branch_inds(overlap_mat, ground_inds, num_branches)
 
