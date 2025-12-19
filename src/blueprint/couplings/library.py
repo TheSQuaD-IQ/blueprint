@@ -7,25 +7,21 @@ from ..systems import System
 
 
 class ChargeCoupling(Coupling):
-    """
-    ChargeCoupling A class implementing a capacitive coupling term.
-    """
+    """Capacitive (charge) coupling implementation."""
 
     def get_coupling_op(self, system: System, other_system: System) -> Array:
         """
-        get_coupling_op Returns the coupling operator corresponding to the coupling.
+        get_coupling_op Return capacitive coupling operator between two systems.
 
         Parameters
         ----------
-        system : System
-            The first system that is coupled via the capacitor.
-        other_system : System
-            The second system that is coupled via the capacitor
+        system, other_system : System
+            Systems participating in the coupling.
 
         Returns
         -------
         Array
-            The coupling operator corresponding to the coupling.
+            Coupling operator on joint Hilbert space.
         """
         charge_op = system.get_charge_op()  # type: ignore
         other_charge_op = other_system.get_charge_op()  # type: ignore
@@ -34,25 +30,21 @@ class ChargeCoupling(Coupling):
 
 
 class FluxCoupling(Coupling):
-    """
-    FluxCoupling A class implementing an inductive coupling term.
-    """
+    """Inductive (flux) coupling implementation."""
 
     def get_coupling_op(self, system: System, other_system: System) -> Array:
         """
-        get_coupling_op Returns the coupling operator corresponding to the coupling.
+        get_coupling_op Return inductive coupling operator between two systems.
 
         Parameters
         ----------
-        system : System
-            The first system that is coupled via the inductor.
-        other_system : System
-            The second system that is coupled via the inductor.
+        system, other_system : System
+            Systems participating in the coupling.
 
         Returns
         -------
         Array
-            The coupling operator corresponding to the coupling.
+            Coupling operator on joint Hilbert space.
         """
         flux_op = system.get_flux_op()  # type: ignore
         other_flux_op = other_system.get_flux_op()  # type: ignore
@@ -61,25 +53,21 @@ class FluxCoupling(Coupling):
 
 
 class TunableChargeCoupling(TunableCoupling):
-    """
-    TunableChargeCoupling A class implementing a tunable capacitive coupling term.
-    """
+    """Tunable capacitive coupling implementation."""
 
     def get_coupling_op(self, system: System, other_system: System) -> Array:
         """
-        get_coupling_op Returns the coupling operator corresponding to the coupling.
+        get_coupling_op Return capacitive coupling operator for tunable coupling.
 
         Parameters
         ----------
-        system : System
-            The first system that is coupled via the capacitor.
-        other_system : System
-            The second system that is coupled via the capacitor
+        system, other_system : System
+            Systems participating in the coupling.
 
         Returns
         -------
         Array
-            The coupling operator corresponding to the coupling.
+            Coupling operator on joint Hilbert space.
         """
         charge_op = system.get_charge_op()  # type: ignore
         other_charge_op = other_system.get_charge_op()  # type: ignore
@@ -88,25 +76,21 @@ class TunableChargeCoupling(TunableCoupling):
 
 
 class TunableFluxCoupling(TunableCoupling):
-    """
-    TunableFluxCoupling A class implementing a tunable inductive coupling term.
-    """
+    """Tunable inductive coupling implementation."""
 
     def get_coupling_op(self, system: System, other_system: System) -> Array:
         """
-        get_coupling_op Returns the coupling operator corresponding to the coupling.
+        get_coupling_op Return inductive coupling operator for tunable coupling.
 
         Parameters
         ----------
-        system : System
-            The first system that is coupled via the inductor.
-        other_system : System
-            The second system that is coupled via the inductor.
+        system, other_system : System
+            Systems participating in the coupling.
 
         Returns
         -------
         Array
-            The coupling operator corresponding to the coupling.
+            Coupling operator on joint Hilbert space.
         """
         flux_op = system.get_flux_op()  # type: ignore
         other_flux_op = other_system.get_flux_op()  # type: ignore
