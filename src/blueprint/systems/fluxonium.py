@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Callable, Tuple
+from typing import Callable, Tuple, Iterable
 
 import yaml
 from jax import numpy as jnp
@@ -44,7 +44,7 @@ class FluxoniumParameters(Module):
         harmonic_cutoff: int,
         dim: int,
         device_ind: int | None = None,
-        device_dims: Tuple[int, ...] | None = None,
+        device_dims: Iterable[int] | None = None,
     ) -> None:
         """
         __init__ Initialize FluxoniumParameters instance.
@@ -66,23 +66,56 @@ class FluxoniumParameters(Module):
         device_dims : tuple or None, optional
             Device subsystem dimensions if embedding.
         """
-        self.label = str(label)
+        if not isinstance(label, str):
+            raise TypeError("label must be a string.")
+        self.label = label
+
         self.charging_energy = jnp.array(charging_energy)
         self.inductive_energy = jnp.array(inductive_energy)
         self.josephson_energy = jnp.array(josephson_energy)
         self.external_flux = jnp.array(external_flux)
-        self.harmonic_cutoff = int(harmonic_cutoff)
-        self.dim = int(dim)
 
-        if device_ind is None:
-            self.device_ind = None
-        else:
-            self.device_ind = int(device_ind)
+        if not isinstance(harmonic_cutoff, int) or harmonic_cutoff <= 0:
+            raise ValueError("harmonic_cutoff must be a positive integer.")
+        self.harmonic_cutoff = harmonic_cutoff
 
-        if device_dims is None:
-            self.device_dims = None
-        else:
-            self.device_dims = tuple(map(int, device_dims))
+        if not isinstance(dim, int) or dim <= 0:
+            raise ValueError("dim must be a positive integer.")
+        self.dim = dim
+
+        if device_ind is not None:
+            if not isinstance(device_ind, int):
+                raise TypeError("device_ind must be an integer.")
+
+            if device_dims is None:
+                raise ValueError(
+                    "To embed a system, both device_ind and device_dims must be provided."
+                )
+        self.device_ind = device_ind
+
+        if device_dims is not None:
+            try:
+                device_dims = tuple(device_dims)
+            except TypeError:
+                raise TypeError("device_dims must be an iterable of integers.")
+
+            for dim in device_dims:
+                if not isinstance(dim, int) or dim <= 0:
+                    raise ValueError(
+                        "All entries in device_dims must be positive integers."
+                    )
+
+            if device_ind is None:
+                raise ValueError(
+                    "To embed a system, both device_ind and device_dims must be provided."
+                )
+            else:
+                if device_dims[device_ind] != self.dim:
+                    raise ValueError(
+                        "The resonator dim must match the corresponding device_dims entry."
+                    )
+
+        self.device_dims = device_dims
 
 
 class Fluxonium(System):
@@ -129,27 +162,16 @@ class Fluxonium(System):
         device_dims : tuple or None, optional
             Device subsystem dimensions if embedding.
         """
-        self.label = str(label)
+        super().__init__(label, dim, device_ind, device_dims)
 
         self._ej = jnp.array(josephson_energy)
         self._ec = jnp.array(charging_energy)
         self._el = jnp.array(inductive_energy)
         self._ext_flux = jnp.array(ext_flux)
 
-        self._hcut = int(harmonic_cutoff)
-        self.dim = int(dim)
-
-        self.drives = {}
-
-        if device_ind is None:
-            self.device_ind = None
-        else:
-            self.device_ind = int(device_ind)
-
-        if device_dims is None:
-            self.device_dims = None
-        else:
-            self.device_dims = tuple(map(int, device_dims))
+        if not isinstance(harmonic_cutoff, int) or harmonic_cutoff <= 0:
+            raise ValueError("harmonic_cutoff must be a positive integer.")
+        self._hcut = harmonic_cutoff
 
         eig_vals, eig_states = self._get_eigenstates()
         self._eig_vals = eig_vals[..., : self.dim]
@@ -275,16 +297,16 @@ class Fluxonium(System):
             Device subsystem dimensions.
         """
 
-        embedded_fluxonium = Fluxonium(
-            label=self.label,
-            charging_energy=self.charging_energy,
-            inductive_energy=self.inductive_energy,
-            josephson_energy=self.josephson_energy,
-            ext_flux=self.external_flux,
-            harmonic_cutoff=self.harmonic_cutoff,
-            dim=self.dim,
-            device_ind=device_ind,
-            device_dims=device_dims,
+        embedded_fluxonium = self.__class__(
+            self.label,
+            self.charging_energy,
+            self.inductive_energy,
+            self.josephson_energy,
+            self.external_flux,
+            self.harmonic_cutoff,
+            self.dim,
+            device_ind,
+            device_dims,
         )
 
         for label, drive in self.drives.items():
@@ -648,11 +670,12 @@ class Fluxonium(System):
 
     @classmethod
     def from_params(cls, params: FluxoniumParameters) -> Fluxonium:
-        """from_params Construct a Fluxonium instance from a `FluxoniumParameters` object.
+        """
+        from_params Construct a Fluxonium instance from a `FluxoniumParameters` object.
 
         Parameters
         ----------
-        parameters : FluxoniumParameters
+        params : FluxoniumParameters
             Parameter container for the fluxonium.
 
         Returns
@@ -660,7 +683,7 @@ class Fluxonium(System):
         Fluxonium
             Constructed qubit instance.
         """
-        qubit = cls(
+        fluxonium = cls(
             params.label,
             params.charging_energy,
             params.inductive_energy,
@@ -671,29 +694,7 @@ class Fluxonium(System):
             params.device_ind,
             params.device_dims,
         )
-        return qubit
-
-    def get_params(self) -> FluxoniumParameters:
-        """
-        get_params Return a `FluxoniumParameters` instance containing the fluxonium parameters.
-
-        Returns
-        -------
-        FluxoniumParameters
-            Parameter container for the fluxonium.
-        """
-        params = FluxoniumParameters(
-            self.label,
-            self.charging_energy,
-            self.inductive_energy,
-            self.josephson_energy,
-            self.external_flux,
-            self.harmonic_cutoff,
-            self.dim,
-            self.device_ind,
-            self.device_dims,
-        )
-        return params
+        return fluxonium
 
     @classmethod
     def from_yaml(cls, filename: Filestring) -> Fluxonium:

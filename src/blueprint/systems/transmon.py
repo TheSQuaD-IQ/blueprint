@@ -1,21 +1,284 @@
 from __future__ import annotations
 
 from abc import abstractmethod
-from typing import Callable, Tuple
+from typing import Callable, Tuple, Iterable
 
 from jax import numpy as jnp
 from jax import scipy as jsp
-from jaxtyping import Scalar, Array
+from jaxtyping import Scalar, Array, ScalarLike
 
-from equinox import field
+from equinox import Module, field
 
 from optimistix import minimise, BFGS
 
 from .system import System
 from ..drives import ChargeDrive, FluxDrive, CosFluxDrive, SinFluxDrive
-from ..util.linalg import transform_op, embed_op
+from ..util.linalg import transform_op
 
 type Pulse = Callable[[float], Scalar | Array]
+
+
+class ChargeTransmonParameters(Module):
+    """Dataclass for fluxonium parameter storage."""
+
+    label: str = field(static=True)
+    charging_energy: Scalar
+    josephson_energy: Scalar
+    offset_charge: Scalar
+    charge_cutoff: int = field(static=True)
+
+    device_ind: int | None = field(static=True)
+    device_dims: Tuple[int, ...] | None = field(static=True)
+
+    def __init__(
+        self,
+        label: str,
+        charging_energy: float | Scalar,
+        josephson_energy: float | Scalar,
+        offset_charge: float | Scalar,
+        charge_cutoff: int,
+        device_ind: int | None = None,
+        device_dims: Tuple[int, ...] | None = None,
+    ) -> None:
+        """
+        __init__ Initialize FluxoniumParameters instance.
+
+        Parameters
+        ----------
+        label : str
+            System label.
+        charging_energy, inductive_energy, josephson_energy : ScalarLike
+            Fluxonium energy parameters.
+        external_flux : ScalarLike
+            External magnetic flux through loop.
+        harmonic_cutoff : int
+            Harmonic cutoff used for native oscillator basis.
+        dim : int
+            Hilbert-space dimension for returned operators/eigenstates.
+        device_ind : int or None, optional
+            Embedding index if part of a device.
+        device_dims : tuple or None, optional
+            Device subsystem dimensions if embedding.
+        """
+        if not isinstance(label, str):
+            raise TypeError("label must be a string.")
+        self.label = label
+
+        self.charging_energy = jnp.array(charging_energy)
+        self.josephson_energy = jnp.array(josephson_energy)
+        self.offset_charge = jnp.array(offset_charge)
+
+        if not isinstance(charge_cutoff, int) or charge_cutoff <= 0:
+            raise ValueError("charge_cutoff must be a positive integer.")
+        self.charge_cutoff = charge_cutoff
+
+        if device_ind is not None:
+            if not isinstance(device_ind, int):
+                raise TypeError("device_ind must be an integer.")
+
+            if device_dims is None:
+                raise ValueError(
+                    "To embed a system, both device_ind and device_dims must be provided."
+                )
+        self.device_ind = device_ind
+
+        if device_dims is not None:
+            try:
+                device_dims = tuple(device_dims)
+            except TypeError:
+                raise TypeError("device_dims must be an iterable of integers.")
+
+            for dim in device_dims:
+                if not isinstance(dim, int) or dim <= 0:
+                    raise ValueError(
+                        "All entries in device_dims must be positive integers."
+                    )
+
+            if device_ind is None:
+                raise ValueError(
+                    "To embed a system, both device_ind and device_dims must be provided."
+                )
+            else:
+                dim = 2 * charge_cutoff + 1
+                if device_dims[device_ind] != dim:
+                    raise ValueError(
+                        "The resonator dim must match the corresponding device_dims entry."
+                    )
+
+        self.device_dims = device_dims
+
+
+class TransmonParameters(Module):
+    """Dataclass for fluxonium parameter storage."""
+
+    label: str = field(static=True)
+    charging_energy: Scalar
+    josephson_energy: Scalar
+    offset_charge: Scalar
+    charge_cutoff: int = field(static=True)
+    dim: int = field(static=True)
+
+    device_ind: int | None = field(static=True)
+    device_dims: Tuple[int, ...] | None = field(static=True)
+
+    def __init__(
+        self,
+        label: str,
+        charging_energy: float | Scalar,
+        josephson_energy: float | Scalar,
+        offset_charge: float | Scalar,
+        charge_cutoff: int,
+        dim: int,
+        device_ind: int | None = None,
+        device_dims: Tuple[int, ...] | None = None,
+    ) -> None:
+        """
+        __init__ Initialize FluxoniumParameters instance.
+
+        Parameters
+        ----------
+        label : str
+            System label.
+        charging_energy, inductive_energy, josephson_energy : ScalarLike
+            Fluxonium energy parameters.
+        external_flux : ScalarLike
+            External magnetic flux through loop.
+        harmonic_cutoff : int
+            Harmonic cutoff used for native oscillator basis.
+        dim : int
+            Hilbert-space dimension for returned operators/eigenstates.
+        device_ind : int or None, optional
+            Embedding index if part of a device.
+        device_dims : tuple or None, optional
+            Device subsystem dimensions if embedding.
+        """
+        if not isinstance(label, str):
+            raise TypeError("label must be a string.")
+        self.label = label
+
+        self.charging_energy = jnp.array(charging_energy)
+        self.josephson_energy = jnp.array(josephson_energy)
+        self.offset_charge = jnp.array(offset_charge)
+
+        if not isinstance(charge_cutoff, int) or charge_cutoff <= 0:
+            raise ValueError("charge_cutoff must be a positive integer.")
+        self.charge_cutoff = charge_cutoff
+
+        if not isinstance(dim, int) or dim <= 0:
+            raise ValueError("dim must be a positive integer.")
+        self.dim = dim
+
+        if device_ind is not None:
+            if not isinstance(device_ind, int):
+                raise TypeError("device_ind must be an integer.")
+
+            if device_dims is None:
+                raise ValueError(
+                    "To embed a system, both device_ind and device_dims must be provided."
+                )
+        self.device_ind = device_ind
+
+        if device_dims is not None:
+            try:
+                device_dims = tuple(device_dims)
+            except TypeError:
+                raise TypeError("device_dims must be an iterable of integers.")
+
+            for dim in device_dims:
+                if not isinstance(dim, int) or dim <= 0:
+                    raise ValueError(
+                        "All entries in device_dims must be positive integers."
+                    )
+
+            if device_ind is None:
+                raise ValueError(
+                    "To embed a system, both device_ind and device_dims must be provided."
+                )
+            else:
+                if device_dims[device_ind] != self.dim:
+                    raise ValueError(
+                        "The resonator dim must match the corresponding device_dims entry."
+                    )
+
+        self.device_dims = device_dims
+
+    @classmethod
+    def from_frequencies(
+        cls,
+        label: str,
+        frequency: ScalarLike,
+        anharmonicity: ScalarLike,
+        offset_charge: ScalarLike,
+        charge_cutoff: int,
+        dim: int,
+        *,
+        atol: float = 1e-8,
+        rtol: float = 1e-8,
+    ) -> TransmonParameters:
+        """
+        from_frequencies Create a Transmon based on the qubit frequency and anharmonicity. The function will optimize the charging and Josephson energies to match the provided frequency and anharmonicity. The optimization is done using the scipy.optimize.minimize function. The optimization is done in the following way:
+        1. Calculate the initial guesses for the maximum Josephson energy and Charging energy based on the provided frequency and anharmonicity.
+        2. Define an objective function that calculates the difference between the provided frequency and anharmonicity and the calculated frequency and anharmonicity based on the charging and Josephson energies. The objective function is the sum of the squared differences between the provided and calculated values.
+        3. Optimize the objective function to find the charging and Josephson energies that best match the provided frequency and anharmonicity.
+
+        Parameters
+        ----------
+        label : str
+            The label of the transmon.
+        frequency : ScalarLike
+            The target qubit frequency.
+        anharmonicity : ScalarLike
+            The target qubit anharmonicity (should be negative).
+        offset_charge : float
+            The offset charge of the transmon.
+        charge_cutoff : int
+            The number of charge states to consider.
+        dim : int
+            The dimension of the transmon Hilbert space.
+
+        Returns
+        -------
+        Transmon
+            The Transmon instance.
+        """
+        frequency = jnp.array(frequency)
+        anharmonicity = jnp.array(anharmonicity)
+        offset_charge = jnp.array(offset_charge)
+
+        init_ec = -anharmonicity
+        init_ej = (frequency + init_ec) ** 2 / (8 * init_ec)
+
+        def objective_func(x, _) -> Array:
+            charging_energy, josephson_energy = x
+            transmon = Transmon(
+                label,
+                charging_energy,
+                josephson_energy,
+                offset_charge,
+                charge_cutoff,
+                dim,
+            )
+            freq_diff = frequency - transmon.frequency
+            anharm_diff = anharmonicity - transmon.anharmonicity
+            result = freq_diff**2 + anharm_diff**2
+            return result
+
+        init_guess = (init_ej, init_ec)
+        solver = BFGS(rtol, atol)
+        solution = minimise(objective_func, solver, init_guess)
+
+        charging_energy, josephson_energy = solution.value
+
+        params = cls(
+            label,
+            charging_energy,
+            josephson_energy,
+            offset_charge,
+            charge_cutoff,
+            dim,
+        )
+
+        return params
 
 
 class BaseTransmon(System):
@@ -25,6 +288,28 @@ class BaseTransmon(System):
     _ej: Scalar
     _ng: Scalar
     _ncut: int = field(static=True)
+
+    def __init__(
+        self,
+        label: str,
+        charging_energy: ScalarLike,
+        josephson_energy: ScalarLike,
+        offset_charge: ScalarLike,
+        charge_cutoff: int,
+        dim: int,
+        device_ind: int | None = None,
+        device_dims: Iterable[int] | None = None,
+    ) -> None:
+        super().__init__(label, dim, device_ind, device_dims)
+
+        self._ec = jnp.asarray(charging_energy)
+        self._ej = jnp.asarray(josephson_energy)
+        self._ng = jnp.asarray(offset_charge)
+
+        if not isinstance(charge_cutoff, int) or charge_cutoff <= 0:
+            raise ValueError("charge_cutoff must be a positive integer.")
+
+        self._ncut = charge_cutoff
 
     @property
     def charging_energy(self) -> Scalar:
@@ -404,21 +689,19 @@ class ChargeTransmon(BaseTransmon):
         offset_charge: float | Scalar,
         charge_cutoff: int,
         device_ind: int | None = None,
-        device_dims: Tuple[int, ...] | None = None,
+        device_dims: Iterable[int] | None = None,
     ) -> None:
-        self.label = str(label)
-
-        self._ec = jnp.asarray(charging_energy)
-        self._ej = jnp.asarray(josephson_energy)
-        self._ng = jnp.asarray(offset_charge)
-
-        self._ncut = int(charge_cutoff)
-        self.dim = 2 * charge_cutoff + 1
-
-        self.drives = {}
-
-        self.device_ind = device_ind
-        self.device_dims = device_dims
+        dim = int(2 * charge_cutoff + 1)
+        super().__init__(
+            label,
+            charging_energy,
+            josephson_energy,
+            offset_charge,
+            charge_cutoff,
+            dim,
+            device_ind,
+            device_dims,
+        )
 
     @property
     def is_diagonal(self) -> bool:
@@ -432,7 +715,7 @@ class ChargeTransmon(BaseTransmon):
         """
         return False
 
-    def embed(self, device_ind: int, device_dims: Tuple[int, ...]) -> ChargeTransmon:
+    def embed(self, device_ind: int, device_dims: Iterable[int]) -> ChargeTransmon:
         """
         embed Embeds the transmon into a larger Hilbert space.
 
@@ -444,12 +727,12 @@ class ChargeTransmon(BaseTransmon):
             The dimension of each quantum system (including this transmon)
             in the full device.
         """
-        transmon = ChargeTransmon(
-            label=self.label,
-            charging_energy=self.charging_energy,
-            josephson_energy=self.josephson_energy,
-            offset_charge=self.offset_charge,
-            charge_cutoff=self.charge_cutoff,
+        transmon = self.__class__(
+            self.label,
+            self.charging_energy,
+            self.josephson_energy,
+            self.offset_charge,
+            self.charge_cutoff,
             device_ind=device_ind,
             device_dims=device_dims,
         )
@@ -477,9 +760,7 @@ class ChargeTransmon(BaseTransmon):
         Array
             The processed operator.
         """
-        if self.is_embedded:
-            operator = embed_op(operator, self.device_ind, self.device_dims)  # type: ignore
-        return operator
+        return self.embed_op(operator)
 
     def get_hamiltonian(self) -> Array:
         hamiltonian = self._get_hamiltonian()
@@ -491,6 +772,32 @@ class ChargeTransmon(BaseTransmon):
     def get_eigenstates(self) -> Tuple[Array, Array]:
         return self._get_eigenstates()
 
+    @classmethod
+    def from_params(cls, params: TransmonParameters) -> ChargeTransmon:
+        """
+        from_params Construct a Transmon instance from a `TransmonParameters` object.
+
+        Parameters
+        ----------
+        params : TransmonParameters
+            Parameter container for the transmon.
+
+        Returns
+        -------
+        Transmon
+            Constructed qubit instance.
+        """
+        transmon = cls(
+            params.label,
+            params.charging_energy,
+            params.josephson_energy,
+            params.offset_charge,
+            params.charge_cutoff,
+            params.device_ind,
+            params.device_dims,
+        )
+        return transmon
+
 
 class Transmon(BaseTransmon):
     """Transmon qubit model."""
@@ -501,27 +808,24 @@ class Transmon(BaseTransmon):
     def __init__(
         self,
         label: str,
-        charging_energy: float | Scalar,
-        josephson_energy: float | Scalar,
-        offset_charge: float | Scalar,
+        charging_energy: ScalarLike,
+        josephson_energy: ScalarLike,
+        offset_charge: ScalarLike,
         charge_cutoff: int,
         dim: int,
         device_ind: int | None = None,
         device_dims: Tuple[int, ...] | None = None,
     ) -> None:
-        self.label = str(label)
-
-        self._ec = jnp.asarray(charging_energy)
-        self._ej = jnp.asarray(josephson_energy)
-        self._ng = jnp.asarray(offset_charge)
-
-        self._ncut = int(charge_cutoff)
-        self.dim = int(dim)
-
-        self.drives = {}
-
-        self.device_ind = device_ind
-        self.device_dims = device_dims
+        super().__init__(
+            label,
+            charging_energy,
+            josephson_energy,
+            offset_charge,
+            charge_cutoff,
+            dim,
+            device_ind,
+            device_dims,
+        )
 
         eig_vals, eig_states = self._get_eigenstates()
         self._eig_vals = eig_vals[..., : self.dim]
@@ -551,7 +855,7 @@ class Transmon(BaseTransmon):
             The dimension of each quantum system (including this transmon)
             in the full device.
         """
-        transmon = Transmon(
+        transmon = self.__class__(
             label=self.label,
             charging_energy=self.charging_energy,
             josephson_energy=self.josephson_energy,
@@ -586,12 +890,8 @@ class Transmon(BaseTransmon):
         Array
             The processed operator.
         """
-        transformed_op = transform_op(operator, self._eig_states)
-
-        if self.is_embedded:
-            return embed_op(transformed_op, self.device_ind, self.device_dims)  # type: ignore
-
-        return transformed_op
+        processed_op = self.embed_op(transform_op(operator, self._eig_states))
+        return processed_op
 
     def get_number_op(self) -> Array:
         """
@@ -602,16 +902,13 @@ class Transmon(BaseTransmon):
         Array
             The number operator of the fluxonium.
         """
-        diag_elems = jnp.arange(self.dim)
-        num_op = jnp.diag(diag_elems)
-        return self.embed_op(num_op)
+        num_op = jnp.diag(jnp.arange(self.dim))
+        num_op = self.embed_op(num_op)
+        return num_op
 
     def get_hamiltonian(self) -> Array:
         hamiltonian = jnp.diag(self._eig_vals)
-
-        if self.is_embedded:
-            return embed_op(hamiltonian, self.device_ind, self.device_dims)  # type: ignore
-
+        hamiltonian = self.embed_op(hamiltonian)
         return hamiltonian
 
     def get_eigenvalues(self) -> Array:
@@ -621,12 +918,13 @@ class Transmon(BaseTransmon):
         eig_states = jnp.identity(self.dim, dtype=jnp.complex128)
         return self._eig_vals, eig_states
 
-    @staticmethod
+    @classmethod
     def from_frequencies(
+        cls,
         label: str,
-        frequency: float | Scalar,
-        anharmonicity: float | Scalar,
-        offset_charge: float | Scalar,
+        frequency: ScalarLike,
+        anharmonicity: ScalarLike,
+        offset_charge: ScalarLike,
         charge_cutoff: int,
         dim: int,
         *,
@@ -643,9 +941,9 @@ class Transmon(BaseTransmon):
         ----------
         label : str
             The label of the transmon.
-        frequency : float
+        frequency : ScalarLike
             The target qubit frequency.
-        anharmonicity : float
+        anharmonicity : ScalarLike
             The target qubit anharmonicity (should be negative).
         offset_charge : float
             The offset charge of the transmon.
@@ -658,33 +956,9 @@ class Transmon(BaseTransmon):
         -------
         Transmon
             The Transmon instance.
-
-        Raises
-        ------
-        ValueError
-            If the frequency is not a float.
-        ValueError
-            If the anharmonicity is not a float.
-        ValueError
-            If the anharmonicity is positive.
-        ValueError
-            If the optimization fails.
         """
-        if not isinstance(frequency, float | Scalar):
-            raise ValueError(
-                f"The maximum frequency expected to be a float, instead got type {type(frequency)}."
-            )
-        if not isinstance(anharmonicity, float | Scalar):
-            raise ValueError(
-                f"The anharmonicity expected to be a float, instead got type {type(anharmonicity)}."
-            )
-        if anharmonicity >= 0.0:
-            raise ValueError(
-                "The anharmonicity is expected to be negative (and not equal to 0.0) for a transmon qubits."
-            )
-
-        anharmonicity = jnp.asarray(anharmonicity)
-        frequency = jnp.asarray(frequency)
+        frequency = jnp.array(frequency)
+        anharmonicity = jnp.array(anharmonicity)
 
         init_ec = -anharmonicity
         init_ej = (frequency + init_ec) ** 2 / (8 * init_ec)
@@ -699,7 +973,7 @@ class Transmon(BaseTransmon):
                 charge_cutoff,
                 dim,
             )
-            freq_diff = frequency - transmon.fundamental_frequency
+            freq_diff = frequency - transmon.frequency
             anharm_diff = anharmonicity - transmon.anharmonicity
             result = freq_diff**2 + anharm_diff**2
             return result
@@ -709,12 +983,39 @@ class Transmon(BaseTransmon):
         solution = minimise(objective_func, solver, init_guess)
 
         charging_energy, josephson_energy = solution.value
-        transmon = Transmon(
+        transmon = cls(
             label=label,
             charging_energy=charging_energy,
             josephson_energy=josephson_energy,
             offset_charge=offset_charge,
             charge_cutoff=charge_cutoff,
             dim=dim,
+        )
+        return transmon
+
+    @classmethod
+    def from_params(cls, params: TransmonParameters) -> Transmon:
+        """
+        from_params Construct a Transmon instance from a `TransmonParameters` object.
+
+        Parameters
+        ----------
+        params : TransmonParameters
+            Parameter container for the transmon.
+
+        Returns
+        -------
+        Transmon
+            Constructed qubit instance.
+        """
+        transmon = cls(
+            params.label,
+            params.charging_energy,
+            params.josephson_energy,
+            params.offset_charge,
+            params.charge_cutoff,
+            params.dim,
+            params.device_ind,
+            params.device_dims,
         )
         return transmon

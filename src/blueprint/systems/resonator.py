@@ -1,37 +1,91 @@
 from __future__ import annotations
 
 import math
-from typing import Callable, Self, Tuple
+from typing import Callable, Tuple, Iterable
 
 from scipy.constants import e, hbar
 
 from jax import numpy as jnp
-from jaxtyping import ArrayLike, Array, Scalar
+from jaxtyping import ArrayLike, Array, Scalar, ScalarLike
 from equinox import Module, field
 
 from .system import System
 from ..drives import ChargeDrive, FluxDrive
-from ..util.linalg import embed_op
 
-type Pulse = Callable[[float], Scalar | Array]
+type Pulse = Callable[[float | Scalar], Scalar | Array]
 
 
 class ResonatorParams(Module):
     """Parameters container for a resonator (helper dataclass)."""
 
     label: str = field(static=True)
-    charging_energy: ArrayLike
-    inductive_energy: ArrayLike
+    charging_energy: Scalar
+    inductive_energy: Scalar
     dim: int = field(static=True)
 
-    device_ind: int | None = field(default=None, static=True)
-    device_dims: Tuple[int, ...] | None = field(default=None, static=True)
+    device_ind: int | None = field(static=True)
+    device_dims: Tuple[int, ...] | None = field(static=True)
 
-    @staticmethod
-    def from_frequency(
+    def __init__(
+        self,
         label: str,
-        frequency: float,
-        impedance: float,
+        charging_energy: ScalarLike,
+        inductive_energy: ScalarLike,
+        dim: int,
+        device_ind: int | None = None,
+        device_dims: Tuple[int, ...] | None = None,
+    ) -> None:
+        if not isinstance(label, str):
+            raise TypeError("label must be a string.")
+        self.label = label
+
+        self.charging_energy = jnp.array(charging_energy)
+        self.inductive_energy = jnp.array(inductive_energy)
+
+        if not isinstance(dim, int) or dim <= 0:
+            raise ValueError("dim must be a positive integer.")
+        self.dim = dim
+
+        if device_ind is not None:
+            if not isinstance(device_ind, int):
+                raise TypeError("device_ind must be an integer.")
+
+            if device_dims is None:
+                raise ValueError(
+                    "To embed a system, both device_ind and device_dims must be provided."
+                )
+        self.device_ind = device_ind
+
+        if device_dims is not None:
+            try:
+                device_dims = tuple(device_dims)
+            except TypeError:
+                raise TypeError("device_dims must be an iterable of integers.")
+
+            for dim in device_dims:
+                if not isinstance(dim, int) or dim <= 0:
+                    raise ValueError(
+                        "All entries in device_dims must be positive integers."
+                    )
+
+            if device_ind is None:
+                raise ValueError(
+                    "To embed a system, both device_ind and device_dims must be provided."
+                )
+            else:
+                if device_dims[device_ind] != self.dim:
+                    raise ValueError(
+                        "The resonator dim must match the corresponding device_dims entry."
+                    )
+
+        self.device_dims = device_dims
+
+    @classmethod
+    def from_frequency(
+        cls,
+        label: str,
+        frequency: ScalarLike,
+        impedance: ScalarLike,
         dim: int,
         *,
         device_ind: int | None = None,
@@ -44,9 +98,9 @@ class ResonatorParams(Module):
         ----------
         label : str
             Resonator label.
-        frequency : float
+        frequency : ScalarLike
             Resonator frequency.
-        impedance : float
+        impedance : ScalarLike
             Characteristic impedance.
         dim : int
             Hilbert-space dimension to model.
@@ -60,6 +114,9 @@ class ResonatorParams(Module):
         ResonatorParams
             Constructed parameters object.
         """
+        frequency = jnp.array(frequency)
+        impedance = jnp.array(impedance)
+
         capacitance = 1 / (impedance * frequency)
 
         redifined_e = e / math.sqrt(hbar)
@@ -68,7 +125,7 @@ class ResonatorParams(Module):
         inductance = impedance / frequency
         inductive_energy = 1 / (4 * (redifined_e**2) * inductance)
 
-        params = ResonatorParams(
+        params = cls(
             label=label,
             charging_energy=charging_energy,
             inductive_energy=inductive_energy,
@@ -82,48 +139,42 @@ class ResonatorParams(Module):
 class Resonator(System):
     """Resonator model implementation."""
 
-    _ec: Array
-    _el: Array
+    _ec: Scalar
+    _el: Scalar
 
     def __init__(
         self,
         label: str,
-        charging_energy: ArrayLike,
+        charging_energy: ScalarLike,
         inductive_energy: ArrayLike,
         dim: int,
         device_ind: int | None = None,
-        device_dims: Tuple[int, ...] | None = None,
+        device_dims: Iterable[int] | None = None,
     ) -> None:
-        self.label = str(label)
+        super().__init__(label, dim, device_ind, device_dims)
         self._ec = jnp.asarray(charging_energy)
         self._el = jnp.asarray(inductive_energy)
-        self.dim = int(dim)
-
-        self.drives = {}
-
-        self.device_ind = device_ind
-        self.device_dims = device_dims
 
     @property
-    def charging_energy(self) -> float:
+    def charging_energy(self) -> Scalar:
         """
         charging_energy Charging energy parameter E_C for the resonator.
 
         Returns
         -------
-        float
+        Scalar
             Charging energy value.
         """
         return self._ec
 
     @property
-    def inductive_energy(self) -> float:
+    def inductive_energy(self) -> Scalar:
         """
         inductive_energy Inductive energy parameter for the resonator.
 
         Returns
         -------
-        float
+        Scalar
             Inductive energy value.
         """
         return self._el
@@ -154,30 +205,30 @@ class Resonator(System):
         return freq
 
     @property
-    def charge_zpf(self) -> float:
+    def charge_zpf(self) -> Scalar:
         """
         charge_zpf Charge zero-point fluctuations for the resonator.
 
         Returns
         -------
-        float
+        Scalar
             Charge zero-point fluctuation.
         """
         return (self._el / (32 * self._ec)) ** 0.25
 
     @property
-    def flux_zpf(self) -> float:
+    def flux_zpf(self) -> Scalar:
         """
         flux_zpf Flux zero-point fluctuations for the resonator.
 
         Returns
         -------
-        float
+        Scalar
             Flux zero-point fluctuation.
         """
         return (2 * self._ec / self._el) ** 0.25
 
-    def embed(self, device_ind: int, device_dims: Tuple[int, ...]) -> Self:
+    def embed(self, device_ind: int, device_dims: Iterable[int]) -> Resonator:
         """
         embed Embed resonator into a larger device Hilbert space.
 
@@ -189,7 +240,7 @@ class Resonator(System):
             Subsystem dimensions for the device.
         """
 
-        embedded_resonator = Resonator(
+        embedded_resonator = self.__class__(
             label=self.label,
             charging_energy=self.charging_energy,
             inductive_energy=self.inductive_energy,
@@ -217,10 +268,7 @@ class Resonator(System):
         Array
             Operator in current system representation.
         """
-        if self.is_embedded:
-            operator = embed_op(operator, self.device_ind, self.device_dims)
-
-        return operator
+        return self.embed_op(operator)
 
     def _get_raise_op(self) -> Array:
         """
@@ -397,7 +445,7 @@ class Resonator(System):
         eig_vals = self.plasma_frequency * prefactors
         return eig_vals
 
-    def get_eigenstates(self) -> Array:
+    def get_eigenstates(self) -> Tuple[Array, Array]:
         eig_states = jnp.identity(self.dim, dtype=complex)
         prefactors = jnp.arange(self.dim, dtype=float)
         eig_vals = self.plasma_frequency * prefactors
@@ -441,16 +489,17 @@ class Resonator(System):
         drive = FluxDrive(label=label, pulse=pulse)
         self.drives[label] = drive
 
-    @staticmethod
+    @classmethod
     def from_frequency(
+        cls,
         label: str,
-        frequency: float,
-        impedance: float,
+        frequency: ScalarLike,
+        impedance: ScalarLike,
         dim: int,
         *,
         device_ind: int | None = None,
-        device_dims: Tuple[int, ...] | None = None,
-    ) -> Self:
+        device_dims: Iterable[int] | None = None,
+    ) -> Resonator:
         """
         from_frequency Returns a Resonator object from the frequency and impedence of the resonator.
 
@@ -458,9 +507,9 @@ class Resonator(System):
         ----------
         label : str
             The label of the resonator.
-        frequency : float
+        frequency : ScalarLike
             The frequency of the resonator.
-        impedance : float
+        impedance : ScalarLike
             The characteristic impedance of the resonator.
         dim : int, optional
             The dimensionality of the resonator.
@@ -469,19 +518,11 @@ class Resonator(System):
         Returns
         -------
         Resonator
-            The resulting Resonator .
-
-        Raises
-        ------
-        ValueError
-            If the frequency is not a float.
-        ValueError
-            If the frequency is less than or equal to zero.
-        ValueError
-            If the impedence is not a float.
-        ValueError
-            If the impedence is less than or equal to zero.
+            The resulting Resonator.
         """
+        frequency = jnp.array(frequency)
+        impedance = jnp.array(impedance)
+
         capacitance = 1 / (impedance * frequency)
 
         redifined_e = e / math.sqrt(hbar)
@@ -490,18 +531,13 @@ class Resonator(System):
         inductance = impedance / frequency
         inductive_energy = 1 / (4 * (redifined_e**2) * inductance)
 
-        oscillator = Resonator(
-            label,
-            charging_energy,
-            inductive_energy,
-            dim,
-            device_ind=device_ind,
-            device_dims=device_dims,
+        oscillator = cls(
+            label, charging_energy, inductive_energy, dim, device_ind, device_dims
         )
         return oscillator
 
-    @staticmethod
-    def from_params(params: ResonatorParams) -> Self:
+    @classmethod
+    def from_params(cls, params: ResonatorParams) -> Resonator:
         """
         from_params Initializes a Resonator object from the given ResonatorParams object.
 
@@ -515,12 +551,12 @@ class Resonator(System):
         Self
             The resulting Resonator object.
         """
-        resonator = Resonator(
-            label=params.label,
-            charging_energy=params.charging_energy,
-            inductive_energy=params.inductive_energy,
-            dim=params.dim,
-            device_ind=params.device_ind,
-            device_dims=params.device_dims,
+        resonator = cls(
+            params.label,
+            params.charging_energy,
+            params.inductive_energy,
+            params.dim,
+            params.device_ind,
+            params.device_dims,
         )
         return resonator
