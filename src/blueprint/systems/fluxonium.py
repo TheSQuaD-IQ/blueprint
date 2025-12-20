@@ -585,17 +585,13 @@ class Fluxonium(System):
         Array
             Hamiltonian matrix in native Fock basis.
         """
-        # id_op = jnp.identity(self._hcut)
-        # oscillator_term = self._get_oscillator_term()
+        oscillator_term = self._get_oscillator_term()
 
-        # flux_op = self._get_flux_op(include_fluctuations=True)
-        # josephson_term = -self._ej * cosm(flux_op - self._ext_flux * id_op)
+        flux_op = self._get_flux_op()
+        id_op = self._get_identity_op()
+        josephson_term = -self._ej * cosm(flux_op - self._ext_flux * id_op)
 
-        # hamiltonian = oscillator_term + josephson_term
-
-        kinetic_term = self._get_kinetic_term()
-        potential_term = self._get_potential_term()
-        hamiltonian = kinetic_term + potential_term
+        hamiltonian = oscillator_term + josephson_term
 
         return hamiltonian
 
