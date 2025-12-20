@@ -1,13 +1,14 @@
+from __future__ import annotations
+
 from abc import abstractmethod
-from operator import is_
-from typing import Tuple, Self, Dict, Iterator, TYPE_CHECKING
+from typing import Tuple, Dict, Iterator, Iterable, TYPE_CHECKING
 
 from jax import numpy as jnp
 from jaxtyping import Array, ScalarLike
 from equinox import field, Module
 from dynamiqs.time_qarray import constant, TimeQArray, SummedTimeQArray
 
-from ..util.linalg import embed_op
+from .util import Embedding, BaseEmbedding, DeviceEmbedding
 
 if TYPE_CHECKING:
     from ..drives import BaseDrive as Drive
@@ -21,39 +22,62 @@ class System(Module):
 
     drives: Dict[str, "Drive"]
 
+    _embedding: Embedding
     device_ind: int | None = field(static=True)
-    device_dims: Tuple[int, ...] | None = field(static=True)
 
-    @abstractmethod
-    def __init__(self):
-        pass
-
-    def __check_init__(self) -> None:
-        if not isinstance(self.label, str):
+    def __init__(
+        self,
+        label: str,
+        dim: int,
+        device_ind: int | None = None,
+        device_dims: Iterable[int] | None = None,
+    ) -> None:
+        if not isinstance(label, str):
             raise TypeError("label must be a string.")
+        self.label = label
 
-        if not isinstance(self.dim, int):
-            raise TypeError("dim must be an integer.")
-
-        if self.dim <= 0:
+        if not isinstance(dim, int) or dim <= 0:
             raise ValueError("dim must be a positive integer.")
+        self.dim = dim
 
-        if self.device_ind is not None:
-            if not isinstance(self.device_ind, int):
-                raise TypeError("ind must be an integer.")
+        self.drives = {}
 
-            if self.device_ind < 0:
-                raise ValueError("ind must be a non-negative integer.")
-
-            num_qubits = len(self.device_dims)
-            if self.device_ind >= num_qubits:
+        if device_ind is None:
+            if device_dims is not None:
                 raise ValueError(
-                    f"ind must be less than the number of qubits in the device ({num_qubits})."
+                    "To embed a system, both device_ind and device_dims must be provided."
                 )
-            if self.device_dims[self.device_ind] != self.dim:
+            self._embedding = BaseEmbedding()
+        else:
+            if device_dims is None:
                 raise ValueError(
-                    f"The Hilbert dimension of the quantum system ({self.dim}) must match the dimension of the Hilbert subspace it is being embedded into ({self.device_dims[self.device_ind]})."
+                    "To embed a system, both device_ind and device_dims must be provided."
                 )
+            if not isinstance(device_ind, int):
+                raise TypeError("device_ind must be an integer.")
+
+            try:
+                device_dims = tuple(device_dims)
+            except TypeError:
+                raise TypeError("device_dims must be an iterable of integers.")
+
+            for dim in device_dims:
+                if not isinstance(dim, int) or dim <= 0:
+                    raise ValueError(
+                        "All entries in device_dims must be positive integers."
+                    )
+
+            if not 0 <= device_ind < len(device_dims):
+                raise ValueError("device_ind must be a valid index for device_dims.")
+
+            expected_dim = device_dims[device_ind]
+            if expected_dim != self.dim:
+                raise ValueError(
+                    f"The system dim ({self.dim}) must match the corresponding device_dims ({expected_dim}) entry."
+                )
+
+            self._embedding = DeviceEmbedding(device_ind, device_dims)
+        self.device_ind = device_ind
 
     @property
     def is_embedded(self) -> bool:
@@ -65,7 +89,7 @@ class System(Module):
         bool
             True if the system has a device embedding index.
         """
-        return self.device_ind is not None
+        return isinstance(self._embedding, DeviceEmbedding)
 
     @property
     def drive_iter(self) -> Iterator["Drive"]:
@@ -127,7 +151,7 @@ class System(Module):
         self.drives[drive.label] = drive
 
     @abstractmethod
-    def embed(self, device_ind: int, device_dims: Tuple[int, ...]) -> Self:
+    def embed(self, device_ind: int, device_dims: Tuple[int, ...]) -> System:
         """
         embed Embed the system into a larger device Hilbert space.
 
@@ -137,6 +161,11 @@ class System(Module):
             Index of this system in the device ordering.
         device_dims : Tuple[int, ...]
             Dimensions of each subsystem in the device.
+
+        Returns
+        -------
+        System
+            New system instance with embedding applied.
         """
 
     @abstractmethod
@@ -256,9 +285,9 @@ class System(Module):
         return anharmonicity
 
     @property
-    def fundamental_frequency(self) -> Array:
+    def frequency(self) -> Array:
         """
-        fundamental_frequency Returns the fundamental frequency of the quantum system.
+        frequency Returns the fundamental frequency of the quantum system.
 
         Returns
         -------
@@ -310,6 +339,4 @@ class System(Module):
         Array
             Embedded operator or original operator if no embedding is set.
         """
-        if self.is_embedded:
-            return embed_op(operator, self.device_ind, self.device_dims)
-        return operator
+        return self._embedding(operator)
