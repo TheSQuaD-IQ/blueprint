@@ -1,184 +1,179 @@
-from __future__ import annotations
+import math
+from typing import Callable, Dict, Self, Tuple
 
-from typing import Callable, Tuple
-
-
+from equinox import field
 from jax import numpy as jnp
-from jaxtyping import Array, Scalar
+from jaxtyping import Array, ArrayLike, Scalar
 
+from ..drives import BaseDrive as Drive
+from ..util.linalg import cosm, embed_op, sinm
 from .system import System
-from ..drives import ChargeDrive, FluxDrive, DetuningDrive
-from ..util.linalg import embed_op
 
 type Pulse = Callable[[float], Scalar | Array]
 
 
-class AnharmonicOscillator(System):
-    """AnharmonicOscillator Represents a Kerr (anharmonic) oscillator system."""
+class KerrOscillator(System):
+    """Kerr oscillator class for representing a weakly anharmonic oscillator."""
 
-    _freq: Array
-    _anharm: Array
+    label: str = field(static=True)
+    _ec: Array
+    _ej: Array
+    dim: int = field(static=True)
+
+    _drives: Dict[str, Drive]
+
+    device_ind: int | None = field(static=True, default=None)
+    device_dims: Tuple[int, ...] | None = field(static=True, default=None)
 
     def __init__(
         self,
         label: str,
-        charging_energy: float | Scalar,
-        josephson_energy: float | Scalar,
+        charging_energy: ArrayLike,
+        josephson_energy: ArrayLike,
         dim: int,
+        *,
         device_ind: int | None = None,
         device_dims: Tuple[int, ...] | None = None,
-    ) -> None:
+    ):
         self.label = str(label)
+        self.dim = int(dim)
         self._ec = jnp.asarray(charging_energy)
         self._ej = jnp.asarray(josephson_energy)
-        self.dim = int(dim)
 
-        self.drives = {}
+        self._drives = {}
 
         self.device_ind = device_ind
         self.device_dims = device_dims
 
+    def __check_init__(self) -> None:
+        if not isinstance(self._ec, Array):
+            raise TypeError("The charging_energy must be a jax.ArrayLike type.")
+
+        if not isinstance(self._ej, Array):
+            raise TypeError("The josephson_energy must be a jax.ArrayLike type.")
+
     @property
-    def is_diagonal(self) -> bool:
+    def charging_energy(self) -> float:
         """
-        is_diagonal Returns whether the fluxonium is diagonalized.
+        charging_energy Returns the charging energy of the Kerr oscillator.
 
         Returns
         -------
-        bool
-            Whether the fluxonium is diagonalized.
-        """
-        return True
-
-    @property
-    def charging_energy(self) -> Array:
-        """
-        charging_energy Returns the charging energy of the transmon.
-
-        Returns
-        -------
-        Array
-            The charging energy of the transmon.
+        float
+            The charging energy of the Kerr oscillator.
         """
         return self._ec
 
     @property
-    def josephson_energy(self) -> Array:
+    def josephson_energy(self) -> float:
         """
-        josephson_energy Returns the Josephson energy of the transmon.
+        josephson_energy Returns the josephson energy of the Kerr oscillator.
 
         Returns
         -------
-        Array
-            The Josephson energy of the transmon.
+        float
+            The josephson energy of the Kerr oscillator.
         """
         return self._ej
 
     @property
-    def plasma_frequency(self) -> Array:
+    def is_diagonal(self) -> bool:
         """
-        plasma_frequency Returns the plasma frequency of the transmon.
+        is_diagonal Returns whether the Kerr oscillator is diagonalized.
 
         Returns
         -------
-        float
-            The plasma frequency of the transmon.
+        bool
+            True if the Kerr oscillator is diagonalized, False otherwise.
         """
-        plasma_frequency = jnp.sqrt(8 * self._ec * self._ej)
-        return plasma_frequency
+        return True
 
     @property
-    def frequency(self) -> Array:
+    def plasma_frequency(self) -> float:
         """
-        frequency Returns the frequency of the resonator.
+        plasma_frequency Returns the plasma_frequency of the Kerr oscillator.
 
         Returns
         -------
         Array
-            The frequency of the resonator.
+            The plasma_frequency of the Kerr oscillator.
         """
-        frequency = jnp.sqrt(8 * self._ec * self._ej) - self._ec
-        return frequency
-
-    @property
-    def anharmonicity(self) -> Array:
+        freq = jnp.sqrt(8 * self._ec * self._ej)
+        return freq
+    
+    @property 
+    def qubit_frequency(self) -> float:
         """
-        anharmonicity Returns the anharmonicity of the resonator.
+        qubit_frequency Returns the qubit frequency of the Kerr oscillator.
 
         Returns
         -------
-        float
-            The anharmonicity of the resonator.
+        Array
+            The qubit frequency of the Kerr oscillator.
         """
-        anharmonicity = -self._ec
-        return anharmonicity
+        freq = self.plasma_frequency - self._ec
+        return freq
 
     @property
-    def charge_zpf(self) -> Array:
+    def charge_zpf(self) -> float:
         """
         charge_zpf Returns the zero-point fluctuations of the charge.
 
         Returns
         -------
-        Array
+        float
             The zero-point fluctuations of the charge.
         """
-        charge_zpf = (self._ej / (32 * self._ec)) ** 0.25
-        return charge_zpf
+        return (self._ej / (32 * self._ec)) ** 0.25
 
     @property
-    def flux_zpf(self) -> Array:
+    def flux_zpf(self) -> float:
         """
         flux_zpf Returns the zero-point fluctuations of the flux.
 
         Returns
         -------
-        Array
+        float
             The zero-point fluctuations of the flux.
         """
-        flux_zpf = (2 * self._ec / self._ej) ** 0.25
-        return flux_zpf
+        return (2 * self._ec / self._ej) ** 0.25
+    
+    def diagonalize(self) -> Self:
+        return self # ! Not sure what this is for 
 
-    def embed(
-        self, device_ind: int, device_dims: Tuple[int, ...]
-    ) -> AnharmonicOscillator:
+    def embed(self, device_ind: int, device_dims: Tuple[int, ...]) -> Self:
         """
-        embed Embeds the resonator into a larger Hilbert space.
+        embed Embeds the Kerr oscillator into a larger Hilbert space.
 
         Parameters
         ----------
         ind : int
-            The index of the resonator in the larger Hilbert space.
+            The index of the Kerr oscillator in the larger Hilbert space.
         device_dims : Tuple[int]
-            The dimension of each quantum system (including this resonator) in the full device.
+            The dimension of each quantum system (including this Kerr oscillator) in the full device.
         """
 
-        embedded_oscillator = AnharmonicOscillator(
+        embedded_kerr_oscillator = KerrOscillator(
             label=self.label,
-            josephson_energy=self.josephson_energy,
             charging_energy=self.charging_energy,
+            josephson_energy=self.josephson_energy,
             dim=self.dim,
             device_ind=device_ind,
             device_dims=device_dims,
         )
 
-        for label, drive in self.drives.items():
-            embedded_oscillator.add_drive(label, drive)
+        return embedded_kerr_oscillator
 
-        return embedded_oscillator
-
-    def process_op(self, operator: Array) -> Array:
+    def process_op(self, operator: Array, embed: bool = True) -> Array:
         """
-        process_op Processes an operator of the transmon.
-        This includes diagonalizing the operator for operators in the charge basis,
-        and embedding it in a larger Hilbert space.
+        process_op Processes an operator of the Kerr oscillator.
 
         Parameters
         ----------
         operator : Array
             The operator to process.
         diagonalize : bool, optional
-            Whether to transform the operator to the energy eigenbasis of the transmon, by default True
+            Whether to transform the operator to the energy eigenbasis of the Kerr oscillator, by default True
         embed : bool, optional
             Whether to embed the operator in a larger Hilbert space , by default True
 
@@ -187,19 +182,19 @@ class AnharmonicOscillator(System):
         Array
             The processed operator.
         """
-        if self.is_embedded:
+        if embed and self.is_embedded:
             operator = embed_op(operator, self.device_ind, self.device_dims)
 
         return operator
 
     def _get_raise_op(self) -> Array:
         """
-        _get_raise_op Returns the raising (creation) operator of the resonator.
+        _get_raise_op Returns the raising (creation) operator of the Kerr oscillator.
 
         Returns
         -------
         Array
-            The raising (creation) operator of the resonator.
+            The raising (creation) operator of the Kerr oscillator.
         """
         offdiag = jnp.sqrt(jnp.arange(1, self.dim))
         raise_op = jnp.diag(offdiag, k=-1)
@@ -207,24 +202,24 @@ class AnharmonicOscillator(System):
 
     def get_raise_op(self) -> Array:
         """
-        get_creation_op Returns the raising (creation) operator of the resonator.
+        get_creation_op Returns the raising (creation) operator of the Kerr oscillator.
 
         Returns
         -------
         Array
-            The raising (creation) operator in the current basis of the resonator.
+            The raising (creation) operator in the current basis of the Kerr oscillator.
         """
         raise_op = self._get_raise_op()
         return self.process_op(raise_op)
 
     def _get_low_op(self) -> Array:
         """
-        _get_low_op Returns the lowering (annihilaton) operator of the resonator.
+        _get_low_op Returns the lowering (annihilation) operator of the Kerr oscillator.
 
         Returns
         -------
         Array
-            The lowering (annihilaton) operator of the resonator.
+            The lowering (annihilation) operator of the Kerr oscillator.
         """
         offdiag = jnp.sqrt(jnp.arange(1, self.dim))
         low_op = jnp.diag(offdiag, k=1)
@@ -232,24 +227,24 @@ class AnharmonicOscillator(System):
 
     def get_low_op(self) -> Array:
         """
-        get_low_op Returns the lowering (annihilation) operator of the resonator.
+        get_low_op Returns the lowering (annihilation) operator of the Kerr oscillator.
 
         Returns
         -------
         Array
-            The lowering (annihilaton) operator in the current basis of the resonator.
+            The lowering (annihilation) operator in the current basis of the Kerr oscillator.
         """
         low_op = self._get_low_op()
         return self.process_op(low_op)
 
     def _get_number_op(self) -> Array:
         """
-        get_number_op Returns the number operator of the resonator.
+        get_number_op Returns the number operator of the Kerr oscillator.
 
         Returns
         -------
         Array
-            The number operator of the resonator.
+            The number operator of the Kerr oscillator.
         """
         diag_elems = jnp.arange(self.dim)
         number_op = jnp.diag(diag_elems)
@@ -257,48 +252,48 @@ class AnharmonicOscillator(System):
 
     def get_number_op(self) -> Array:
         """
-        get_number_op Returns the number operator of the resonator.
+        get_number_op Returns the number operator of the Kerr oscillator.
 
         Returns
         -------
         Array
-            The number operator in the current basis of the resonator.
+            The number operator in the current basis of the Kerr oscillator.
         """
         number_op = self._get_number_op()
         return self.process_op(number_op)
 
     def _get_identity_op(self) -> Array:
         """
-        get_identity_op Returns the identity operator of the transmon.
+        get_identity_op Returns the identity operator of the Kerr oscillator.
 
         Returns
         -------
         Array
-            The identity operator of the transmon.
+            The identity operator of the Kerr oscillator.
         """
         id_op = jnp.identity(self.dim)
         return id_op
 
     def get_identity_op(self) -> Array:
         """
-        get_identity_op Returns the identity operator of the transmon.
+        get_identity_op Returns the identity operator of the Kerr oscillator.
 
         Returns
         -------
         Array
-            The identity operator of the transmon.
+            The identity operator of the Kerr oscillator.
         """
         id_op = self._get_identity_op()
         return self.process_op(id_op)
 
     def _get_charge_op(self) -> Array:
         """
-        _get_charge_op Returns the charge operator of the resonator in the Fock basis.
+        _get_charge_op Returns the charge operator of the Kerr oscillator in the Fock basis.
 
         Returns
         -------
         Array
-            The charge operator of the resonator, expressed in the Fock basis.
+            The charge operator of the Kerr oscillator, expressed in the Fock basis.
         """
         low_op = self._get_low_op()
         raise_op = self._get_raise_op()
@@ -307,12 +302,12 @@ class AnharmonicOscillator(System):
 
     def get_charge_op(self) -> Array:
         """
-        get_charge_op Returns the charge operator of the resonator.
+        get_charge_op Returns the charge operator of the Kerr oscillator.
 
         Returns
         -------
         Array
-            The charge operator, in the current basis of the resonator.
+            The charge operator, in the current basis of the Kerr oscillator.
         """
         charge_op = self._get_charge_op()
         processed_op = self.process_op(charge_op)
@@ -320,12 +315,12 @@ class AnharmonicOscillator(System):
 
     def _get_flux_op(self) -> Array:
         """
-        _get_flux_op Returns the flux operator of the resonator in the Fock basis.
+        _get_flux_op Returns the flux operator of the Kerr oscillator in the Fock basis.
 
         Returns
         -------
         Array
-            The flux operator of the resonator, expressed in the Fock basis.
+            The flux operator of the Kerr oscillator, expressed in the Fock basis.
         """
         low_op = self._get_low_op()
         raise_op = self._get_raise_op()
@@ -334,36 +329,109 @@ class AnharmonicOscillator(System):
 
     def get_flux_op(self) -> Array:
         """
-        get_flux_op Returns the flux operator of the resonator.
+        get_flux_op Returns the flux operator of the Kerr oscillator.
 
         Returns
         -------
         Array
-            The flux operator, in the current basis of the resonator.
+            The flux operator, in the current basis of the Kerr oscillator.
         """
         charge_op = self._get_flux_op()
         processed_op = self.process_op(charge_op)
         return processed_op
 
-    def _get_hamiltonian(self) -> Array:
+    def _get_self_kerr_op(self) -> Array:
         """
-        _get_hamiltonian Returns the Hamiltonian of the fluxonium.
+        _get_self_kerr_op Returns the self-Kerr operator of the Kerr oscillator.
 
         Returns
         -------
         Array
-            The Hamiltonian of the fluxonium.
+            The self-Kerr operator of the Kerr oscillator.
         """
+
         low_op = self._get_low_op()
         raise_op = self._get_raise_op()
+        self_kerr_op = raise_op @ raise_op @ low_op @ low_op
+        return self_kerr_op
+
+    def get_self_kerr_op(self) -> Array:
+        """
+        get_self_kerr_op Returns the self-Kerr operator of the Kerr oscillator.
+
+        Returns
+        -------
+        Array
+            The self-Kerr operator in the current basis of the Kerr oscillator.
+        """
+        self_kerr_op = self._get_self_kerr_op()
+        processed_op = self.process_op(self_kerr_op)
+        return processed_op
+
+    def _get_cosphi_op(self) -> Array:
+        """
+        _get_cosphi_op Returns the cos(phi) operator of the Kerr oscillator in the Fock basis.
+
+        Returns
+        -------
+        Array
+            The cos(phi) operator of the Kerr oscillator, expressed in the Fock basis.
+        """
+        flux_op = self._get_flux_op()
+        cosphi_op = cosm(flux_op)
+        return cosphi_op
+
+    def get_cosphi_op(self) -> Array:
+        """
+        get_cosphi_op Returns the cos(phi) operator of the Kerr oscillator.
+
+        Returns
+        -------
+        Array
+            The cos(phi) operator, in the current basis of the Kerr oscillator.
+        """
+        cosphi_op = self._get_cosphi_op()
+        processed_op = self.process_op(cosphi_op)
+        return processed_op
+
+    def _get_sinphi_op(self) -> Array:
+        """
+        _get_sinphi_op Returns the sin(phi) operator of the Kerr oscillator in the Fock basis.
+
+        Returns
+        -------
+        Array
+            The sin(phi) operator of the Kerr oscillator, expressed in the Fock basis.
+        """
+        flux_op = self._get_flux_op()
+        sinphi_op = sinm(flux_op)
+        return sinphi_op
+
+    def get_sinphi_op(self) -> Array:
+        """
+        get_sinphi_op Returns the sin(phi) operator of the Kerr oscillator.
+
+        Returns
+        -------
+        Array
+            The sin(phi) operator, in the current basis of the Kerr oscillator.
+        """
+        sinphi_op = self._get_sinphi_op()
+        processed_op = self.process_op(sinphi_op)
+        return processed_op
+
+    def _get_hamiltonian(self) -> Array:
+        """
+        _get_hamiltonian Returns the Hamiltonian of the Kerr oscillator.
+
+        Returns
+        -------
+        Array
+            The Hamiltonian of the Kerr oscillator.
+        """
         number_op = self._get_number_op()
-
-        oscillator_term = self.frequency * number_op
-
-        anharm_op = raise_op @ raise_op @ low_op @ low_op
-        anharmonic_term = 0.5 * self._ec * anharm_op
-
-        hamiltonian = oscillator_term - anharmonic_term
+        self_kerr_op = self._get_self_kerr_op()
+        hamiltonian = self.plasma_frequency * number_op - (self._ec / 2) * self_kerr_op
         return hamiltonian
 
     def get_hamiltonian(self) -> Array:
@@ -371,69 +439,62 @@ class AnharmonicOscillator(System):
         return self.process_op(hamiltonian)
 
     def get_eigenvalues(self) -> Array:
-        prefactors = jnp.arange(self.dim)
-        eig_vals = self.plasma_frequency * prefactors
+        excitation_number = jnp.arange(self.dim)
+        eig_vals = (
+            excitation_number * (self.qubit_frequency + self._ec / 2)
+            - (self._ec / 2) * excitation_number**2
+        )
         return eig_vals
 
-    def get_eigenstates(self) -> Tuple[Array, Array]:
+    def get_eigenstates(self) -> Array:
         eig_states = jnp.identity(self.dim, dtype=complex)
-        prefactors = jnp.arange(self.dim, dtype=float)
-        eig_vals = self.plasma_frequency * prefactors
+        excitation_number = jnp.arange(self.dim)
+        eig_vals = (
+            excitation_number * (self.qubit_frequency + self._ec / 2)
+            - (self._ec / 2) * excitation_number**2
+        )
         return eig_vals, eig_states
 
-    def add_charge_drive(self, label: str, pulse: Pulse) -> None:
+    @classmethod
+    def from_frequency(
+        cls,
+        label: str,
+        frequency: float,
+        anharmonicity: float,
+        dim: int,
+        *,
+        device_ind: int | None = None,
+        device_dims: Tuple[int, ...] | None = None,
+    ) -> Self:
         """
-        add_charge_drive Adds a charge drive to the resonator.
+        from_frequency Returns a Kerr oscillator object from the frequency and the anharmonicity.
 
         Parameters
         ----------
         label : str
-            The label of the drive.
-        pulse : Drive
-            The drive to add.
+            The label of the Kerr oscillator.
+        frequency : float
+            The frequency of the Kerr oscillator.
+        anharmonicity : float
+            The anharmonicity of the Kerr oscillator.
+        dim : int
+            The dimension of the Hilbert space for the Kerr oscillator.
+
 
         Returns
         -------
-        Self
-            The resonator with the added drive.
+        KerrOscillator
+            The Kerr oscillator object.
         """
-        drive = ChargeDrive(label=label, pulse=pulse)
-        self.drives[label] = drive
+        charging_energy = anharmonicity
+        josephson_energy = (frequency + charging_energy) ** 2 / (8 * charging_energy)
 
-    def add_flux_drive(self, label: str, pulse: Pulse) -> None:
-        """
-        add_flux_drive Adds a flux drive to the resonator.
-
-        Parameters
-        ----------
-        label : str
-            The label of the drive.
-        pulse : Drive
-            The drive to add.
-
-        Returns
-        -------
-        Self
-            The resonator with the added drive.
-        """
-        drive = FluxDrive(label=label, pulse=pulse)
-        self.drives[label] = drive
-
-    def add_detuning_drive(self, label: str, pulse: Pulse) -> None:
-        """
-        add_detuning_drive Adds a detuning drive to the resonator.
-
-        Parameters
-        ----------
-        label : str
-            The label of the drive.
-        pulse : Drive
-            The drive to add.
-
-        Returns
-        -------
-        Self
-            The resonator with the added drive.
-        """
-        drive = DetuningDrive(label=label, pulse=pulse)
-        self.drives[label] = drive
+        KerrOscillator = cls(
+            label=label,
+            charging_energy=charging_energy,
+            josephson_energy=josephson_energy,
+            dim=dim,
+            device_ind=device_ind,
+            device_dims=device_dims,
+        )
+        return KerrOscillator
