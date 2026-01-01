@@ -3,7 +3,7 @@ from typing import Callable, Tuple
 
 from jax import numpy as jnp
 
-from jaxtyping import Array, Scalar, ScalarLike
+from jaxtyping import Array, Scalar
 
 from equinox import Module, AbstractVar, field
 from dynamiqs.time_qarray import (
@@ -15,7 +15,7 @@ from dynamiqs.time_qarray import (
 
 from ..systems import System
 
-type Pulse = Callable[[float], Scalar | Array]
+type Pulse = Callable[[Scalar], Array]
 
 
 class BaseDrive(Module):
@@ -38,7 +38,7 @@ class BaseDrive(Module):
         """
 
     @abstractmethod
-    def get_hamiltonian(self, system: System, time: ScalarLike) -> Array:
+    def get_hamiltonian(self, system: System, time: Scalar) -> Array:
         """
         get_hamiltonian Return the time-dependent drive Hamiltonian evaluated at ``time``.
 
@@ -80,7 +80,7 @@ class Drive(BaseDrive):
         time_array = modulated(self.pulse, drive_op)
         return time_array
 
-    def get_hamiltonian(self, system, time: ScalarLike) -> Array:
+    def get_hamiltonian(self, system, time: Scalar) -> Array:
         drive_op = self.get_drive_op(system)
         pulse_val = self.pulse(time)
         return pulse_val * drive_op
@@ -94,10 +94,10 @@ class CompositeDrive(BaseDrive):
 
     def get_hamiltonian_qarray(self, system: System) -> SummedTimeQArray:
         time_arrays = [drive.get_hamiltonian_qarray(system) for drive in self.drives]
-        time_array = SummedTimeQArray(time_arrays)
+        time_array = SummedTimeQArray(time_arrays)  # type: ignore
         return time_array
 
-    def get_hamiltonian(self, system: System, time: ScalarLike) -> Array:
+    def get_hamiltonian(self, system: System, time: Scalar) -> Array:
         hamiltonian_shape = (system.dim, system.dim)
         hamiltonian = jnp.zeros(hamiltonian_shape)
 
