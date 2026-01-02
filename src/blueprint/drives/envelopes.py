@@ -93,6 +93,52 @@ def eval_gaussian_env(
 
 
 @jit
+def eval_raised_cos_drag_env(
+    time: Array,
+    duration: Scalar,
+    drag_coefficient: Scalar,
+    init_time: Scalar,
+) -> Array:
+    """
+    eval_raised_cos_drag_env Evaluate a DRAG raised cosine envelope at the given time(s).
+
+    Parameters
+    ----------
+    time : Array
+        Time(s) at which to evaluate the envelope.
+    duration : Scalar
+        Total duration for the envelope.
+    drag_coefficient : Scalar
+        DRAG coefficient for the derivative component.
+    init_time : Scalar
+        Initial time of the pulse.
+
+    Returns
+    -------
+    Array
+        The generated DRAG raised cosine waveform as a complex array.
+    """
+    # Unnormalized raised cosine
+    cos = jnp.cos(2 * jnp.pi * time / duration)
+
+    # Normalized raised cosine envelope
+    raised_cos_env = 0.5 * (1.0 - cos)
+
+    # Derivative of the normalized raised cosine:
+    deriv_env = jnp.pi / duration * jnp.sin(2 * jnp.pi * time / duration)
+
+    # DRAG combination
+    env = raised_cos_env - 1j * drag_coefficient * deriv_env
+
+    # Mask outside pulse window
+    end_time = init_time + duration
+    mask = (time >= init_time) & (time <= end_time)
+    zeros = jnp.zeros_like(env)
+    env = jax.lax.select(mask, env, zeros)
+    return env
+
+
+@jit
 def eval_gaussian_drag_env(
     time: Array,
     duration: Scalar,
