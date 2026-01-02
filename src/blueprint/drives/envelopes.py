@@ -5,6 +5,43 @@ from jaxtyping import Array, Scalar
 
 
 @jit
+def eval_raised_cos_env(
+    time: Array,
+    duration: Scalar,
+    init_time: Scalar,
+) -> Array:
+    """
+    eval_raised_cos_env Evaluate a raised cosine envelope at the given time(s).
+
+    Parameters
+    ----------
+    time : Array
+        Time(s) at which to evaluate the envelope.
+    duration : Scalar
+        Total duration for the envelope.
+    init_time : Scalar
+        Initial time of the pulse.
+
+    Returns
+    -------
+    Array
+        The generated raised cosine waveform as a complex array.
+    """
+    # Unnormalized raised cosine
+    cos = jnp.cos(2 * jnp.pi * time / duration)
+
+    # Normalized raised cosine envelope
+    env = 0.5 * (1.0 - cos)
+
+    # Ensure the waveform is zero outside the pulse duration
+    end_time = init_time + duration
+    mask = (time >= init_time) & (time <= end_time)
+    zeros = jnp.zeros_like(env)
+    env = jax.lax.select(mask, env, zeros)
+    return env
+
+
+@jit
 def eval_gaussian_env(
     time: Array,
     duration: Scalar,
