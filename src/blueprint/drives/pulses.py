@@ -9,6 +9,27 @@ from .envelopes import eval_gaussian_env, eval_gaussian_drag_env
 
 
 @jit
+def eval_square_pulse(time: Array, amplitude: Scalar) -> Array:
+    """
+    square_pulse Evaluate a constant pulse at the given time(s).
+
+    Parameters
+    ----------
+    time : Array
+        Time(s) at which to evaluate the pulse.
+    amplitude : Scalar
+        Pulse amplitude.
+
+    Returns
+    -------
+    Array
+        Value of the constant pulse at ``time``.
+    """
+    pulse_val = amplitude * jnp.ones_like(time)
+    return pulse_val
+
+
+@jit
 def eval_cos_pulse(
     time: Array, amplitude: Scalar, frequency: Scalar, phase: Scalar
 ) -> Array:
@@ -183,6 +204,29 @@ def eval_gaussian_drag_pulse(
     return pulse
 
 
+def get_square_pulse(amplitude: float | Scalar) -> Callable[[Scalar], Scalar]:
+    """
+    get_square_pulse Return a constant pulse function with fixed amplitude.
+
+    Parameters
+    ----------
+    amplitude : float | Scalar
+        Pulse amplitude.
+
+    Returns
+    -------
+    Callable[[Scalar], Scalar]
+        A function that accepts ``time`` and returns the pulse value.
+    """
+    amplitude = jnp.asarray(amplitude)
+
+    pulse = Partial(
+        eval_square_pulse,
+        amplitude=amplitude,
+    )
+    return pulse
+
+
 def get_cos_pulse(
     amplitude: float | Scalar, frequency: float | Scalar, phase: float | Scalar
 ) -> Callable[[Scalar], Scalar]:
@@ -203,6 +247,10 @@ def get_cos_pulse(
     Callable[[Scalar], Scalar]
         A function that accepts ``time`` and returns the pulse value.
     """
+    amplitude = jnp.asarray(amplitude)
+    frequency = jnp.asarray(frequency)
+    phase = jnp.asarray(phase)
+
     pulse = Partial(
         eval_cos_pulse,
         amplitude=amplitude,
