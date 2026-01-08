@@ -100,8 +100,8 @@ class KerrOscillator(System):
         """
         freq = jnp.sqrt(8 * self._ec * self._ej)
         return freq
-    
-    @property 
+
+    @property
     def qubit_frequency(self) -> float:
         """
         qubit_frequency Returns the qubit frequency of the Kerr oscillator.
@@ -137,9 +137,9 @@ class KerrOscillator(System):
             The zero-point fluctuations of the flux.
         """
         return (2 * self._ec / self._ej) ** 0.25
-    
+
     def diagonalize(self) -> Self:
-        return self # ! Not sure what this is for 
+        return self  # ! Not sure what this is for
 
     def embed(self, device_ind: int, device_dims: Tuple[int, ...]) -> Self:
         """
@@ -283,8 +283,8 @@ class KerrOscillator(System):
         Array
             The identity operator of the Kerr oscillator.
         """
-        id_op = self._get_identity_op()
-        return self.process_op(id_op)
+        id_op = jnp.identity(self.dim)
+        return self.embed_op(id_op)
 
     def _get_charge_op(self) -> Array:
         """

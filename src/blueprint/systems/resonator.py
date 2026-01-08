@@ -366,8 +366,8 @@ class Resonator(System):
         Array
             Identity operator in current basis.
         """
-        id_op = self._get_identity_op()
-        return self.process_op(id_op)
+        id_op = jnp.identity(self.dim)
+        return self.embed_op(id_op)
 
     def _get_charge_op(self) -> Array:
         """
