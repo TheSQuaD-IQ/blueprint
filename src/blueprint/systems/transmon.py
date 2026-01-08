@@ -549,8 +549,7 @@ class BaseTransmon(System):
             Identity operator in current representation.
         """
         id_op = jnp.identity(self.dim)
-        processed_op = self.process_op(id_op)
-        return processed_op
+        return self.embed_op(id_op)
 
     def _get_kinetic_term(self) -> Array:
         """
