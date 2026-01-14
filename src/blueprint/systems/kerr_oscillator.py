@@ -6,7 +6,7 @@ from jax import numpy as jnp
 from jaxtyping import Array, ArrayLike, Scalar
 
 from ..drives import BaseDrive as Drive
-from ..util.linalg import cosm, embed_op, sinm
+from ..util.linalg import cosm, embed_op, sinm, transform_op
 from .system import System
 
 type Pulse = Callable[[float], Scalar | Array]
@@ -15,15 +15,11 @@ type Pulse = Callable[[float], Scalar | Array]
 class KerrOscillator(System):
     """Kerr oscillator class for representing a weakly anharmonic oscillator."""
 
-    label: str = field(static=True)
     _ec: Array
     _ej: Array
-    dim: int = field(static=True)
 
-    _drives: Dict[str, Drive]
-
-    device_ind: int | None = field(static=True, default=None)
-    device_dims: Tuple[int, ...] | None = field(static=True, default=None)
+    _eig_vals: Array
+    _eig_states: Array
 
     def __init__(
         self,
@@ -35,22 +31,14 @@ class KerrOscillator(System):
         device_ind: int | None = None,
         device_dims: Tuple[int, ...] | None = None,
     ):
-        self.label = str(label)
-        self.dim = int(dim)
+        super().__init__(label, dim, device_ind=device_ind, device_dims=device_dims)
+
         self._ec = jnp.asarray(charging_energy)
         self._ej = jnp.asarray(josephson_energy)
 
-        self._drives = {}
-
-        self.device_ind = device_ind
-        self.device_dims = device_dims
-
-    def __check_init__(self) -> None:
-        if not isinstance(self._ec, Array):
-            raise TypeError("The charging_energy must be a jax.ArrayLike type.")
-
-        if not isinstance(self._ej, Array):
-            raise TypeError("The josephson_energy must be a jax.ArrayLike type.")
+        eig_vals, eig_states = self.get_eigenstates()
+        self._eig_vals = eig_vals[..., : self.dim]
+        self._eig_states = eig_states[..., : self.dim]
 
     @property
     def charging_energy(self) -> float:
@@ -75,18 +63,6 @@ class KerrOscillator(System):
             The josephson energy of the Kerr oscillator.
         """
         return self._ej
-
-    @property
-    def is_diagonal(self) -> bool:
-        """
-        is_diagonal Returns whether the Kerr oscillator is diagonalized.
-
-        Returns
-        -------
-        bool
-            True if the Kerr oscillator is diagonalized, False otherwise.
-        """
-        return True
 
     @property
     def plasma_frequency(self) -> float:
@@ -138,42 +114,44 @@ class KerrOscillator(System):
         """
         return (2 * self._ec / self._ej) ** 0.25
 
-    def diagonalize(self) -> Self:
-        return self  # ! Not sure what this is for
-
     def embed(self, device_ind: int, device_dims: Tuple[int, ...]) -> Self:
         """
         embed Embeds the Kerr oscillator into a larger Hilbert space.
 
         Parameters
         ----------
-        ind : int
-            The index of the Kerr oscillator in the larger Hilbert space.
-        device_dims : Tuple[int]
-            The dimension of each quantum system (including this Kerr oscillator) in the full device.
+        device_ind : int
+            Index of this system within the device.
+        device_dims : tuple
+            Device subsystem dimensions.
         """
 
-        embedded_kerr_oscillator = KerrOscillator(
-            label=self.label,
-            charging_energy=self.charging_energy,
-            josephson_energy=self.josephson_energy,
-            dim=self.dim,
-            device_ind=device_ind,
-            device_dims=device_dims,
+        embedded_kerr_oscillator = self.__class__(
+            self.label,
+            self.charging_energy,
+            self.josephson_energy,
+            self.dim,
+            device_ind,
+            device_dims,
         )
+
+        for label, drive in self.drives.items():
+            embedded_kerr_oscillator.drives[label] = drive
 
         return embedded_kerr_oscillator
 
-    def process_op(self, operator: Array, embed: bool = True) -> Array:
+    def process_op(self, operator: Array) -> Array:
         """
-        process_op Processes an operator of the Kerr oscillator.
+        process_op Processes an operator of the transmon.
+        This includes diagonalizing the operator for operators in the charge basis,
+        and embedding it in a larger Hilbert space.
 
         Parameters
         ----------
         operator : Array
             The operator to process.
         diagonalize : bool, optional
-            Whether to transform the operator to the energy eigenbasis of the Kerr oscillator, by default True
+            Whether to transform the operator to the energy eigenbasis of the transmon, by default True
         embed : bool, optional
             Whether to embed the operator in a larger Hilbert space , by default True
 
@@ -182,10 +160,8 @@ class KerrOscillator(System):
         Array
             The processed operator.
         """
-        if embed and self.is_embedded:
-            operator = embed_op(operator, self.device_ind, self.device_dims)
-
-        return operator
+        processed_op = self.embed_op(transform_op(operator, self._eig_states))
+        return processed_op
 
     def _get_raise_op(self) -> Array:
         """
@@ -447,12 +423,8 @@ class KerrOscillator(System):
         return eig_vals
 
     def get_eigenstates(self) -> Array:
+        eig_vals = self.get_eigenvalues()
         eig_states = jnp.identity(self.dim, dtype=complex)
-        excitation_number = jnp.arange(self.dim)
-        eig_vals = (
-            excitation_number * (self.qubit_frequency + self._ec / 2)
-            - (self._ec / 2) * excitation_number**2
-        )
         return eig_vals, eig_states
 
     @classmethod
