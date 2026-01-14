@@ -27,7 +27,6 @@ class KerrOscillator(System):
         charging_energy: ArrayLike,
         josephson_energy: ArrayLike,
         dim: int,
-        *,
         device_ind: int | None = None,
         device_dims: Tuple[int, ...] | None = None,
     ):
