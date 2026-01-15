@@ -1,12 +1,10 @@
-import math
 from typing import Callable, Dict, Self, Tuple
 
-from equinox import field
 from jax import numpy as jnp
 from jaxtyping import Array, ArrayLike, Scalar
 
 from ..drives import BaseDrive as Drive
-from ..util.linalg import cosm, embed_op, sinm, transform_op
+from ..util.linalg import cosm, sinm
 from .system import System
 
 type Pulse = Callable[[float], Scalar | Array]
@@ -17,9 +15,6 @@ class KerrOscillator(System):
 
     _ec: Array
     _ej: Array
-
-    _eig_vals: Array
-    _eig_states: Array
 
     def __init__(
         self,
@@ -34,10 +29,6 @@ class KerrOscillator(System):
 
         self._ec = jnp.asarray(charging_energy)
         self._ej = jnp.asarray(josephson_energy)
-
-        eig_vals, eig_states = self.get_eigenstates()
-        self._eig_vals = eig_vals[..., : self.dim]
-        self._eig_states = eig_states[..., : self.dim]
 
     @property
     def charging_energy(self) -> float:
@@ -74,19 +65,6 @@ class KerrOscillator(System):
             The plasma_frequency of the Kerr oscillator.
         """
         freq = jnp.sqrt(8 * self._ec * self._ej)
-        return freq
-
-    @property
-    def qubit_frequency(self) -> float:
-        """
-        qubit_frequency Returns the qubit frequency of the Kerr oscillator.
-
-        Returns
-        -------
-        Array
-            The qubit frequency of the Kerr oscillator.
-        """
-        freq = self.plasma_frequency - self._ec
         return freq
 
     @property
@@ -159,7 +137,7 @@ class KerrOscillator(System):
         Array
             The processed operator.
         """
-        processed_op = self.embed_op(transform_op(operator, self._eig_states))
+        processed_op = self.embed_op(operator)
         return processed_op
 
     def _get_raise_op(self) -> Array:
@@ -315,37 +293,9 @@ class KerrOscillator(System):
         processed_op = self.process_op(charge_op)
         return processed_op
 
-    def _get_self_kerr_op(self) -> Array:
+    def _get_cosflux_op(self) -> Array:
         """
-        _get_self_kerr_op Returns the self-Kerr operator of the Kerr oscillator.
-
-        Returns
-        -------
-        Array
-            The self-Kerr operator of the Kerr oscillator.
-        """
-
-        low_op = self._get_low_op()
-        raise_op = self._get_raise_op()
-        self_kerr_op = raise_op @ raise_op @ low_op @ low_op
-        return self_kerr_op
-
-    def get_self_kerr_op(self) -> Array:
-        """
-        get_self_kerr_op Returns the self-Kerr operator of the Kerr oscillator.
-
-        Returns
-        -------
-        Array
-            The self-Kerr operator in the current basis of the Kerr oscillator.
-        """
-        self_kerr_op = self._get_self_kerr_op()
-        processed_op = self.process_op(self_kerr_op)
-        return processed_op
-
-    def _get_cosphi_op(self) -> Array:
-        """
-        _get_cosphi_op Returns the cos(phi) operator of the Kerr oscillator in the Fock basis.
+        _get_cosflux_op Returns the cos(phi) operator of the Kerr oscillator in the Fock basis.
 
         Returns
         -------
@@ -353,25 +303,25 @@ class KerrOscillator(System):
             The cos(phi) operator of the Kerr oscillator, expressed in the Fock basis.
         """
         flux_op = self._get_flux_op()
-        cosphi_op = cosm(flux_op)
-        return cosphi_op
+        cosflux_op = cosm(flux_op)
+        return cosflux_op
 
-    def get_cosphi_op(self) -> Array:
+    def get_cosflux_op(self) -> Array:
         """
-        get_cosphi_op Returns the cos(phi) operator of the Kerr oscillator.
+        get_cosflux_op Returns the cos(phi) operator of the Kerr oscillator.
 
         Returns
         -------
         Array
             The cos(phi) operator, in the current basis of the Kerr oscillator.
         """
-        cosphi_op = self._get_cosphi_op()
-        processed_op = self.process_op(cosphi_op)
+        cosflux_op = self._get_cosflux_op()
+        processed_op = self.process_op(cosflux_op)
         return processed_op
 
-    def _get_sinphi_op(self) -> Array:
+    def _get_sinflux_op(self) -> Array:
         """
-        _get_sinphi_op Returns the sin(phi) operator of the Kerr oscillator in the Fock basis.
+        _get_sinflux_op Returns the sin(phi) operator of the Kerr oscillator in the Fock basis.
 
         Returns
         -------
@@ -379,20 +329,20 @@ class KerrOscillator(System):
             The sin(phi) operator of the Kerr oscillator, expressed in the Fock basis.
         """
         flux_op = self._get_flux_op()
-        sinphi_op = sinm(flux_op)
-        return sinphi_op
+        sinflux_op = sinm(flux_op)
+        return sinflux_op
 
-    def get_sinphi_op(self) -> Array:
+    def get_sinflux_op(self) -> Array:
         """
-        get_sinphi_op Returns the sin(phi) operator of the Kerr oscillator.
+        get_sinflux_op Returns the sin(phi) operator of the Kerr oscillator.
 
         Returns
         -------
         Array
             The sin(phi) operator, in the current basis of the Kerr oscillator.
         """
-        sinphi_op = self._get_sinphi_op()
-        processed_op = self.process_op(sinphi_op)
+        sinflux_op = self._get_sinflux_op()
+        processed_op = self.process_op(sinflux_op)
         return processed_op
 
     def _get_hamiltonian(self) -> Array:
@@ -405,8 +355,12 @@ class KerrOscillator(System):
             The Hamiltonian of the Kerr oscillator.
         """
         number_op = self._get_number_op()
-        self_kerr_op = self._get_self_kerr_op()
-        hamiltonian = self.plasma_frequency * number_op - (self._ec / 2) * self_kerr_op
+        low_op = self._get_low_op()
+        raise_op = self._get_raise_op()
+        self_kerr_op = raise_op @ raise_op @ low_op @ low_op
+        qubit_freq = self.plasma_frequency - self._ec 
+
+        hamiltonian = qubit_freq * number_op - (self._ec / 2) * self_kerr_op
         return hamiltonian
 
     def get_hamiltonian(self) -> Array:
@@ -416,7 +370,7 @@ class KerrOscillator(System):
     def get_eigenvalues(self) -> Array:
         excitation_number = jnp.arange(self.dim)
         eig_vals = (
-            excitation_number * (self.qubit_frequency + self._ec / 2)
+            excitation_number * (self.plasma_frequency - self._ec / 2)
             - (self._ec / 2) * excitation_number**2
         )
         return eig_vals
