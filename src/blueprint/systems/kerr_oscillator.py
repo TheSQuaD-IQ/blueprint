@@ -1,27 +1,28 @@
-from typing import Callable, Dict, Self, Tuple
+from typing import Callable, Self, Tuple
 
 from jax import numpy as jnp
-from jaxtyping import Array, ArrayLike, Scalar
+from jaxtyping import Array, Scalar
 
-from ..drives import BaseDrive as Drive
 from ..util.linalg import cosm, sinm
 from .system import System
 
-type Pulse = Callable[[float], Scalar | Array]
+type Pulse = Callable[[Scalar], Array]
 
 
 class KerrOscillator(System):
     """Kerr oscillator class for representing a weakly anharmonic oscillator."""
 
-    _ec: Array
-    _ej: Array
+    _ec: Scalar
+    _ej: Scalar
+    _kerr_sign: Scalar
 
     def __init__(
         self,
         label: str,
-        charging_energy: ArrayLike,
-        josephson_energy: ArrayLike,
+        charging_energy: float | Scalar,
+        josephson_energy: float | Scalar,
         dim: int,
+        kerr_sign: float | Scalar = 1.0,
         device_ind: int | None = None,
         device_dims: Tuple[int, ...] | None = None,
     ):
@@ -29,67 +30,80 @@ class KerrOscillator(System):
 
         self._ec = jnp.asarray(charging_energy)
         self._ej = jnp.asarray(josephson_energy)
+        self._kerr_sign = jnp.asarray(kerr_sign)
 
     @property
-    def charging_energy(self) -> float:
+    def charging_energy(self) -> Scalar:
         """
         charging_energy Returns the charging energy of the Kerr oscillator.
 
         Returns
         -------
-        float
+        Scalar
             The charging energy of the Kerr oscillator.
         """
         return self._ec
 
     @property
-    def josephson_energy(self) -> float:
+    def josephson_energy(self) -> Scalar:
         """
         josephson_energy Returns the josephson energy of the Kerr oscillator.
 
         Returns
         -------
-        float
+        Scalar
             The josephson energy of the Kerr oscillator.
         """
         return self._ej
 
     @property
-    def plasma_frequency(self) -> float:
+    def plasma_frequency(self) -> Scalar:
         """
         plasma_frequency Returns the plasma_frequency of the Kerr oscillator.
 
         Returns
         -------
-        Array
+        Scalar
             The plasma_frequency of the Kerr oscillator.
         """
         freq = jnp.sqrt(8 * self._ec * self._ej)
         return freq
 
     @property
-    def charge_zpf(self) -> float:
+    def charge_zpf(self) -> Scalar:
         """
         charge_zpf Returns the zero-point fluctuations of the charge.
 
         Returns
         -------
-        float
+        Scalar
             The zero-point fluctuations of the charge.
         """
         return (self._ej / (32 * self._ec)) ** 0.25
 
     @property
-    def flux_zpf(self) -> float:
+    def flux_zpf(self) -> Scalar:
         """
         flux_zpf Returns the zero-point fluctuations of the flux.
 
         Returns
         -------
-        float
+        Scalar
             The zero-point fluctuations of the flux.
         """
         return (2 * self._ec / self._ej) ** 0.25
+
+    @property
+    def _self_kerr(self) -> Scalar:
+        """
+        _self_kerr Returns the self-Kerr nonlinearity of the Kerr oscillator.
+
+        Returns
+        -------
+        Scalar
+            The self-Kerr nonlinearity of the Kerr oscillator.
+        """
+        return self._kerr_sign * self._ec
 
     def embed(self, device_ind: int, device_dims: Tuple[int, ...]) -> Self:
         """
@@ -357,10 +371,10 @@ class KerrOscillator(System):
         number_op = self._get_number_op()
         low_op = self._get_low_op()
         raise_op = self._get_raise_op()
-        self_kerr_op = raise_op @ raise_op @ low_op @ low_op
-        qubit_freq = self.plasma_frequency - self._ec 
+        anharm_op = raise_op @ raise_op @ low_op @ low_op
+        qubit_freq = self.plasma_frequency + self._self_kerr
 
-        hamiltonian = qubit_freq * number_op - (self._ec / 2) * self_kerr_op
+        hamiltonian = qubit_freq * number_op + (0.5 * self._self_kerr) * anharm_op
         return hamiltonian
 
     def get_hamiltonian(self) -> Array:
@@ -368,14 +382,13 @@ class KerrOscillator(System):
         return self.process_op(hamiltonian)
 
     def get_eigenvalues(self) -> Array:
-        excitation_number = jnp.arange(self.dim)
-        eig_vals = (
-            excitation_number * (self.plasma_frequency - self._ec / 2)
-            - (self._ec / 2) * excitation_number**2
-        )
+        exc_nums = jnp.arange(self.dim)
+        harm_vals = exc_nums * self.plasma_frequency
+        anharm_vals = 0.5 * self._self_kerr * exc_nums * (1 + exc_nums)
+        eig_vals = harm_vals + anharm_vals
         return eig_vals
 
-    def get_eigenstates(self) -> Array:
+    def get_eigenstates(self) -> Tuple[Array, Array]:
         eig_vals = self.get_eigenvalues()
         eig_states = jnp.identity(self.dim, dtype=complex)
         return eig_vals, eig_states
@@ -384,8 +397,8 @@ class KerrOscillator(System):
     def from_frequency(
         cls,
         label: str,
-        frequency: float,
-        anharmonicity: float,
+        frequency: float | Scalar,
+        anharmonicity: float | Scalar,
         dim: int,
         *,
         device_ind: int | None = None,
@@ -398,9 +411,9 @@ class KerrOscillator(System):
         ----------
         label : str
             The label of the Kerr oscillator.
-        frequency : float
+        frequency : float | Scalar
             The frequency of the Kerr oscillator.
-        anharmonicity : float
+        anharmonicity : float | Scalar
             The anharmonicity of the Kerr oscillator.
         dim : int
             The dimension of the Hilbert space for the Kerr oscillator.
@@ -411,14 +424,19 @@ class KerrOscillator(System):
         KerrOscillator
             The Kerr oscillator object.
         """
-        charging_energy = anharmonicity
+        frequency = jnp.asarray(frequency)
+        anharmonicity = jnp.asarray(anharmonicity)
+
+        charging_energy = jnp.abs(anharmonicity)
         josephson_energy = (frequency + charging_energy) ** 2 / (8 * charging_energy)
+        kerr_sign = jnp.sign(anharmonicity)
 
         KerrOscillator = cls(
             label=label,
             charging_energy=charging_energy,
             josephson_energy=josephson_energy,
             dim=dim,
+            kerr_sign=kerr_sign,
             device_ind=device_ind,
             device_dims=device_dims,
         )

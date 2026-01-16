@@ -15,7 +15,7 @@ from .system import System
 from ..drives import ChargeDrive, FluxDrive, CosFluxDrive, SinFluxDrive
 from ..util.linalg import transform_op
 
-type Pulse = Callable[[float], Scalar | Array]
+type Pulse = Callable[[Scalar], Array]
 
 
 class ChargeTransmonParameters(Module):
@@ -47,9 +47,9 @@ class ChargeTransmonParameters(Module):
         ----------
         label : str
             System label.
-        charging_energy, inductive_energy, josephson_energy : ScalarLike
+        charging_energy, inductive_energy, josephson_energy : float | Scalar
             Fluxonium energy parameters.
-        external_flux : ScalarLike
+        external_flux : float | Scalar
             External magnetic flux through loop.
         harmonic_cutoff : int
             Harmonic cutoff used for native oscillator basis.
@@ -470,14 +470,14 @@ class BaseTransmon(System):
         native_op = self._get_charge_op()
         return self.process_op(native_op)
 
-    def _get_cosphi_op(self) -> Array:
+    def _get_cosflux_op(self) -> Array:
         """
-        _get_cosphi_op Construct the native cos(phi) operator in the charge basis.
+        _get_cosflux_op Construct the native cos(flux) operator in the charge basis.
 
         Returns
         -------
         Array
-            cos(phi) operator in native basis.
+            cos(flux) operator in native basis.
         """
         offdiag_elems = jnp.ones(2 * self._ncut, dtype=jnp.complex64)
         superdiag_mat = jnp.diag(0.5 * offdiag_elems, 1)
@@ -485,27 +485,27 @@ class BaseTransmon(System):
         op = superdiag_mat + subdiag_mat
         return op
 
-    def get_cosphi_op(self) -> Array:
+    def get_cosflux_op(self) -> Array:
         """
-        get_cosphi_op Return cos(phi) operator in the system's current basis.
+        get_cosflux_op Return cos(flux) operator in the system's current basis.
 
         Returns
         -------
         Array
-            cos(phi) operator in current representation.
+            cos(flux) operator in current representation.
         """
-        native_op = self._get_cosphi_op()
+        native_op = self._get_cosflux_op()
         op = self.process_op(native_op)
         return op
 
-    def _get_sinphi_op(self) -> Array:
+    def _get_sinflux_op(self) -> Array:
         """
-        _get_sinphi_op Construct the native sin(phi) operator in the charge basis.
+        _get_sinflux_op Construct the native sin(flux) operator in the charge basis.
 
         Returns
         -------
         Array
-            sin(phi) operator in native basis.
+            sin(flux) operator in native basis.
         """
         offdiag_elems = jnp.ones(2 * self._ncut)
         superdiag_mat = jnp.diag(0.5j * offdiag_elems, 1)
@@ -513,16 +513,16 @@ class BaseTransmon(System):
         op = superdiag_mat - subdiag_mat
         return op
 
-    def get_sinphi_op(self) -> Array:
+    def get_sinflux_op(self) -> Array:
         """
-        get_sinphi_op Return sin(phi) operator in the system's current basis.
+        get_sinflux_op Return sin(flux) operator in the system's current basis.
 
         Returns
         -------
         Array
-            sin(phi) operator in current representation.
+            sin(flux) operator in current representation.
         """
-        native_op = self._get_sinphi_op()
+        native_op = self._get_sinflux_op()
         op = self.process_op(native_op)
         return op
 
@@ -573,9 +573,9 @@ class BaseTransmon(System):
         Array
             Potential term matrix in native basis.
         """
-        cosphi_op = self._get_cosphi_op()
+        cosflux_op = self._get_cosflux_op()
 
-        potential_term = -self._ej * cosphi_op
+        potential_term = -self._ej * cosflux_op
         return potential_term
 
     def _get_hamiltonian(self) -> Array:
@@ -631,7 +631,7 @@ class BaseTransmon(System):
         pulse : Pulse
             The pulse function of the drive.
         """
-        drive = ChargeDrive(label=label, pulse=pulse)
+        drive = ChargeDrive(label, pulse)
         self.drives[label] = drive
 
     def add_flux_drive(self, label: str, pulse: Pulse) -> None:
@@ -645,12 +645,12 @@ class BaseTransmon(System):
         pulse : Pulse
             The pulse function of the drive.
         """
-        drive = FluxDrive(label=label, pulse=pulse)
+        drive = FluxDrive(label, pulse)
         self.drives[label] = drive
 
     def add_cosflux_drive(self, label: str, pulse: Pulse) -> None:
         """
-        add_cosflux_drive Adds a cos(phi) flux drive to the transmon.
+        add_cosflux_drive Adds a cos(flux) flux drive to the transmon.
 
         Parameters
         ----------
@@ -659,12 +659,12 @@ class BaseTransmon(System):
         pulse : Pulse
             The pulse function of the drive.
         """
-        drive = CosFluxDrive(label=label, pulse=pulse)
+        drive = CosFluxDrive(label, pulse)
         self.drives[label] = drive
 
     def add_sinflux_drive(self, label: str, pulse: Pulse) -> None:
         """
-        add_sinflux_drive Adds a sin(phi) flux drive to the transmon.
+        add_sinflux_drive Adds a sin(flux) flux drive to the transmon.
 
         Parameters
         ----------
@@ -673,7 +673,7 @@ class BaseTransmon(System):
         pulse : Pulse
             The pulse function of the drive.
         """
-        drive = SinFluxDrive(label=label, pulse=pulse)
+        drive = SinFluxDrive(label, pulse)
         self.drives[label] = drive
 
 
