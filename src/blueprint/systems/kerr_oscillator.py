@@ -22,7 +22,7 @@ class KerrOscillator(System):
         charging_energy: float | Scalar,
         josephson_energy: float | Scalar,
         dim: int,
-        kerr_sign: float | Scalar = 1.0,
+        kerr_sign: float | Scalar = -1.0,
         device_ind: int | None = None,
         device_dims: Tuple[int, ...] | None = None,
     ):
