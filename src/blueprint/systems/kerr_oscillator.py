@@ -441,7 +441,7 @@ class KerrOscillator(System):
         anharmonicity = jnp.asarray(anharmonicity)
 
         charging_energy = jnp.abs(anharmonicity)
-        josephson_energy = (frequency + charging_energy) ** 2 / (8 * charging_energy)
+        josephson_energy = (frequency - anharmonicity) ** 2 / (8 * charging_energy)
         kerr_sign = jnp.sign(anharmonicity)
 
         KerrOscillator = cls(
