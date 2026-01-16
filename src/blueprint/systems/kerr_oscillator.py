@@ -33,6 +33,18 @@ class KerrOscillator(System):
         self._kerr_sign = jnp.asarray(kerr_sign)
 
     @property
+    def kerr_sign(self) -> Scalar:
+        """
+        kerr_sign Returns the sign of the self-Kerr nonlinearity.
+
+        Returns
+        -------
+        Scalar
+            The sign of the self-Kerr nonlinearity.
+        """
+        return self._kerr_sign
+
+    @property
     def charging_energy(self) -> Scalar:
         """
         charging_energy Returns the charging energy of the Kerr oscillator.
@@ -122,6 +134,7 @@ class KerrOscillator(System):
             self.charging_energy,
             self.josephson_energy,
             self.dim,
+            self.kerr_sign,
             device_ind,
             device_dims,
         )
@@ -394,7 +407,7 @@ class KerrOscillator(System):
         return eig_vals, eig_states
 
     @classmethod
-    def from_frequency(
+    def from_frequencies(
         cls,
         label: str,
         frequency: float | Scalar,
@@ -405,7 +418,7 @@ class KerrOscillator(System):
         device_dims: Tuple[int, ...] | None = None,
     ) -> Self:
         """
-        from_frequency Returns a Kerr oscillator object from the frequency and the anharmonicity.
+        from_frequencies Returns a Kerr oscillator object from the frequency and the anharmonicity.
 
         Parameters
         ----------
