@@ -116,6 +116,7 @@ def get_gellmann_basis(hilbert_dim: int, normalize: bool = True) -> Basis:
             labels.append(label)
 
     operators = jnp.stack(operator_list)
+    labels = tuple(labels)
 
     if normalize:
         inner_prods = jnp.einsum("aij, aji -> a", operators, operators)
@@ -169,6 +170,7 @@ def get_general_basis(hilbert_dim: int, normalize: bool = True) -> Basis:
 
     offdiag_ops = jnp.stack(offdiag_op_list)
     operators = jnp.concatenate((diag_ops, offdiag_ops))
+    labels = tuple(labels)
 
     if normalize:
         inner_prods = jnp.einsum("aij, aji -> a", operators, operators)
@@ -195,5 +197,22 @@ def get_pauli_basis(normalize: bool = True) -> Basis:
     Basis
         Pauli operator basis instance.
     """
-    basis = get_gellmann_basis(hilbert_dim=2, normalize=normalize)
+    hilbert_dim: int = 2
+
+    id_op = jnp.identity(hilbert_dim)
+    paulix_op = get_x_basis_op(0, 1, hilbert_dim)
+    pauliy_op = get_y_basis_op(1, 0, hilbert_dim)
+    pauliz_op = get_z_basis_op(1, hilbert_dim)
+
+    ops = jnp.stack((id_op, paulix_op, pauliy_op, pauliz_op))
+    labels = ("I", "X", "Y", "Z")
+
+    if normalize:
+        inner_prods = jnp.einsum("aij, aji -> a", ops, ops)
+        op_norms = jnp.sqrt(inner_prods)
+        norm_ops = ops / op_norms[:, None, None]
+        basis = Basis(norm_ops, labels)
+        return basis
+
+    basis = Basis(ops, labels)
     return basis

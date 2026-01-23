@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import List, Tuple
+from typing import Tuple, Sequence
 
 from jax import numpy as jnp
 from jax import Array
@@ -10,13 +10,13 @@ from equinox import Module, field
 
 
 class Basis(Module):
-    operators: Array
-    labels: List[str] = field(static=True)
+    _ops: Array
+    _labels: Tuple[str, ...] = field(static=True)
 
-    hilbert_dim: int = field(static=True)
-    pauli_dim: int = field(static=True)
+    _hilbert_dim: int = field(static=True)
+    _pauli_dim: int = field(static=True)
 
-    def __init__(self, operators: Array, labels: List[str]):
+    def __init__(self, operators: Array, labels: Sequence[str]):
         pauli_dim, hilbert_dim, other_dim = operators.shape
         num_labels = len(labels)
         if pauli_dim != num_labels:
@@ -29,23 +29,52 @@ class Basis(Module):
             if not isinstance(label, str):
                 raise TypeError("All labels must be strings.")
 
-        self.operators = jnp.asarray(operators)
-        self.labels = list(labels)
+        self._ops = jnp.asarray(operators)
+        self._labels = tuple(labels)
 
-        self.hilbert_dim = int(hilbert_dim)
-        self.pauli_dim = int(pauli_dim)
+        self._hilbert_dim = int(hilbert_dim)
+        self._pauli_dim = int(pauli_dim)
 
-    def __eq__(self, other: Basis) -> bool:
-        if isinstance(other, Basis):
-            if self.shape == other.shape:
-                if jnp.allclose(self.operators, other.operators):
-                    return True
-        return False
+    @property
+    def operators(self) -> Array:
+        """
+        operators Basis operators array.
 
-    def __len__(self):
-        return self.pauli_dim
+        Returns
+        -------
+        Array
+            Basis operators (shape ``(pauli_dim, hilbert_dim, hilbert_dim)``).
+        """
+        return self._ops
 
-    def __repr__(self):
+    @property
+    def labels(self) -> Tuple[str, ...]:
+        """
+        labels Basis operator labels.
+
+        Returns
+        -------
+        Tuple[str, ...]
+            Basis operator labels.
+        """
+        return self._labels
+
+    @property
+    def hilbert_dim(self) -> int:
+        """
+        hilbert_dim Hilbert-space dimension of the basis.
+
+        Returns
+        -------
+        int
+            Hilbert-space dimension.
+        """
+        return self._hilbert_dim
+
+    def __len__(self) -> int:
+        return self._pauli_dim
+
+    def __repr__(self) -> str:
         class_name = self.__class__.__name__
         labels_str = " ".join(self.labels)
         repr_str = f"{class_name}, dim={self.hilbert_dim}, operators=({labels_str})"
@@ -62,7 +91,7 @@ class Basis(Module):
         jnp.dtype
             Data type of the operators array.
         """
-        return self.operators.dtype
+        return self._ops.dtype
 
     @property
     def shape(self) -> Tuple[int, ...]:
@@ -74,7 +103,7 @@ class Basis(Module):
         Tuple[int, ...]
             Shape of the operators array (pauli_dim, hilbert_dim, hilbert_dim).
         """
-        return self.operators.shape
+        return self._ops.shape
 
     def get_operator_norms(self) -> Array:
         """
@@ -85,7 +114,7 @@ class Basis(Module):
         Array
             Norms for each basis operator (shape ``(pauli_dim,)``).
         """
-        inner_prods = jnp.einsum("aij, aji -> a", self.operators, self.operators)
+        inner_prods = jnp.einsum("aij, aji -> a", self._ops, self._ops)
         operator_norms = jnp.sqrt(inner_prods)
         return operator_norms
 
@@ -99,7 +128,7 @@ class Basis(Module):
             Normalized basis instance.
         """
         operator_norms = self.get_operator_norms()
-        normalized_operators = self.operators / operator_norms[:, None, None]
+        normalized_operators = self._ops / operator_norms[:, None, None]
         return Basis(normalized_operators, self.labels)
 
     @property
@@ -112,8 +141,8 @@ class Basis(Module):
         Array
             Boolean scalar indicating whether basis operators are normalized.
         """
-        inner_prods = jnp.einsum("aij, aji -> a", self.operators, self.operators)
-        expected_vec = jnp.ones(self.pauli_dim)
+        inner_prods = jnp.einsum("aij, aji -> a", self._ops, self._ops)
+        expected_vec = jnp.ones(self._pauli_dim)
         return jnp.allclose(inner_prods, expected_vec)
 
     @property
@@ -126,7 +155,7 @@ class Basis(Module):
         Array
             Boolean scalar indicating orthogonality of the basis.
         """
-        inner_prods = jnp.einsum("aij, bji -> ab", self.operators, self.operators)
+        inner_prods = jnp.einsum("aij, bji -> ab", self._ops, self._ops)
         diag_elements = jnp.diag(inner_prods)
         diag_matrix = jnp.diag(diag_elements)
         return jnp.allclose(inner_prods, diag_matrix)
@@ -141,43 +170,43 @@ class Basis(Module):
         Array
             Boolean scalar indicating orthonormality of the basis.
         """
-        inner_prods = jnp.einsum("aij, bji -> ab", self.operators, self.operators)
-        expected_prods = jnp.eye(self.pauli_dim)
+        inner_prods = jnp.einsum("aij, bji -> ab", self._ops, self._ops)
+        expected_prods = jnp.eye(self._pauli_dim)
         return jnp.allclose(inner_prods, expected_prods)
 
-    def to_vector(self, operator: Array) -> Array:
+    def to_vector(self, density_mat: Array) -> Array:
         """
-        to_vector Project an operator into the basis to obtain its vector representation.
+        to_vector Project an density matrix into the basis to obtain its vector representation.
 
         Parameters
         ----------
-        operator : Array
-            Operator to project (shape ``(hilbert_dim, hilbert_dim)``).
+        density_mat : Array
+            Density matrix to project (shape ``(hilbert_dim, hilbert_dim)``).
 
         Returns
         -------
         Array
-            Vector representation of the operator (shape ``(pauli_dim,)``).
+            Vector representation of the density matrix (shape ``(pauli_dim,)``).
         """
-        vector = jnp.einsum("aij, ji -> a", self.operators, operator)
-        return vector
+        pauli_vector = jnp.einsum("aij, ji -> a", self._ops, density_mat)
+        return pauli_vector
 
-    def to_operator(self, vector: Array) -> Array:
+    def to_operator(self, pauli_vector: Array) -> Array:
         """
-        to_operator Reconstruct an operator from its vector representation in the basis.
+        to_operator Reconstruct a density matrix from a Pauli vector representation in the basis.
 
         Parameters
         ----------
-        vector : Array
+        pauli_vector : Array
             Vector of coefficients (shape ``(pauli_dim,)``).
 
         Returns
         -------
         Array
-            Operator reconstructed from the basis (shape ``(hilbert_dim, hilbert_dim)``).
+            Density matrix reconstructed from the basis (shape ``(hilbert_dim, hilbert_dim)``).
         """
-        operator = jnp.einsum("aij, a -> ij", self.operators, vector)
-        return operator
+        density_mat = jnp.einsum("aij, a -> ij", self._ops, pauli_vector)
+        return density_mat
 
     def truncate_hilbert_dim(self, trunc_dim: int) -> Basis:
         """
@@ -196,7 +225,7 @@ class Basis(Module):
         if trunc_dim > self.hilbert_dim:
             raise ValueError("New dimension must be less than the current dimension.")
 
-        trunc_operators = self.operators[  # pylint: disable=E1136
+        trunc_operators = self._ops[  # pylint: disable=E1136
             :, :trunc_dim, :trunc_dim
         ]
         return Basis(trunc_operators, self.labels)
@@ -222,5 +251,5 @@ class Basis(Module):
 
         pad_width = exp_dim - self.hilbert_dim
         pad_widths = ((0, 0), (0, pad_width), (0, pad_width))
-        exp_operators = jnp.pad(self.operators, pad_widths, mode="constant")
+        exp_operators = jnp.pad(self._ops, pad_widths, mode="constant")
         return Basis(exp_operators, self.labels)

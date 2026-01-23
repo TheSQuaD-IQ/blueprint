@@ -1,8 +1,14 @@
+from itertools import product
+
 from jax import numpy as jnp
 from jaxtyping import Array
 
 from .basis import Basis
 from .library import get_x_basis_op, get_y_basis_op, get_z_basis_op
+
+
+def join_labels(labels, sep="⊗") -> str:
+    return sep.join(labels)
 
 
 def transform_basis(basis: Basis, transform_op: Array) -> Basis:
@@ -18,6 +24,27 @@ def transform_basis(basis: Basis, transform_op: Array) -> Basis:
     basis = Basis(transformed_ops, basis.labels)
     return basis
 
+
+def basis_kron(basis: Basis, other_basis: Basis) -> Basis:
+    """
+    basis_kron Compute the Kronecker product of two operator bases.
+
+    Parameters
+    ----------
+    basis : Basis
+        The first operator basis.
+    other_basis : Basis
+        The second operator basis.
+
+    Returns
+    -------
+    Basis
+        The resulting operator basis from the Kronecker product.
+    """
+    operators = jnp.kron(basis.operators, other_basis.operators)
+    labels = tuple(map(join_labels, product(basis.labels, other_basis.labels)))
+    basis = Basis(operators, labels)
+    return basis
 
 def get_pauli_ops(normalize: bool = True) -> Array:
     """
