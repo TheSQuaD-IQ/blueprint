@@ -12,7 +12,7 @@ from equinox import Module, field
 from .system import System
 from ..drives import ChargeDrive, FluxDrive
 
-type Pulse = Callable[[float | Scalar], Scalar | Array]
+type Pulse = Callable[[Scalar], Array]
 
 
 class ResonatorParams(Module):

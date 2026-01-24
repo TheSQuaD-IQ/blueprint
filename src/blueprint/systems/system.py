@@ -4,11 +4,11 @@ from abc import abstractmethod
 from typing import Tuple, Dict, Iterator, Iterable, TYPE_CHECKING
 
 from jax import numpy as jnp
-from jaxtyping import Array, ScalarLike
+from jaxtyping import Array, Scalar
 from equinox import field, Module
 from dynamiqs.time_qarray import constant, TimeQArray, SummedTimeQArray
 
-from .util import Embedding, BaseEmbedding, DeviceEmbedding
+from .util import Embedding
 
 if TYPE_CHECKING:
     from ..drives import BaseDrive as Drive
@@ -22,7 +22,7 @@ class System(Module):
 
     drives: Dict[str, "Drive"]
 
-    _embedding: Embedding
+    _embedding: Embedding | None
     device_ind: int | None = field(static=True)
 
     def __init__(
@@ -47,7 +47,7 @@ class System(Module):
                 raise ValueError(
                     "To embed a system, both device_ind and device_dims must be provided."
                 )
-            self._embedding = BaseEmbedding()
+            self._embedding = None
         else:
             if device_dims is None:
                 raise ValueError(
@@ -76,7 +76,7 @@ class System(Module):
                     f"The system dim ({self.dim}) must match the corresponding device_dims ({expected_dim}) entry."
                 )
 
-            self._embedding = DeviceEmbedding(device_ind, device_dims)
+            self._embedding = Embedding(device_ind, device_dims)
         self.device_ind = device_ind
 
     @property
@@ -89,7 +89,7 @@ class System(Module):
         bool
             True if the system has a device embedding index.
         """
-        return isinstance(self._embedding, DeviceEmbedding)
+        return self._embedding is not None
 
     @property
     def drive_iter(self) -> Iterator["Drive"]:
@@ -184,12 +184,12 @@ class System(Module):
             Hamiltonian matrix for the system.
         """
 
-    def get_drive_hamiltonian(self, time: ScalarLike) -> Array:
+    def get_drive_hamiltonian(self, time: Scalar) -> Array:
         """get_drive_hamiltonian Return the system Hamiltonian including drives evaluated at `time`.
 
         Parameters
         ----------
-        time : ScalarLike
+        time : Scalar
             Time at which to evaluate drives.
 
         Returns
@@ -339,4 +339,6 @@ class System(Module):
         Array
             Embedded operator or original operator if no embedding is set.
         """
-        return self._embedding(operator)
+        if self._embedding:
+            return self._embedding(operator)
+        return operator

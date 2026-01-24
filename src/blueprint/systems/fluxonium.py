@@ -17,7 +17,7 @@ from ..drives import ChargeDrive, FluxDrive
 from ..util.linalg import cosm, sinm, transform_op
 
 type Filestring = str | Path
-type Pulse = Callable[[float], Scalar | Array]
+type Pulse = Callable[[Scalar], Array]
 
 
 class FluxoniumParameters(Module):
