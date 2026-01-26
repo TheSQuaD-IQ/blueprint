@@ -425,7 +425,7 @@ class Transmon(System):
         ----------
         label : str
             The label of the transmon.
-        frequency : ScalarLike
+        frequency : Float
             The target qubit frequency.
         anharmonicity : Float
             The target qubit anharmonicity (should be negative).
