@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Callable, Tuple
+from typing import Tuple
 
 from jax import numpy as jnp
 from jax import scipy as jsp
@@ -11,12 +11,11 @@ from jaxtyping import Array, Scalar
 from equinox import field
 
 from .system import System
-from ..drives import ChargeDrive, FluxDrive
+from ..drives import Pulse, ChargeDrive, FluxDrive, CosFluxDrive, SinFluxDrive
 from ..operators import harmonic as harmonic_ops
 from ..util.linalg import cosm, transform_op
 
 type Float = float | Scalar
-type Pulse = Callable[[Scalar], Array]
 
 
 class Fluxonium(System):
@@ -203,6 +202,22 @@ class Fluxonium(System):
 
         return embedded_fluxonium
 
+    def transform_op(self, operator: Array) -> Array:
+        """
+        transform_op Transforms an operator of the energy basis of the transmon.
+
+        Parameters
+        ----------
+        operator : Array
+            The operator to process.
+        Returns
+        -------
+        Array
+            The processed operator.
+        """
+        transformed_op = transform_op(operator, self._eig_states)
+        return transformed_op
+
     def process_op(self, operator: Array) -> Array:
         """
         process_op Process an operator (transform to energy basis and embed if needed).
@@ -217,8 +232,7 @@ class Fluxonium(System):
         Array
             Operator in current system representation.
         """
-        transformed_op = transform_op(operator, self._eig_states)
-        return self.embed_op(transformed_op)
+        return self.embed_op(self.transform_op(operator))
 
     def get_raise_op(self) -> Array:
         """
@@ -243,19 +257,6 @@ class Fluxonium(System):
         """
         low_op = harmonic_ops.get_low_op(self._hcut)
         return self.process_op(low_op)
-
-    def get_number_op(self) -> Array:
-        """
-        get_number_op Return number operator in current representation (embedded to `dim`).
-
-        Returns
-        -------
-        Array
-            Number operator in current basis.
-        """
-        diag_elems = jnp.arange(self.dim)
-        num_op = jnp.diag(diag_elems)
-        return self.embed_op(num_op)
 
     def get_charge_op(self) -> Array:
         """
@@ -320,6 +321,18 @@ class Fluxonium(System):
         """
         id_op = jnp.identity(self.dim)
         return self.embed_op(id_op)
+
+    def get_number_op(self) -> Array:
+        """
+        get_number_op Return number operator in the energy basis.
+
+        Returns
+        -------
+        Array
+            Number operator in the energy basis.
+        """
+        num_op = jnp.diag(jnp.arange(self.dim))
+        return self.embed_op(num_op)
 
     def _get_oscillator_term(self) -> Array:
         id_op = harmonic_ops.get_identity_op(self._hcut)
@@ -396,4 +409,16 @@ class Fluxonium(System):
         """
         add_flux_drive Attach a flux drive to the fluxonium."""
         drive = FluxDrive(label, pulse)
+        self._drives[label] = drive
+
+    def add_cosflux_drive(self, label: str, pulse: Pulse) -> None:
+        """
+        add_cosflux_drive Attach a cos(flux) drive to the fluxonium."""
+        drive = CosFluxDrive(label, pulse)
+        self._drives[label] = drive
+
+    def add_sinflux_drive(self, label: str, pulse: Pulse) -> None:
+        """
+        add_sinflux_drive Attach a sin(flux) drive to the fluxonium."""
+        drive = SinFluxDrive(label, pulse)
         self._drives[label] = drive

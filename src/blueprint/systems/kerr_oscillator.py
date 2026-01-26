@@ -1,14 +1,14 @@
-from typing import Callable, Self, Tuple
+from typing import Self, Tuple, Iterable
 
 from jax import numpy as jnp
 from jaxtyping import Array, Scalar
 
 from .system import System
 from ..operators import harmonic as harmonic_ops
+from ..drives import Pulse, ChargeDrive, FluxDrive, CosFluxDrive, SinFluxDrive
 
 type Int = int | Scalar
 type Float = float | Scalar
-type Pulse = Callable[[Scalar], Array]
 
 
 class KerrOscillator(System):
@@ -26,7 +26,7 @@ class KerrOscillator(System):
         dim: int,
         kerr_sign: Int = -1,
         device_ind: int | None = None,
-        device_dims: Tuple[int, ...] | None = None,
+        device_dims: Iterable[int] | None = None,
     ):
         super().__init__(label, dim, device_ind=device_ind, device_dims=device_dims)
 
@@ -291,6 +291,62 @@ class KerrOscillator(System):
         eig_vals = self.get_eigenvalues()
         eig_states = jnp.identity(self.dim, dtype=complex)
         return eig_vals, eig_states
+
+    def add_charge_drive(self, label: str, pulse: Pulse) -> None:
+        """
+        add_charge_drive Adds a charge drive to the kerr oscillator.
+
+        Parameters
+        ----------
+        label : str
+            The label of the drive.
+        pulse : Pulse
+            The pulse function of the drive.
+        """
+        drive = ChargeDrive(label, pulse)
+        self._drives[label] = drive
+
+    def add_flux_drive(self, label: str, pulse: Pulse) -> None:
+        """
+        add_flux_drive Adds a flux drive to the kerr oscillator.
+
+        Parameters
+        ----------
+        label : str
+            The label of the drive.
+        pulse : Pulse
+            The pulse function of the drive.
+        """
+        drive = FluxDrive(label, pulse)
+        self._drives[label] = drive
+
+    def add_cosflux_drive(self, label: str, pulse: Pulse) -> None:
+        """
+        add_cosflux_drive Adds a cos(flux) flux drive to the kerr oscillator.
+
+        Parameters
+        ----------
+        label : str
+            The label of the drive.
+        pulse : Pulse
+            The pulse function of the drive.
+        """
+        drive = CosFluxDrive(label, pulse)
+        self._drives[label] = drive
+
+    def add_sinflux_drive(self, label: str, pulse: Pulse) -> None:
+        """
+        add_sinflux_drive Adds a sin(flux) flux drive to the kerr oscillator.
+
+        Parameters
+        ----------
+        label : str
+            The label of the drive.
+        pulse : Pulse
+            The pulse function of the drive.
+        """
+        drive = SinFluxDrive(label, pulse)
+        self._drives[label] = drive
 
     @classmethod
     def from_frequencies(

@@ -1,4 +1,4 @@
-from typing import Callable, Tuple
+from typing import Tuple
 
 import jax
 from jax import Array
@@ -10,9 +10,8 @@ import dynamiqs as dq
 from dynamiqs import Options
 from dynamiqs.method import Method, Tsit5
 
+from ..drives import Pulse
 from ..util.index import get_max_overlap_inds
-
-type Pulse = Callable[[float], Scalar | Array]
 
 
 @jit

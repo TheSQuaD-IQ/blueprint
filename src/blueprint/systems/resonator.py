@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import math
-from typing import Callable, Tuple, Iterable
+from typing import Tuple, Iterable
 
 from scipy.constants import e, hbar
 
@@ -10,10 +10,9 @@ from jaxtyping import Array, Scalar
 
 from .system import System
 from ..operators import harmonic as harmonic_ops
-from ..drives import ChargeDrive, FluxDrive
+from ..drives import Pulse, ChargeDrive, FluxDrive
 
 type Float = float | Scalar
-type Pulse = Callable[[Scalar], Array]
 
 
 class Resonator(System):

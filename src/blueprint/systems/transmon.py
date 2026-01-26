@@ -1,7 +1,6 @@
 from __future__ import annotations
 
-from abc import abstractmethod
-from typing import Callable, Tuple, Iterable
+from typing import Tuple, Iterable
 
 from jax import numpy as jnp
 from jax import scipy as jsp
@@ -13,20 +12,22 @@ from optimistix import minimise, BFGS
 
 from .system import System
 from ..operators import charge as charge_ops
-from ..drives import ChargeDrive, FluxDrive, CosFluxDrive, SinFluxDrive
+from ..drives import Pulse, ChargeDrive, FluxDrive, CosFluxDrive, SinFluxDrive
 from ..util.linalg import transform_op
 
 type Float = float | Scalar
-type Pulse = Callable[[Scalar], Array]
 
 
-class BaseTransmon(System):
+class Transmon(System):
     """Base class for Transmon-like qubit models."""
 
     _ec: Scalar
     _ej: Scalar
     _ng: Scalar
     _ncut: int = field(static=True)
+
+    _eig_vals: Array
+    _eig_states: Array
 
     def __init__(
         self,
@@ -48,6 +49,10 @@ class BaseTransmon(System):
             raise ValueError("charge_cutoff must be a positive integer.")
 
         self._ncut = charge_cutoff
+
+        eig_vals, eig_states = self._get_eigenstates()
+        self._eig_vals = eig_vals[..., : self.dim]
+        self._eig_states = eig_states[..., : self.dim]
 
     @property
     def charging_energy(self) -> Scalar:
@@ -98,9 +103,33 @@ class BaseTransmon(System):
         return self._ncut
 
     @property
+    def plasma_frequency(self) -> Scalar:
+        """
+        plasma_frequency Plasma frequency sqrt(8 E_C E_J) for the harmonic approximation.
+
+        Returns
+        -------
+        Scalar
+            Plasma frequency value.
+        """
+        return jnp.sqrt(8 * self._ec * self._ej)
+
+    @property
+    def kerr_frequency(self) -> Scalar:
+        """
+        kerr_frequency Kerr oscillator frequency (sqrt(8 E_C E_J) - E_C).
+
+        Returns
+        -------
+        Scalar
+            Kerr oscillator frequency value.
+        """
+        return self.plasma_frequency - self._ec
+
+    @property
     def charge_zpf(self) -> Scalar:
         """
-        charge_zpfZero-point fluctuations of the charge variable (in energy basis).
+        charge_zpf Zero-point fluctuations of the charge variable.
 
         Notes
         -----
@@ -118,7 +147,7 @@ class BaseTransmon(System):
     @property
     def flux_zpf(self) -> Scalar:
         """
-        flux_zpf Zero-point fluctuations of the flux variable (in energy basis).
+        flux_zpf Zero-point fluctuations of the flux variable.
 
         Returns
         -------
@@ -128,21 +157,64 @@ class BaseTransmon(System):
         flux_fluctuations = (2 * self._ec / self._ej) ** 0.25
         return flux_fluctuations
 
-    @abstractmethod
-    def process_op(self, operator: Array) -> Array:
+    def embed(self, device_ind: int, device_dims: Tuple[int, ...]) -> Transmon:
         """
-        process_op Process an operator into the transmon's current basis/embedding.
+        embed Embeds the transmon into a larger Hilbert space.
+
+        Parameters
+        ----------
+        device_ind : int
+            The index of the transmon in the larger Hilbert space.
+        device_dims : Tuple[int, ...]
+            The dimension of each quantum system (including this transmon)
+            in the full device.
+        """
+        transmon = self.__class__(
+            label=self.label,
+            charging_energy=self.charging_energy,
+            josephson_energy=self.josephson_energy,
+            offset_charge=self.offset_charge,
+            charge_cutoff=self.charge_cutoff,
+            dim=self.dim,
+            device_ind=device_ind,
+            device_dims=device_dims,
+        )
+
+        for label, drive in self._drives.items():
+            transmon._drives[label] = drive
+        return transmon
+
+    def transform_op(self, operator: Array) -> Array:
+        """
+        transform_op Transforms an operator of the energy basis of the transmon.
 
         Parameters
         ----------
         operator : Array
-            Operator in the native basis.
+            The operator to process.
+        Returns
+        -------
+        Array
+            The processed operator.
+        """
+        transformed_op = transform_op(operator, self._eig_states)
+        return transformed_op
+
+    def process_op(self, operator: Array) -> Array:
+        """
+        process_op Process an operator (transform to energy basis and embed if needed).
+
+        Parameters
+        ----------
+        operator : Array
+            Operator in native basis.
 
         Returns
         -------
         Array
-            Operator in the system's current representation.
+            Operator in current system representation.
         """
+        return self.embed_op(self.transform_op(operator))
 
     def get_charge_op(self) -> Array:
         """
@@ -153,8 +225,8 @@ class BaseTransmon(System):
         Array
             Charge operator in current representation.
         """
-        native_op = charge_ops.get_charge_op(self._ng, self._ncut)
-        return self.process_op(native_op)
+        charge_op = charge_ops.get_charge_op(self._ng, self._ncut)
+        return self.process_op(charge_op)
 
     def get_cosflux_op(self) -> Array:
         """
@@ -165,9 +237,8 @@ class BaseTransmon(System):
         Array
             cos(flux) operator in current representation.
         """
-        native_op = charge_ops.get_cosflux_op(self._ncut)
-        op = self.process_op(native_op)
-        return op
+        cosflux_op = charge_ops.get_cosflux_op(self._ncut)
+        return self.process_op(cosflux_op)
 
     def get_sinflux_op(self) -> Array:
         """
@@ -178,65 +249,55 @@ class BaseTransmon(System):
         Array
             sin(flux) operator in current representation.
         """
-        native_op = charge_ops.get_sinflux_op(self._ncut)
-        op = self.process_op(native_op)
-        return op
+        sinflux_op = charge_ops.get_sinflux_op(self._ncut)
+        return self.process_op(sinflux_op)
 
     def get_identity_op(self) -> Array:
         """
-        get_identity_op Return identity operator in the system's current basis.
+        get_identity_op Return identity operator of the transmon in the energy basis.
 
         Returns
         -------
         Array
-            Identity operator in current representation.
+            Identity operator in the energy basis.
         """
         id_op = jnp.identity(self.dim)
         return self.embed_op(id_op)
 
-    def _get_kinetic_term(self) -> Array:
+    def get_number_op(self) -> Array:
         """
-        _get_kinetic_term Construct kinetic term of the transmon Hamiltonian in charge basis.
+        get_number_op Returns the number operator of the transmon in the energy basis.
 
         Returns
         -------
         Array
-            Kinetic term matrix in native basis.
+            The number operator of the transmon in the energy basis.
         """
-        offset_charge_op = charge_ops.get_charge_op(self._ng, self._ncut)
-        kinetic_term = 4 * self._ec * offset_charge_op @ offset_charge_op
-        return kinetic_term
-
-    def _get_potential_term(self) -> Array:
-        """
-        _get_potential_term Construct potential (Josephson) term of the Hamiltonian in charge basis.
-
-        Returns
-        -------
-        Array
-            Potential term matrix in native basis.
-        """
-        cosflux_op = charge_ops.get_cosflux_op(self._ncut)
-        potential_term = -self._ej * cosflux_op
-        return potential_term
+        number_op = jnp.diag(jnp.arange(self.dim))
+        return self.embed_op(number_op)
 
     def _get_hamiltonian(self) -> Array:
         """
-        _get_hamiltonian Construct full transmon Hamiltonian in the native charge basis.
+        _get_hamiltonian Construct full transmon Hamiltonian in the charge basis.
 
         Returns
         -------
         Array
-            Hamiltonian matrix in native basis.
+            Hamiltonian matrix in the charge basis.
         """
-        kinetic_term = self._get_kinetic_term()
-        potential_term = self._get_potential_term()
-        hamiltonian = kinetic_term + potential_term
+        charge_op = charge_ops.get_charge_op(self._ng, self._ncut)
+        cosflux_op = charge_ops.get_cosflux_op(self._ncut)
+
+        hamiltonian = 4 * self._ec * charge_op @ charge_op - self._ej * cosflux_op
         return hamiltonian
+
+    def get_hamiltonian(self) -> Array:
+        hamiltonian = jnp.diag(self._eig_vals)
+        return self.embed_op(hamiltonian)
 
     def _get_eigenvalues(self) -> Array:
         """
-        _get_eigenvalues Return eigenvalues of the native Hamiltonian (ground energy offset).
+        _get_eigenvalues Return eigenvalues of the charge Hamiltonian (ground energy offset).
 
         Returns
         -------
@@ -250,7 +311,7 @@ class BaseTransmon(System):
 
     def _get_eigenstates(self) -> Tuple[Array, Array]:
         """
-        _get_eigenstates Return eigenvalues and eigenvectors of the native Hamiltonian.
+        _get_eigenstates Return eigenvalues and eigenvectors of the charge Hamiltonian.
 
         Returns
         -------
@@ -261,6 +322,29 @@ class BaseTransmon(System):
         eig_vals, eig_states = jsp.linalg.eigh(hamiltonian)
         norm_vals = eig_vals - eig_vals[0]
         return norm_vals, eig_states
+
+    def get_eigenvalues(self) -> Array:
+        """
+        get_eigenvalues Returns the eigenvalues of the transmon Hamiltonian.
+
+        Returns
+        -------
+        Array
+            The eigenvalues of the transmon Hamiltonian.
+        """
+        return self._eig_vals
+
+    def get_eigenstates(self) -> Tuple[Array, Array]:
+        """
+        get_eigenstates Returns the eigenvalues and eigenvectors of the transmon Hamiltonian in the energy basis.
+
+        Returns
+        -------
+        Tuple[Array, Array]
+            The eigenvalues and eigenvectors of the transmon Hamiltonian in the energy basis.
+        """
+        eig_states = jnp.identity(self.dim, dtype=complex)
+        return self._eig_vals, eig_states
 
     def add_charge_drive(self, label: str, pulse: Pulse) -> None:
         """
@@ -317,185 +401,6 @@ class BaseTransmon(System):
         """
         drive = SinFluxDrive(label, pulse)
         self._drives[label] = drive
-
-
-class ChargeTransmon(BaseTransmon):
-    """Transmon qubit model."""
-
-    def __init__(
-        self,
-        label: str,
-        charging_energy: Float,
-        josephson_energy: Float,
-        offset_charge: Float,
-        charge_cutoff: int,
-        device_ind: int | None = None,
-        device_dims: Iterable[int] | None = None,
-    ) -> None:
-        dim = int(2 * charge_cutoff + 1)
-        super().__init__(
-            label=label,
-            charging_energy=charging_energy,
-            josephson_energy=josephson_energy,
-            offset_charge=offset_charge,
-            charge_cutoff=charge_cutoff,
-            dim=dim,
-            device_ind=device_ind,
-            device_dims=device_dims,
-        )
-
-    def embed(self, device_ind: int, device_dims: Iterable[int]) -> ChargeTransmon:
-        """
-        embed Embeds the transmon into a larger Hilbert space.
-
-        Parameters
-        ----------
-        device_ind : int
-            The index of the transmon in the larger Hilbert space.
-        device_dims : Tuple[int, ...]
-            The dimension of each quantum system (including this transmon)
-            in the full device.
-        """
-        transmon = self.__class__(
-            label=self.label,
-            charging_energy=self.charging_energy,
-            josephson_energy=self.josephson_energy,
-            offset_charge=self.offset_charge,
-            charge_cutoff=self.charge_cutoff,
-            device_ind=device_ind,
-            device_dims=device_dims,
-        )
-        for label, drive in self._drives.items():
-            transmon._drives[label] = drive
-
-        return transmon
-
-    def get_hamiltonian(self) -> Array:
-        hamiltonian = self._get_hamiltonian()
-        return self.embed_op(hamiltonian)
-
-    def get_eigenvalues(self) -> Array:
-        return self._get_eigenvalues()
-
-    def get_eigenstates(self) -> Tuple[Array, Array]:
-        return self._get_eigenstates()
-
-
-class Transmon(BaseTransmon):
-    """Transmon qubit model."""
-
-    _eig_vals: Array
-    _eig_states: Array
-
-    def __init__(
-        self,
-        label: str,
-        charging_energy: Float,
-        josephson_energy: Float,
-        offset_charge: Float,
-        charge_cutoff: int,
-        dim: int,
-        device_ind: int | None = None,
-        device_dims: Tuple[int, ...] | None = None,
-    ) -> None:
-        super().__init__(
-            label=label,
-            charging_energy=charging_energy,
-            josephson_energy=josephson_energy,
-            offset_charge=offset_charge,
-            charge_cutoff=charge_cutoff,
-            dim=dim,
-            device_ind=device_ind,
-            device_dims=device_dims,
-        )
-
-        eig_vals, eig_states = self._get_eigenstates()
-        self._eig_vals = eig_vals[..., : self.dim]
-        self._eig_states = eig_states[..., : self.dim]
-
-    def embed(self, device_ind: int, device_dims: Tuple[int, ...]) -> Transmon:
-        """
-        embed Embeds the transmon into a larger Hilbert space.
-
-        Parameters
-        ----------
-        device_ind : int
-            The index of the transmon in the larger Hilbert space.
-        device_dims : Tuple[int, ...]
-            The dimension of each quantum system (including this transmon)
-            in the full device.
-        """
-        transmon = self.__class__(
-            label=self.label,
-            charging_energy=self.charging_energy,
-            josephson_energy=self.josephson_energy,
-            offset_charge=self.offset_charge,
-            charge_cutoff=self.charge_cutoff,
-            dim=self.dim,
-            device_ind=device_ind,
-            device_dims=device_dims,
-        )
-
-        for label, drive in self._drives.items():
-            transmon._drives[label] = drive
-        return transmon
-
-    def transform_op(self, operator: Array) -> Array:
-        """
-        transform_op Transforms an operator of the energy basis of the transmon.
-
-        Parameters
-        ----------
-        operator : Array
-            The operator to process.
-        Returns
-        -------
-        Array
-            The processed operator.
-        """
-        transformed_op = transform_op(operator, self._eig_states)
-        return transformed_op
-
-    def process_op(self, operator: Array) -> Array:
-        """
-        process_op Process an operator into the transmon's current basis/embedding.
-
-        Parameters
-        ----------
-        operator : Array
-            Operator in the native basis.
-
-        Returns
-        -------
-        Array
-            Operator in the system's current representation.
-        """
-        return self.embed_op(self.transform_op(operator))
-
-    def get_number_op(self) -> Array:
-        """
-        get_number_op Returns the number operator of the fluxonium.
-
-        Returns
-        -------
-        Array
-            The number operator of the fluxonium.
-        """
-        num_op = jnp.diag(jnp.arange(self.dim))
-        num_op = self.embed_op(num_op)
-        return num_op
-
-    def get_hamiltonian(self) -> Array:
-        hamiltonian = jnp.diag(self._eig_vals)
-        hamiltonian = self.embed_op(hamiltonian)
-        return hamiltonian
-
-    def get_eigenvalues(self) -> Array:
-        return self._eig_vals
-
-    def get_eigenstates(self) -> Tuple[Array, Array]:
-        eig_states = jnp.identity(self.dim, dtype=jnp.complex128)
-        return self._eig_vals, eig_states
 
     @classmethod
     def from_frequencies(
