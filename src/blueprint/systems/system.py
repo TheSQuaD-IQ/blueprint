@@ -17,13 +17,14 @@ if TYPE_CHECKING:
 class System(Module):
     """AbstractSystem is the base class for all quantum systems in the package."""
 
-    label: str = field(static=True)
-    dim: int = field(static=True)
+    _label: str = field(static=True)
+    _dim: int = field(static=True)
 
-    drives: Dict[str, "Drive"]
+    _drives: Dict[str, Drive]
 
     _embedding: Embedding | None
-    device_ind: int | None = field(static=True)
+    _ind: int | None = field(static=True)
+    _dims: tuple[int, ...] | None = field(static=True)
 
     def __init__(
         self,
@@ -34,13 +35,12 @@ class System(Module):
     ) -> None:
         if not isinstance(label, str):
             raise TypeError("label must be a string.")
-        self.label = label
+        self._label = label
 
         if not isinstance(dim, int) or dim <= 0:
             raise ValueError("dim must be a positive integer.")
-        self.dim = dim
-
-        self.drives = {}
+        self._dim = dim
+        self._drives = {}
 
         if device_ind is None:
             if device_dims is not None:
@@ -66,18 +66,66 @@ class System(Module):
                     raise ValueError(
                         "All entries in device_dims must be positive integers."
                     )
-
             if not 0 <= device_ind < len(device_dims):
                 raise ValueError("device_ind must be a valid index for device_dims.")
 
             expected_dim = device_dims[device_ind]
-            if expected_dim != self.dim:
+            if expected_dim != self._dim:
                 raise ValueError(
-                    f"The system dim ({self.dim}) must match the corresponding device_dims ({expected_dim}) entry."
+                    f"The system dim ({self._dim}) must match the corresponding dims ({expected_dim}) entry."
                 )
 
             self._embedding = Embedding(device_ind, device_dims)
-        self.device_ind = device_ind
+        self._ind = device_ind
+        self._dims = device_dims
+
+    @property
+    def label(self) -> str:
+        """
+        label Returns the label of the quantum system.
+
+        Returns
+        -------
+        str
+            The label of the quantum system.
+        """
+        return self._label
+
+    @property
+    def dim(self) -> int:
+        """
+        dim Returns the Hilbert space dimension of the quantum system.
+
+        Returns
+        -------
+        int
+            The Hilbert space dimension of the quantum system.
+        """
+        return self._dim
+
+    @property
+    def device_ind(self) -> int | None:
+        """
+        device_ind Returns the index of the system in the device Hilbert space.
+
+        Returns
+        -------
+        int | None
+            Index of the system in the device.
+        """
+        return self._ind
+
+    @property
+    def device_dims(self) -> Tuple[int, ...] | None:
+        """
+        device_dims Returns the dimensions of each subsystem in the device Hilbert space.
+
+        Returns
+        -------
+        Tuple[int, ...] | None
+            Dimensions of each subsystem in the device.
+        """
+        return self._dims
 
     @property
     def is_embedded(self) -> bool:
@@ -92,28 +140,28 @@ class System(Module):
         return self._embedding is not None
 
     @property
-    def drive_iter(self) -> Iterator["Drive"]:
+    def drives(self) -> Iterator[Drive]:
         """
-        drive_iter Iterator over drives attached to the system.
+        drives Iterator over drives attached to the system.
 
         Returns
         -------
         Iterator[Drive]
             Iterator over drive instances.
         """
-        return iter(self.drives.values())
+        return iter(self._drives.values())
 
     @property
     def drive_labels(self) -> Tuple[str, ...]:
         """
-        drive_labelsLabels of drives attached to the system.
+        drive_labels Labels of drives attached to the system.
 
         Returns
         -------
         Tuple[str, ...]
             Tuple of drive labels.
         """
-        return tuple(self.drives.keys())
+        return tuple(self._drives.keys())
 
     @property
     def num_drives(self) -> int:
@@ -125,7 +173,7 @@ class System(Module):
         int
             Count of drives.
         """
-        return len(self.drives)
+        return len(self._drives)
 
     @property
     def is_driven(self) -> bool:
@@ -137,18 +185,7 @@ class System(Module):
         bool
             True if one or more drives are present.
         """
-        return any(self.drives)
-
-    def add_drive(self, drive: "Drive") -> None:
-        """
-        add_drive Attach a drive to the system.
-
-        Parameters
-        ----------
-        drive : Drive
-            Drive instance to attach.
-        """
-        self.drives[drive.label] = drive
+        return any(self._drives)
 
     @abstractmethod
     def embed(self, device_ind: int, device_dims: Tuple[int, ...]) -> System:
@@ -184,6 +221,24 @@ class System(Module):
             Hamiltonian matrix for the system.
         """
 
+    def embed_op(self, operator: Array) -> Array:
+        """
+        embed_op Embed an operator into the device Hilbert space if needed.
+
+        Parameters
+        ----------
+        operator : Array
+            Operator to embed.
+
+        Returns
+        -------
+        Array
+            Embedded operator or original operator if no embedding is set.
+        """
+        if self._embedding:
+            return self._embedding(operator)
+        return operator
+
     def get_drive_hamiltonian(self, time: Scalar) -> Array:
         """get_drive_hamiltonian Return the system Hamiltonian including drives evaluated at `time`.
 
@@ -200,7 +255,7 @@ class System(Module):
         hamiltonian_shape = (self.dim, self.dim)
         drive_hamiltonian = jnp.zeros(hamiltonian_shape)
 
-        for drive in self.drives.values():
+        for drive in self._drives.values():
             drive_hamiltonian += drive.get_hamiltonian(self, time)
         return drive_hamiltonian
 
@@ -225,6 +280,26 @@ class System(Module):
         Tuple[Array, Array]
             Tuple of (eigenvalues, eigenvectors).
         """
+
+    def get_transition_op(self, start_ind: int, end_ind: int) -> Array:
+        """
+        get_transition_op Return an outer-product transition operator between two levels.
+
+        Parameters
+        ----------
+        start_ind, end_ind : int
+            Level indices for transition ``|end><start|``.
+
+        Returns
+        -------
+        Array
+            Transition operator embedded to device dimension.
+        """
+        _, eig_states = self.get_eigenstates()
+        start_state = eig_states[:, start_ind]
+        end_state = eig_states[:, end_ind]
+        transition_op = jnp.outer(end_state, start_state)
+        return self.embed_op(transition_op)
 
     def get_energy_diff(self, level: int, other_level: int) -> Array:
         """
@@ -321,24 +396,6 @@ class System(Module):
         if not self.is_driven:
             raise ValueError("The quantum system is not driven.")
 
-        time_arrays = [drive.get_hamiltonian_qarray(self) for drive in self.drive_iter]
+        time_arrays = [drive.get_hamiltonian_qarray(self) for drive in self.drives]
 
         return SummedTimeQArray(time_arrays)
-
-    def embed_op(self, operator: Array) -> Array:
-        """
-        embed_op Embed an operator into the device Hilbert space if needed.
-
-        Parameters
-        ----------
-        operator : Array
-            Operator to embed.
-
-        Returns
-        -------
-        Array
-            Embedded operator or original operator if no embedding is set.
-        """
-        if self._embedding:
-            return self._embedding(operator)
-        return operator
