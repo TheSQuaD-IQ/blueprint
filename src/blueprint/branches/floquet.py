@@ -36,6 +36,7 @@ def assign_branch_inds(prev_modes: Array, next_modes: Array) -> Tuple[Array, Arr
     return sorted_modes, sort_inds
 
 
+@jit
 def get_branch_inds(modes: Array, states: Array) -> Array:
     """
     get_branch_inds Compute branch sorting indices for Floquet modes across drive amplitudes.
@@ -56,6 +57,7 @@ def get_branch_inds(modes: Array, states: Array) -> Array:
     return inds
 
 
+@jit
 def get_branches(
     hamiltonian: Array,
     drive_pulse: Pulse,

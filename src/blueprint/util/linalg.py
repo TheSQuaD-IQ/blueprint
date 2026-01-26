@@ -147,8 +147,8 @@ def embed_op(
     return embedded_op
 
 
-def tidyup(op: Array, tol: float) -> Array:
-    """tidyup Tidy up the input matrix by truncating small values to zero.
+def tidyup(operator: Array, tol: float) -> Array:
+    """tidyup Tidies up the input matrix by truncating small values to zero.
     The real and imaginary parts are treated separately. For example, the number
     `1e-18 + 2j` will be truncated with a tolerance of `1e-15` to just `2j`.
 
@@ -158,7 +158,7 @@ def tidyup(op: Array, tol: float) -> Array:
 
     Parameters
     ----------
-    op : Array
+    operator : Array
         The operator to tidy up.
     tol: float
         Absolute tolerance of the smallest real or imag values to keep in the Array.
@@ -168,7 +168,9 @@ def tidyup(op: Array, tol: float) -> Array:
     Array
         The tidied-up array containing only real and imaginary values larger than `tol`.
     """
-    op_real, op_imag = op.real, op.imag
-    op_real = op.at[jnp.abs(op.real) < tol].set(0.0)
-    op_imag = op.at[jnp.abs(op.imag) < tol].set(0.0)
-    return op_real + 1.0j * op_imag
+    real_op = jnp.real(operator)
+    real_op = jnp.where(jnp.abs(real_op) < tol, 0.0, real_op)
+
+    imag_op = jnp.imag(operator)
+    imag_op = jnp.where(jnp.abs(imag_op) < tol, 0.0, imag_op)
+    return real_op + 1.0j * imag_op
