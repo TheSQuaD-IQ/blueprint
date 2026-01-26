@@ -1,5 +1,3 @@
-from typing import Sequence
-
 from jax import numpy as jnp
 from jaxtyping import Scalar, Array
 
@@ -88,7 +86,7 @@ def get_phase_shift(phase: Float, basis: Basis) -> Array:
     return ptm
 
 
-def get_cz_rotation(angle: Float, basis: Sequence[Basis]) -> Array:
+def get_cz_rotation(angle: Float, basis: Basis) -> Array:
     """
     get_cphase Returns a controlled phase operation by a given angle.
 
@@ -112,7 +110,7 @@ def get_cz_rotation(angle: Float, basis: Sequence[Basis]) -> Array:
     return ptm
 
 
-def get_cx_rotation(angle: Float, basis: Sequence[Basis]) -> Array:
+def get_cx_rotation(angle: Float, basis: Basis) -> Array:
     """
     get_cx_rotation Returns a controlled x-rotation operation by a given angle.
 
@@ -143,7 +141,7 @@ def get_cx_rotation(angle: Float, basis: Sequence[Basis]) -> Array:
     return ptm
 
 
-def get_cy_rotation(angle: Float, basis: Sequence[Basis]) -> Array:
+def get_cy_rotation(angle: Float, basis: Basis) -> Array:
     """
     get_cy_rotation Returns a controlled y-rotation operation by a given angle.
 

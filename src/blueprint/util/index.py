@@ -1,6 +1,4 @@
 from typing import Tuple
-from itertools import accumulate
-from operator import mul
 
 import jax
 from jax import Array
