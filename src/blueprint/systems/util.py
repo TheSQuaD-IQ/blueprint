@@ -1,4 +1,3 @@
-from abc import abstractmethod
 from operator import mul
 from functools import reduce
 from typing import Tuple
@@ -37,5 +36,6 @@ class Embedding(Module):
         Array
             Embedded operator.
         """
-        embedded_op = jnp.kron(self._left_id, jnp.kron(op, self._right_id))
+        embedded_op = jnp.kron(op, self._right_id)
+        embedded_op = jnp.kron(self._left_id, embedded_op)
         return embedded_op

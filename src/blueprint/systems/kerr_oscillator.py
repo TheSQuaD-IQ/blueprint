@@ -1,12 +1,14 @@
-from typing import Callable, Self, Tuple
+from typing import Self, Tuple, Iterable
 
 from jax import numpy as jnp
 from jaxtyping import Array, Scalar
 
-from ..util.linalg import cosm, sinm
 from .system import System
+from ..operators import harmonic as harmonic_ops
+from ..drives import Pulse, ChargeDrive, FluxDrive, CosFluxDrive, SinFluxDrive
 
-type Pulse = Callable[[Scalar], Array]
+type Int = int | Scalar
+type Float = float | Scalar
 
 
 class KerrOscillator(System):
@@ -19,12 +21,12 @@ class KerrOscillator(System):
     def __init__(
         self,
         label: str,
-        charging_energy: float | Scalar,
-        josephson_energy: float | Scalar,
+        charging_energy: Float,
+        josephson_energy: Float,
         dim: int,
-        kerr_sign: int | Scalar = -1,
+        kerr_sign: Int = -1,
         device_ind: int | None = None,
-        device_dims: Tuple[int, ...] | None = None,
+        device_dims: Iterable[int] | None = None,
     ):
         super().__init__(label, dim, device_ind=device_ind, device_dims=device_dims)
 
@@ -139,8 +141,8 @@ class KerrOscillator(System):
             device_dims,
         )
 
-        for label, drive in self.drives.items():
-            embedded_kerr_oscillator.drives[label] = drive
+        for label, drive in self._drives.items():
+            embedded_kerr_oscillator._drives[label] = drive
 
         return embedded_kerr_oscillator
 
@@ -167,19 +169,6 @@ class KerrOscillator(System):
         processed_op = self.embed_op(operator)
         return processed_op
 
-    def _get_raise_op(self) -> Array:
-        """
-        _get_raise_op Returns the raising (creation) operator of the Kerr oscillator.
-
-        Returns
-        -------
-        Array
-            The raising (creation) operator of the Kerr oscillator.
-        """
-        offdiag = jnp.sqrt(jnp.arange(1, self.dim))
-        raise_op = jnp.diag(offdiag, k=-1)
-        return raise_op
-
     def get_raise_op(self) -> Array:
         """
         get_creation_op Returns the raising (creation) operator of the Kerr oscillator.
@@ -189,21 +178,8 @@ class KerrOscillator(System):
         Array
             The raising (creation) operator in the current basis of the Kerr oscillator.
         """
-        raise_op = self._get_raise_op()
+        raise_op = harmonic_ops.get_raise_op(self.dim)
         return self.process_op(raise_op)
-
-    def _get_low_op(self) -> Array:
-        """
-        _get_low_op Returns the lowering (annihilation) operator of the Kerr oscillator.
-
-        Returns
-        -------
-        Array
-            The lowering (annihilation) operator of the Kerr oscillator.
-        """
-        offdiag = jnp.sqrt(jnp.arange(1, self.dim))
-        low_op = jnp.diag(offdiag, k=1)
-        return low_op
 
     def get_low_op(self) -> Array:
         """
@@ -214,21 +190,8 @@ class KerrOscillator(System):
         Array
             The lowering (annihilation) operator in the current basis of the Kerr oscillator.
         """
-        low_op = self._get_low_op()
+        low_op = harmonic_ops.get_low_op(self.dim)
         return self.process_op(low_op)
-
-    def _get_number_op(self) -> Array:
-        """
-        get_number_op Returns the number operator of the Kerr oscillator.
-
-        Returns
-        -------
-        Array
-            The number operator of the Kerr oscillator.
-        """
-        diag_elems = jnp.arange(self.dim)
-        number_op = jnp.diag(diag_elems)
-        return number_op
 
     def get_number_op(self) -> Array:
         """
@@ -239,20 +202,8 @@ class KerrOscillator(System):
         Array
             The number operator in the current basis of the Kerr oscillator.
         """
-        number_op = self._get_number_op()
+        number_op = harmonic_ops.get_number_op(self.dim)
         return self.process_op(number_op)
-
-    def _get_identity_op(self) -> Array:
-        """
-        get_identity_op Returns the identity operator of the Kerr oscillator.
-
-        Returns
-        -------
-        Array
-            The identity operator of the Kerr oscillator.
-        """
-        id_op = jnp.identity(self.dim)
-        return id_op
 
     def get_identity_op(self) -> Array:
         """
@@ -266,20 +217,6 @@ class KerrOscillator(System):
         id_op = jnp.identity(self.dim)
         return self.embed_op(id_op)
 
-    def _get_charge_op(self) -> Array:
-        """
-        _get_charge_op Returns the charge operator of the Kerr oscillator in the Fock basis.
-
-        Returns
-        -------
-        Array
-            The charge operator of the Kerr oscillator, expressed in the Fock basis.
-        """
-        low_op = self._get_low_op()
-        raise_op = self._get_raise_op()
-        charge_op = 1.0j * self.charge_zpf * (raise_op - low_op)
-        return charge_op
-
     def get_charge_op(self) -> Array:
         """
         get_charge_op Returns the charge operator of the Kerr oscillator.
@@ -289,23 +226,9 @@ class KerrOscillator(System):
         Array
             The charge operator, in the current basis of the Kerr oscillator.
         """
-        charge_op = self._get_charge_op()
+        charge_op = harmonic_ops.get_charge_op(self.charge_zpf, self.dim)
         processed_op = self.process_op(charge_op)
         return processed_op
-
-    def _get_flux_op(self) -> Array:
-        """
-        _get_flux_op Returns the flux operator of the Kerr oscillator in the Fock basis.
-
-        Returns
-        -------
-        Array
-            The flux operator of the Kerr oscillator, expressed in the Fock basis.
-        """
-        low_op = self._get_low_op()
-        raise_op = self._get_raise_op()
-        flux_op = self.flux_zpf * (raise_op + low_op)
-        return flux_op
 
     def get_flux_op(self) -> Array:
         """
@@ -316,22 +239,9 @@ class KerrOscillator(System):
         Array
             The flux operator, in the current basis of the Kerr oscillator.
         """
-        charge_op = self._get_flux_op()
+        charge_op = harmonic_ops.get_flux_op(self.flux_zpf, self.dim)
         processed_op = self.process_op(charge_op)
         return processed_op
-
-    def _get_cosflux_op(self) -> Array:
-        """
-        _get_cosflux_op Returns the cos(phi) operator of the Kerr oscillator in the Fock basis.
-
-        Returns
-        -------
-        Array
-            The cos(phi) operator of the Kerr oscillator, expressed in the Fock basis.
-        """
-        flux_op = self._get_flux_op()
-        cosflux_op = cosm(flux_op)
-        return cosflux_op
 
     def get_cosflux_op(self) -> Array:
         """
@@ -342,22 +252,9 @@ class KerrOscillator(System):
         Array
             The cos(phi) operator, in the current basis of the Kerr oscillator.
         """
-        cosflux_op = self._get_cosflux_op()
+        cosflux_op = harmonic_ops.get_cosflux_op(self.flux_zpf, self.dim)
         processed_op = self.process_op(cosflux_op)
         return processed_op
-
-    def _get_sinflux_op(self) -> Array:
-        """
-        _get_sinflux_op Returns the sin(phi) operator of the Kerr oscillator in the Fock basis.
-
-        Returns
-        -------
-        Array
-            The sin(phi) operator of the Kerr oscillator, expressed in the Fock basis.
-        """
-        flux_op = self._get_flux_op()
-        sinflux_op = sinm(flux_op)
-        return sinflux_op
 
     def get_sinflux_op(self) -> Array:
         """
@@ -368,30 +265,19 @@ class KerrOscillator(System):
         Array
             The sin(phi) operator, in the current basis of the Kerr oscillator.
         """
-        sinflux_op = self._get_sinflux_op()
+        sinflux_op = harmonic_ops.get_sinflux_op(self.flux_zpf, self.dim)
         processed_op = self.process_op(sinflux_op)
         return processed_op
 
-    def _get_hamiltonian(self) -> Array:
-        """
-        _get_hamiltonian Returns the Hamiltonian of the Kerr oscillator.
-
-        Returns
-        -------
-        Array
-            The Hamiltonian of the Kerr oscillator.
-        """
-        number_op = self._get_number_op()
-        low_op = self._get_low_op()
-        raise_op = self._get_raise_op()
-        anharm_op = raise_op @ raise_op @ low_op @ low_op
-        qubit_freq = self.plasma_frequency + self._self_kerr
-
-        hamiltonian = qubit_freq * number_op + (0.5 * self._self_kerr) * anharm_op
-        return hamiltonian
-
     def get_hamiltonian(self) -> Array:
-        hamiltonian = self._get_hamiltonian()
+        low_op = harmonic_ops.get_low_op(self.dim)
+        raise_op = harmonic_ops.get_raise_op(self.dim)
+        number_op = harmonic_ops.get_number_op(self.dim)
+
+        anharm_op = raise_op @ raise_op @ low_op @ low_op
+
+        qubit_freq = self.plasma_frequency + self._self_kerr
+        hamiltonian = qubit_freq * number_op + 0.5 * self._self_kerr * anharm_op
         return self.process_op(hamiltonian)
 
     def get_eigenvalues(self) -> Array:
@@ -405,6 +291,62 @@ class KerrOscillator(System):
         eig_vals = self.get_eigenvalues()
         eig_states = jnp.identity(self.dim, dtype=complex)
         return eig_vals, eig_states
+
+    def add_charge_drive(self, label: str, pulse: Pulse) -> None:
+        """
+        add_charge_drive Adds a charge drive to the kerr oscillator.
+
+        Parameters
+        ----------
+        label : str
+            The label of the drive.
+        pulse : Pulse
+            The pulse function of the drive.
+        """
+        drive = ChargeDrive(label, pulse)
+        self._drives[label] = drive
+
+    def add_flux_drive(self, label: str, pulse: Pulse) -> None:
+        """
+        add_flux_drive Adds a flux drive to the kerr oscillator.
+
+        Parameters
+        ----------
+        label : str
+            The label of the drive.
+        pulse : Pulse
+            The pulse function of the drive.
+        """
+        drive = FluxDrive(label, pulse)
+        self._drives[label] = drive
+
+    def add_cosflux_drive(self, label: str, pulse: Pulse) -> None:
+        """
+        add_cosflux_drive Adds a cos(flux) flux drive to the kerr oscillator.
+
+        Parameters
+        ----------
+        label : str
+            The label of the drive.
+        pulse : Pulse
+            The pulse function of the drive.
+        """
+        drive = CosFluxDrive(label, pulse)
+        self._drives[label] = drive
+
+    def add_sinflux_drive(self, label: str, pulse: Pulse) -> None:
+        """
+        add_sinflux_drive Adds a sin(flux) flux drive to the kerr oscillator.
+
+        Parameters
+        ----------
+        label : str
+            The label of the drive.
+        pulse : Pulse
+            The pulse function of the drive.
+        """
+        drive = SinFluxDrive(label, pulse)
+        self._drives[label] = drive
 
     @classmethod
     def from_frequencies(

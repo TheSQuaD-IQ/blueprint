@@ -88,6 +88,7 @@ def assign_branch_inds(
     return branch_inds
 
 
+@jit
 def get_branch_inds(states: Array, raise_op: Array, ground_inds: Array) -> Array:
     """
     get_branch_inds Return indices of states grouped into resonator branches.
@@ -162,6 +163,7 @@ def get_branch_inds(states: Array, raise_op: Array, ground_inds: Array) -> Array
     return raveled_inds
 
 
+@jit
 def get_branches(
     hamiltonian: Array,
     raise_op: Array,

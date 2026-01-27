@@ -42,9 +42,11 @@ def basis_kron(basis: Basis, other_basis: Basis) -> Basis:
         The resulting operator basis from the Kronecker product.
     """
     operators = jnp.kron(basis.operators, other_basis.operators)
-    labels = tuple(map(join_labels, product(basis.labels, other_basis.labels)))
+    label_prods = product(basis.labels, other_basis.labels)
+    labels = tuple(map(join_labels, label_prods))
     basis = Basis(operators, labels)
     return basis
+
 
 def get_pauli_ops(normalize: bool = True) -> Array:
     """

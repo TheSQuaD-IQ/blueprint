@@ -17,8 +17,7 @@ def to_denstiy_matrix(state_vec: Array) -> Array:
         Density matrix with shape ``(dim, dim)``.
     """
     state_vec = jnp.squeeze(state_vec)
-    conj_vec = state_vec.conj()
-    density_mat = jnp.einsum("i, j-> ij", state_vec, conj_vec)
+    density_mat = jnp.einsum("i, j-> ij", state_vec, jnp.conj(state_vec))
     return density_mat
 
 

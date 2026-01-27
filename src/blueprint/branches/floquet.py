@@ -1,4 +1,4 @@
-from typing import Callable, Tuple
+from typing import Tuple
 
 import jax
 from jax import Array
@@ -10,9 +10,8 @@ import dynamiqs as dq
 from dynamiqs import Options
 from dynamiqs.method import Method, Tsit5
 
+from ..drives import Pulse
 from ..util.index import get_max_overlap_inds
-
-type Pulse = Callable[[float], Scalar | Array]
 
 
 @jit
@@ -37,6 +36,7 @@ def assign_branch_inds(prev_modes: Array, next_modes: Array) -> Tuple[Array, Arr
     return sorted_modes, sort_inds
 
 
+@jit
 def get_branch_inds(modes: Array, states: Array) -> Array:
     """
     get_branch_inds Compute branch sorting indices for Floquet modes across drive amplitudes.
@@ -57,6 +57,7 @@ def get_branch_inds(modes: Array, states: Array) -> Array:
     return inds
 
 
+@jit
 def get_branches(
     hamiltonian: Array,
     drive_pulse: Pulse,
