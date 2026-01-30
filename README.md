@@ -56,7 +56,7 @@ from blueprint import systems, device
 # print(energies[:6])
 ```
 
-See the `notebooks/` folder for runnable examples and exploratory analyses.
+See the `tutorial/` folder for runnable examples and exploratory analyses.
 
 **Package Structure**
 
@@ -68,7 +68,7 @@ See the `notebooks/` folder for runnable examples and exploratory analyses.
 - `blueprint/gates` — gate metrics and representations.
 - `blueprint/operators` — operator primitives (charge, harmonic, ...).
 - `blueprint/systems` — concrete physical system models (transmon, fluxonium, resonator).
-- `src/notebooks/` — example notebooks demonstrating workflows.
+- `tutorial/` — example notebooks demonstrating workflows.
 
 **Development**
 
