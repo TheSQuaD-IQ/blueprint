@@ -1,7 +1,7 @@
 
 # blueprint
 
-A lightweight Python library for modelling and analyzing quantum circuits and superconducting devices. Note that this project is still in an alpha version - there are features not yet supported and possible code issues. We are not promising any support with issues you may be experiencing or features that you may want to implement. However, we still encourage you to report any issues, which we can look into and potentially solve.
+A lightweight Python library for modelling and analyzing quantum circuits and superconducting devices written with JAX and designed for GPU acceleration. Note that this project is still in an alpha version - there are features not yet supported and possible code issues. We are not promising any support with issues you may be experiencing or features that you may want to implement. However, we still encourage you to report any issues, which we can look into and potentially solve.
 
 **Overview**
 
