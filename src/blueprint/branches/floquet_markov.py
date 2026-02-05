@@ -1,4 +1,5 @@
 import math
+from functools import partial
 
 import jax
 from jax import numpy as jnp
@@ -13,19 +14,16 @@ from ..drives import Pulse
 
 type Float = float | Scalar
 
-@jit
+
 def get_propagated_branches(
     hamiltonian: Array,
     drive_pulse: Pulse,
     drive_op: Array,
     drive_period: Float,
     save_times: Array,
-    method: Method | None = None,
-    options: Options | None = None,
+    method: Method,
+    options: Options,
 ) -> tuple[Array, Array]:
-    method = method or Tsit5()
-    options = options or Options()
-
     hamiltonian_term = dq.constant(hamiltonian)
     drive_term = dq.modulated(drive_pulse, drive_op)
 
@@ -41,13 +39,15 @@ def get_propagated_branches(
 
     quasienergies = result.quasienergies
     modes = result.modes.to_jax()
-    # Remove the redundant axis corresponding to the time and the one used for the right-hand vectors
-    modes = jnp.squeeze(modes, -1)
-    # Move the last two axes so that the the modes are the column vectors of the array
-    modes = jnp.matrix_transpose(modes)
+    # Remove the redundant axis used for the right-hand vectors
+    # Then move the last two axes so that the the modes are the column vectors of the array
+    modes = jnp.matrix_transpose(jnp.squeeze(modes, -1))
 
+    # get the eigenstates of the Hamiltonian
     _, states = jnp.linalg.eigh(hamiltonian)
 
+    # Take the mode at the initial time (t=0) for the sorting.
+    # The time axis is the second to last axis (-3)
     init_modes = jnp.take(modes, 0, -3)
     inds = get_branch_inds(init_modes, states)
     quasienergies = jnp.take_along_axis(quasienergies, inds, -1)
@@ -98,7 +98,8 @@ def get_transition_rate(
     return transition_rates
 
 
-def floquet_rate_analysis(
+@partial(jax.jit, static_argnames=["num_times", "num_photons", "method", "options"])
+def get_floquet_rates(
     hamiltonian: Array,
     drive_pulse: Pulse,
     drive_op: Array,
@@ -148,7 +149,6 @@ def floquet_rate_analysis(
     )
 
     floquet_rates = transition_rates * jnp.abs(floquet_matrix_elements) ** 2
-    mode_rates = jnp.sum(floquet_rates, axis=-1)
+    mode_rates = jnp.sum(floquet_rates, -1)
     init_modes = jnp.take(modes, 0, -3)
-
     return quasienergies, init_modes, mode_rates
