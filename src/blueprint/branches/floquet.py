@@ -17,6 +17,8 @@ from dynamiqs.method import Method, Tsit5
 from ..drives import Pulse
 from ..util.index import get_max_overlap_inds
 
+type Float = float | Scalar
+
 
 @jit
 def assign_branch_inds(prev_modes: Array, next_modes: Array) -> tuple[Array, Array]:
@@ -65,8 +67,8 @@ def get_branches(
     hamiltonian: Array,
     drive_pulse: Pulse,
     drive_op: Array,
-    drive_period: float,
-    init_time: float | Scalar = 0.0,
+    drive_period: Float,
+    time: Float | Array = 0.0,
     method: Method | None = None,
     options: Options | None = None,
 ) -> tuple[Array, Array]:
@@ -82,9 +84,9 @@ def get_branches(
         `amplitude = drive_pulse(t)` where `t` is a scalar time.
     drive_op : Array
         Operator coupled by the drive (shape ``(d,d)``).
-    drive_period : float
+    drive_period : Float
         Period of the drive.
-    init_time : float | Scalar, optional
+    time : Float | Array, optional
         Initial time for the Floquet calculation.
     method : Method | None, optional
         Integration method for dynamiqs; defaults to `Tsit5()`.
@@ -99,7 +101,8 @@ def get_branches(
     method = method or Tsit5()
     options = options or Options()
 
-    save_times = jnp.atleast_1d(init_time)
+    time = jnp.asarray(time)
+    times = jnp.atleast_1d(time)
 
     hamiltonian_term = dq.constant(hamiltonian)
     drive_term = dq.modulated(drive_pulse, drive_op)
@@ -108,8 +111,8 @@ def get_branches(
 
     result = dq.floquet(
         driven_hamiltonian,
-        drive_period,
-        save_times,
+        drive_period,  # type: ignore
+        times,
         method=method,
         options=options,
     )
@@ -117,15 +120,21 @@ def get_branches(
     quasienergies = result.quasienergies
     modes = result.modes.to_jax()
     # Remove singleton axes that may come from dynamiqs representation
-    modes = jnp.squeeze(modes)
+
     # Move the last two axes so that the the modes are the column vectors of the array
-    modes = jnp.moveaxis(modes, -1, -2)
+    modes = jnp.squeeze(modes, -1)
+    modes = jnp.matrix_transpose(modes)
 
     _, states = jnp.linalg.eigh(hamiltonian)
-    inds = get_branch_inds(modes, states)
+
+    init_modes = jnp.take(modes, 0, -3)
+    inds = get_branch_inds(init_modes, states)
 
     branch_quasienergies = jnp.take_along_axis(quasienergies, inds, -1)
 
-    exp_inds = jnp.expand_dims(inds, -2)
+    exp_inds = jnp.expand_dims(inds, (-2, -3))
     branches = jnp.take_along_axis(modes, exp_inds, -1)
+
+    # Remove the time axis if only a single time was provided
+    branches = jnp.squeeze(branches, -3)
     return branch_quasienergies, branches
