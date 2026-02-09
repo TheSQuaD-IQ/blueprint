@@ -1,4 +1,3 @@
-from typing import Tuple
 from functools import partial
 
 import jax
@@ -9,7 +8,7 @@ from jax import numpy as jnp
 from ..util.index import get_max_overlap_inds
 
 
-def get_next_ind(overlap_mat: Array, start_ind: Array) -> Tuple[Array, Array]:
+def get_next_ind(overlap_mat: Array, start_ind: Array) -> tuple[Array, Array]:
     """
     get_next_ind Find the next branch index given an overlap matrix and a start index.
 
@@ -24,7 +23,7 @@ def get_next_ind(overlap_mat: Array, start_ind: Array) -> Tuple[Array, Array]:
 
     Returns
     -------
-    Tuple[Array, Array]
+    tuple[Array, Array]
         Tuple containing the updated overlap matrix (with the chosen row set to
         zero) and the chosen next index.
     """
@@ -34,21 +33,21 @@ def get_next_ind(overlap_mat: Array, start_ind: Array) -> Tuple[Array, Array]:
 
 
 def get_next_inds(
-    prev_carry: Tuple[Array, Array], _
-) -> Tuple[Tuple[Array, Array], Array]:
+    prev_carry: tuple[Array, Array], _
+) -> tuple[tuple[Array, Array], Array]:
     """
     get_next_inds Compute the next set of branch indices for a scan carry.
 
     Parameters
     ----------
-    prev_carry : tuple
+    prev_carry : tuple[Array, Array]
         Tuple containing the overlap matrix and the previous branch indices.
     _ : None
         Placeholder to fit the ``jax.lax.scan`` function signature.
 
     Returns
     -------
-    Tuple[Tuple[Array, Array], Array]
+    tuple[tuple[Array, Array], Array]
         Updated carry and the next branch indices.
     """
     overlap_mat, prev_inds = prev_carry
@@ -168,7 +167,7 @@ def get_branches(
     hamiltonian: Array,
     raise_op: Array,
     prod_states: Array,
-) -> Tuple[Array, Array]:
+) -> tuple[Array, Array]:
     """
     get_branch_states Returns the branch energies and eigenstates of the input system Hamiltonian.
     The system is assumed to be composed of a qubit and a resonator, in that order.
@@ -186,7 +185,7 @@ def get_branches(
 
     Returns
     -------
-    Tuple[Array, Array]
+    tuple[Array, Array]
         The branch energies and eigenstates of the system.
     """
     energies, states = jnp.linalg.eigh(hamiltonian)
