@@ -10,29 +10,23 @@ from jax import jit
 from jax import numpy as jnp
 from jaxtyping import Array, Scalar
 
-from dynamiqs import Options
-from dynamiqs.method import Method, Tsit5
-
-from ..drives import Pulse
-from .floquet import get_branches
-
 type Float = float | Scalar
 
 
 @jit
-def get_floquet_detunings(
+def get_detunings(
     energies: Array,
-    photons: Array,
+    drive_photons: Array,
     drive_frequency: Float,
 ) -> Array:
     """
-    get_floquet_detunings Calculates the detunings for transitions between Floquet modes that include the absorption or emission of a given number of drive photons.
+    get_detunings Calculates the detunings for transitions between Floquet modes that include the absorption or emission of a given number of drive photons.
 
     Parameters
     ----------
     energies : Array
         The quasienergies of the Floquet modes, with shape ``(num_amplitude, num_modes,)``.
-    photons : Array
+    drive_photons : Array
         The numbers of drive photons that can be absorbed or emitted, with shape ``(num_photons,)``.
     drive_frequency : Float
         The frequency of the drive.
@@ -45,20 +39,20 @@ def get_floquet_detunings(
     row_energies = jnp.expand_dims(energies, (-2, -1))
     col_energies = jnp.expand_dims(energies, (-3, -1))
 
-    floquet_detunings = row_energies - col_energies + drive_frequency * photons
+    floquet_detunings = row_energies - col_energies + drive_frequency * drive_photons
     return floquet_detunings
 
 
 @jit
-def get_floquet_mat_elements(
+def get_matrix_elements(
     modes: Array,
     times: Array,
-    drive_op: Array,
+    operator: Array,
     drive_frequency: Float,
     drive_photons: Array,
 ) -> Array:
     """
-    get_floquet_mat_elements Computes the Floquet matrix elements for transitions between Floquet modes.
+    get_matrix_elements Computes the Floquet matrix elements for transitions between Floquet modes.
 
     Parameters
     ----------
@@ -83,7 +77,7 @@ def get_floquet_mat_elements(
     mat_elements = jnp.einsum(
         "atik, ij, atjl, tn -> atkln",
         jnp.conj(modes),
-        drive_op,
+        operator,
         modes,
         phases,
         optimize=True,
@@ -101,64 +95,29 @@ def get_floquet_mat_elements(
 
 
 @jit
-def get_transition_rate(
-    frequencies: Array, spectral_density: Array, thermal_populations: Array
+def get_density(
+    frequency: Array, spectral_density: Array, thermal_population: Array
 ) -> Array:
-    pos_filter = jnp.heaviside(frequencies, 1.0)
-    absorption_rates = thermal_populations * spectral_density * pos_filter
-    emission_rates = (1 + thermal_populations) * spectral_density * (1 - pos_filter)
+    pos_filter = jnp.heaviside(frequency, 1.0)
+    absorption_rates = thermal_population * spectral_density * pos_filter
+    emission_rates = (1 + thermal_population) * spectral_density * (1 - pos_filter)
     transition_rates = absorption_rates + emission_rates
     return transition_rates
 
 
-def get_branch_rates(
-    hamiltonian: Array,
-    drive_op: Array,
-    drive_pulse: Pulse,
-    drive_period: Float,
+@jit
+def get_transition_rates(
+    frequencies: Array,
+    matrix_elements: Array,
     spectral_density: Array,
-    thermal_populations: Array,
-    num_photons: int = 4,
-    num_times: int = 1000,
-    method: Method | None = None,
-    options: Options | None = None,
-) -> tuple[Array, Array, Array]:
-    method = method or Tsit5()
-    options = options or Options()
+    thermal_population: Array,
+) -> Array:
 
-    times = jnp.linspace(0, drive_period, num_times)
-    drive_photons = jnp.arange(-num_photons, num_photons + 1)
-    drive_frequency = 2 * jnp.pi / drive_period
-
-    quasienergies, modes = get_branches(
-        hamiltonian=hamiltonian,
-        drive_pulse=drive_pulse,
-        drive_op=drive_op,
-        drive_period=drive_period,
-        time=times,
-        method=method,
-        options=options,
-    )
-
-    transition_frequencies = get_floquet_detunings(
-        quasienergies=quasienergies,
-        drive_photons=drive_photons,
-        drive_frequency=drive_frequency,
-    )
-
-    mat_elements = get_floquet_mat_elements(
-        modes=modes,
-        times=times,
-        drive_op=drive_op,
-        drive_frequency=drive_frequency,
-        drive_photons=drive_photons,
-    )
-
-    rates = get_transition_rate(
-        frequencies=transition_frequencies,
+    densities = get_density(
+        frequency=frequencies,
         spectral_density=spectral_density,
-        thermal_populations=thermal_populations,
+        thermal_population=thermal_population,
     )
 
-    mode_rates = jnp.sum(rates * jnp.abs(mat_elements) ** 2, -1)
-    return quasienergies, modes, mode_rates
+    transition_rates = jnp.sum(densities * jnp.abs(matrix_elements) ** 2, -1)
+    return transition_rates

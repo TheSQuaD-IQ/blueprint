@@ -136,5 +136,7 @@ def get_branches(
     branches = jnp.take_along_axis(modes, exp_inds, -1)
 
     # Remove the time axis if only a single time was provided
-    branches = jnp.squeeze(branches, -3)
+    if time.ndim == 0:
+        branches = jnp.squeeze(branches, -3)
+
     return branch_quasienergies, branches

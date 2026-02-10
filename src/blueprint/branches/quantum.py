@@ -1,13 +1,12 @@
-from functools import partial
-
 import jax
+from jax import jit
 from jax import Array
 from jax import numpy as jnp
 
 from ..util.index import get_max_overlap_inds
 
 
-@jax.jit
+@jit
 def get_next_ind(overlap_mat: Array, start_ind: Array) -> tuple[Array, Array]:
     """
     get_next_ind Find the next branch index given an overlap matrix and a start index.
@@ -32,7 +31,7 @@ def get_next_ind(overlap_mat: Array, start_ind: Array) -> tuple[Array, Array]:
     return overlap_mat, next_ind
 
 
-@jax.jit
+@jit
 def get_next_inds(
     prev_carry: tuple[Array, Array], _
 ) -> tuple[tuple[Array, Array], Array]:
@@ -87,7 +86,7 @@ def assign_branch_inds(
     return branch_inds
 
 
-@jax.jit
+@jit
 def get_branch_inds(states: Array, raise_op: Array, ground_inds: Array) -> Array:
     """
     get_branch_inds Return indices of states grouped into resonator branches.
@@ -162,7 +161,7 @@ def get_branch_inds(states: Array, raise_op: Array, ground_inds: Array) -> Array
     return raveled_inds
 
 
-@jax.jit
+@jit
 def get_branches(
     hamiltonian: Array,
     raise_op: Array,
