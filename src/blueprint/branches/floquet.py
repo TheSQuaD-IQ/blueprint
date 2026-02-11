@@ -3,6 +3,8 @@ Floquet branch utilities.
 
 Utilities to compute and sort Floquet modes (branches) and quasienergies for driven systems.
 """
+from typing import Tuple
+from functools import partial
 
 import jax
 from jax import Array
@@ -63,6 +65,7 @@ def get_branch_inds(modes: Array, states: Array) -> Array:
     return inds
 
 
+@partial(jit, static_argnames=("method", "options"))
 def get_branches(
     hamiltonian: Array,
     drive_pulse: Pulse,
