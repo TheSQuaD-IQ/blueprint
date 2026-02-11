@@ -29,13 +29,13 @@ python -m pip install .
 
 Recommended: create a virtual environment before installing.
 
-You can optional install some optional libraries for running notebooks (ipykernel) and plotting (matplotlib) with poetry by providing the optional extra arguments `notebook` and `plot`, respectively. For example:
+You can optionally install libraries for running notebooks (ipykernel) and plotting (matplotlib) with uv by providing the optional extra arguments `notebook` and `plot`, respectively. For example:
 
 ```bash
 uv sync --extra notebook --extra plot
 ```
 
-Finally, if you're running this on a environment where CUDA is installed and available, you can also install the corresponding JAX dependencies with poetry by providing an extra argument as follows
+Finally, if you're running this in an environment where CUDA is installed and available, you can also install the corresponding JAX dependencies with uv by providing an extra argument as follows
 
 ```bash
 uv sync --extra cuda

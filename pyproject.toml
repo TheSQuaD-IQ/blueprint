@@ -1,7 +1,7 @@
 [project]
 name = "blueprint"
 version = "0.2.0"
-description = "A library implement a variety of superconducting circuit models and the tools required to perform fast and detailed simulations of their dynamics."
+description = "A library that implements a variety of superconducting circuit models and the tools required to perform fast and detailed simulations of their dynamics."
 authors = [
     { name = "Boris Varbanov", email = "Boris.Mihailov.Varbanov@USherbrooke.ca" },
     { name = "Alex Chapple", email = "Alex.Arimoto.Chapple@USherbrooke.ca" },

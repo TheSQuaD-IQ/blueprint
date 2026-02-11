@@ -121,7 +121,7 @@ def get_branches(
     modes = result.modes.to_jax()
     # Remove singleton axes that may come from dynamiqs representation
 
-    # Move the last two axes so that the the modes are the column vectors of the array
+    # Move the last two axes so that the modes are the column vectors of the array
     modes = jnp.squeeze(modes, -1)
     modes = jnp.matrix_transpose(modes)
 

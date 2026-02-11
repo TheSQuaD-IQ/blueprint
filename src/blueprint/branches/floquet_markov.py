@@ -60,7 +60,7 @@ def get_matrix_elements(
         The Floquet modes of the system, with shape ``(num_amplitudes, num_times, dim, num_modes)``.
     times : Array
         The time points at which the Floquet modes are evaluated, with shape ``(num_times,)``.
-    drive_op : Array
+    operator : Array
         The drive operator, with shape ``(dim, dim)``.
     drive_frequency : Float
         The frequency of the drive.
@@ -84,13 +84,8 @@ def get_matrix_elements(
     )
 
     drive_period = 2 * jnp.pi / drive_frequency
-    num_times = jnp.size(times)
 
-    time_step = drive_period / num_times
-
-    floquet_mat_elements = (
-        jnp.trapezoid(mat_elements, dx=time_step, axis=1) / drive_period
-    )
+    floquet_mat_elements = jnp.trapezoid(mat_elements, times, axis=1) / drive_period
     return floquet_mat_elements
 
 
