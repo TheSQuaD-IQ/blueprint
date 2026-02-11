@@ -1,7 +1,7 @@
 [project]
 name = "blueprint"
 version = "0.2.0"
-description = "A library implement a variety of superconducting circuit models and the tools required to perform fast and detail simulations of their dynamics."
+description = "A library that implements a variety of superconducting circuit models and the tools required to perform fast and detailed simulations of their dynamics."
 authors = [
     { name = "Boris Varbanov", email = "Boris.Mihailov.Varbanov@USherbrooke.ca" },
     { name = "Alex Chapple", email = "Alex.Arimoto.Chapple@USherbrooke.ca" },
@@ -19,29 +19,21 @@ dependencies = [
     "jaxtyping (>=0.3.3,<0.4.0)",
     "equinox (>=0.13.2,<0.14.0)",
     "dynamiqs (>=0.3.4,<0.4.0)",
-    "optax (>=0.2.6,<0.3.0)"
+    "optax (>=0.2.6,<0.3.0)",
+    "optimistix (>=0.0.11,<0.0.12)"
 ]
 
 [project.optional-dependencies]
 cuda = [
     "jax[cuda12] (>=0.4.36,<0.7)",
 ]
-
-[tool.poetry]
-package-mode = true
-
-[tool.poetry.group.mpl]
-optional = true
-
-[tool.poetry.group.mpl.dependencies]
-matplotlib = "^3.10.7"
-
-[tool.poetry.group.nb]
-optional = true
-
-[tool.poetry.group.nb.dependencies]
-ipykernel = "^7.1.0"
+plot = [
+    "matplotlib>=3.10.8",
+]
+notebook = [
+    "ipykernel>=7.1.0",
+]
 
 [build-system]
-requires = ["poetry-core>=2.0.0,<3.0.0"]
-build-backend = "poetry.core.masonry.api"
+requires = ["uv_build>=0.9.29,<0.10.0"]
+build-backend = "uv_build"

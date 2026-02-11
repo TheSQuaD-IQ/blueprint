@@ -16,10 +16,10 @@ A lightweight Python library for modelling and analyzing quantum circuits and su
 
 **Installation**
 
-Install from source for development (we recommend using Python poetry, but pip works as well):
+Install from source for development (we recommend using uv, but pip should work as well):
 
 ```bash
-poetry install
+uv sync
 ```
 or alternatively
 
@@ -29,16 +29,16 @@ python -m pip install .
 
 Recommended: create a virtual environment before installing.
 
-You can optional install some optional libraries for running notebooks (ipykernel) and plotting (matplotlib) with poetry by providing the optional arguments `nb` and `mpl`, respectively. For example:
+You can optionally install libraries for running notebooks (ipykernel) and plotting (matplotlib) with uv by providing the optional extra arguments `notebook` and `plot`, respectively. For example:
 
 ```bash
-poetry install --with nb,mpl
+uv sync --extra notebook --extra plot
 ```
 
-Finally, if you're running this on a environment where CUDA is installed and available, you can also install the corresponding JAX dependencies with poetry by providing an extra argument as follows
+Finally, if you're running this in an environment where CUDA is installed and available, you can also install the corresponding JAX dependencies with uv by providing an extra argument as follows
 
 ```bash
-poetry install --extras cuda
+uv sync --extra cuda
 ```
 
 **Quick Start**

@@ -1,15 +1,13 @@
-from typing import Tuple
-from functools import partial
-
 import jax
-from jax import Array
 from jax import jit
+from jax import Array
 from jax import numpy as jnp
 
 from ..util.index import get_max_overlap_inds
 
 
-def get_next_ind(overlap_mat: Array, start_ind: Array) -> Tuple[Array, Array]:
+@jit
+def get_next_ind(overlap_mat: Array, start_ind: Array) -> tuple[Array, Array]:
     """
     get_next_ind Find the next branch index given an overlap matrix and a start index.
 
@@ -24,7 +22,7 @@ def get_next_ind(overlap_mat: Array, start_ind: Array) -> Tuple[Array, Array]:
 
     Returns
     -------
-    Tuple[Array, Array]
+    tuple[Array, Array]
         Tuple containing the updated overlap matrix (with the chosen row set to
         zero) and the chosen next index.
     """
@@ -33,22 +31,23 @@ def get_next_ind(overlap_mat: Array, start_ind: Array) -> Tuple[Array, Array]:
     return overlap_mat, next_ind
 
 
+@jit
 def get_next_inds(
-    prev_carry: Tuple[Array, Array], _
-) -> Tuple[Tuple[Array, Array], Array]:
+    prev_carry: tuple[Array, Array], _
+) -> tuple[tuple[Array, Array], Array]:
     """
     get_next_inds Compute the next set of branch indices for a scan carry.
 
     Parameters
     ----------
-    prev_carry : tuple
+    prev_carry : tuple[Array, Array]
         Tuple containing the overlap matrix and the previous branch indices.
     _ : None
         Placeholder to fit the ``jax.lax.scan`` function signature.
 
     Returns
     -------
-    Tuple[Tuple[Array, Array], Array]
+    tuple[tuple[Array, Array], Array]
         Updated carry and the next branch indices.
     """
     overlap_mat, prev_inds = prev_carry
@@ -57,7 +56,6 @@ def get_next_inds(
     return next_carry, next_inds
 
 
-@partial(jit, static_argnames=("num_branches"))
 def assign_branch_inds(
     overlap_mat: Array, ground_inds: Array, num_branches: int
 ) -> Array:
@@ -168,7 +166,7 @@ def get_branches(
     hamiltonian: Array,
     raise_op: Array,
     prod_states: Array,
-) -> Tuple[Array, Array]:
+) -> tuple[Array, Array]:
     """
     get_branch_states Returns the branch energies and eigenstates of the input system Hamiltonian.
     The system is assumed to be composed of a qubit and a resonator, in that order.
@@ -180,13 +178,13 @@ def get_branches(
         The Hamiltonian of the system.
     raise_op : Array
         The raising operator of the resonator, expanded to match the Hilbert space of the system.
-    prod_states : int
+    prod_states : Array
         The product states of the system and the resonator ground states.
         These are used to sort the dressed states, from which the branches are built.
 
     Returns
     -------
-    Tuple[Array, Array]
+    tuple[Array, Array]
         The branch energies and eigenstates of the system.
     """
     energies, states = jnp.linalg.eigh(hamiltonian)
