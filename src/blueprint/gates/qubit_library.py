@@ -100,9 +100,6 @@ def get_cz_rotation(angle: Float, basis: Basis) -> Array:
     Array
         The controlled phase Pauli transfer matrix.
     """
-    if len(basis) != 2:
-        raise ValueError("CPhase gate requires two qubit bases.")
-
     exp = jnp.exp(1j * angle)
     diag_vals = jnp.array([1, 1, 1, exp])
     unitary_op = jnp.diag(diag_vals)
@@ -124,9 +121,6 @@ def get_cx_rotation(angle: Float, basis: Basis) -> Array:
     Array
         The controlled x-rotation Pauli transfer matrix.
     """
-    if len(basis) != 2:
-        raise ValueError("CX gate requires two qubit bases.")
-
     isin = 1j * jnp.sin(0.5 * angle)
     cos = jnp.cos(0.5 * angle)
     cx_unitary = jnp.array(
@@ -155,9 +149,6 @@ def get_cy_rotation(angle: Float, basis: Basis) -> Array:
     Array
         The controlled y-rotation Pauli transfer matrix.
     """
-    if len(basis) != 2:
-        raise ValueError("CY gate requires two qubit bases.")
-
     sin = jnp.sin(0.5 * angle)
     cos = jnp.cos(0.5 * angle)
     cy_unitary = jnp.array(
