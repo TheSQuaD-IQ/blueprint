@@ -65,7 +65,7 @@ def get_branch_inds(modes: Array, states: Array) -> Array:
     return inds
 
 
-@partial(jit, static_argnames=("method", "options"))
+@partial(jit, static_argnames=("method", "progress_meter"))
 def get_branches(
     hamiltonian: Array,
     drive_pulse: Pulse,
@@ -73,7 +73,7 @@ def get_branches(
     drive_period: Float,
     time: Float | Array = 0.0,
     method: Method | None = None,
-    options: Options | None = None,
+    progress_meter: bool = False,
 ) -> tuple[Array, Array]:
     """
     get_branches Compute Floquet branches (modes and quasienergies) for a driven system.
@@ -93,8 +93,8 @@ def get_branches(
         Initial time for the Floquet calculation.
     method : Method | None, optional
         Integration method for dynamiqs; defaults to `Tsit5()`.
-    options : Options | None, optional
-        Solver options for dynamiqs.
+    progress_meter : bool, optional
+        Whether to display a progress meter during the calculation.
 
     Returns
     -------
@@ -102,7 +102,6 @@ def get_branches(
         Tuple of (branch_quasienergies, branches) where branches are sorted modes.
     """
     method = method or Tsit5()
-    options = options or Options()
 
     time = jnp.asarray(time)
     times = jnp.atleast_1d(time)
@@ -117,7 +116,7 @@ def get_branches(
         drive_period,  # type: ignore
         times,
         method=method,
-        options=options,
+        progress_meter=progress_meter,
     )
 
     quasienergies = result.quasienergies
