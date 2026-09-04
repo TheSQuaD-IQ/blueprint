@@ -3,9 +3,10 @@ Floquet branch utilities.
 
 Utilities to compute and sort Floquet modes (branches) and quasienergies for driven systems.
 """
-from typing import Tuple
-from functools import partial
 
+from typing import Tuple
+
+import equinox as eqx
 import jax
 from jax import Array
 from jax import numpy as jnp
@@ -14,7 +15,7 @@ from jaxtyping import Scalar
 
 import dynamiqs as dq
 from dynamiqs import Options
-from dynamiqs.method import Method, Tsit5
+from dynamiqs.method import Tsit5
 
 from ..drives import Pulse
 from ..util.index import get_max_overlap_inds
@@ -65,15 +66,14 @@ def get_branch_inds(modes: Array, states: Array) -> Array:
     return inds
 
 
-@partial(jit, static_argnames=("method", "progress_meter"))
+@eqx.filter_jit
 def get_branches(
     hamiltonian: Array,
     drive_pulse: Pulse,
     drive_op: Array,
     drive_period: Float,
     time: Float | Array = 0.0,
-    method: Method | None = None,
-    progress_meter: bool = False,
+    **floquet_kwargs,
 ) -> tuple[Array, Array]:
     """
     get_branches Compute Floquet branches (modes and quasienergies) for a driven system.
@@ -91,17 +91,16 @@ def get_branches(
         Period of the drive.
     time : Float | Array, optional
         Initial time for the Floquet calculation.
-    method : Method | None, optional
-        Integration method for dynamiqs; defaults to `Tsit5()`.
-    progress_meter : bool, optional
-        Whether to display a progress meter during the calculation.
+    **floquet_kwargs
+        Additional keyword arguments to pass to dq.floquet.
 
     Returns
     -------
     tuple[Array, Array]
         Tuple of (branch_quasienergies, branches) where branches are sorted modes.
     """
-    method = method or Tsit5()
+    floquet_kwargs.setdefault("method", Tsit5())
+    floquet_kwargs.setdefault("progress_meter", True)
 
     time = jnp.asarray(time)
     times = jnp.atleast_1d(time)
@@ -115,8 +114,7 @@ def get_branches(
         driven_hamiltonian,
         drive_period,  # type: ignore
         times,
-        method=method,
-        progress_meter=progress_meter,
+        **floquet_kwargs,
     )
 
     quasienergies = result.quasienergies
