@@ -21,6 +21,7 @@ dependencies = [
     "optax (>=0.2.6,<0.3.0)",
     "optimistix (>=0.0.11,<0.0.12)",
     "dynamiqs",
+    "pytest>=9.1.1",
 ]
 
 [project.optional-dependencies]
@@ -32,6 +33,9 @@ plot = [
 ]
 notebook = [
     "ipykernel>=7.1.0",
+]
+develop = [
+    "pytest>=9.1.1",
 ]
 
 [build-system]
