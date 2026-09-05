@@ -15,18 +15,18 @@ dependencies = [
     "numpy (>=2.3.5,<3.0.0)",
     "scipy (>=1.16.3,<2.0.0)",
     "pyyaml (>=6.0.3,<7.0.0)",
-    "jax (>=0.4.36,<0.7) ; extra != 'cuda'",
+    "jax (>=0.4.36) ; extra != 'cuda'",
     "jaxtyping (>=0.3.3,<0.4.0)",
     "equinox (>=0.13.2,<0.14.0)",
-    "dynamiqs>=0.3.4,<0.4.0",
     "optax (>=0.2.6,<0.3.0)",
     "optimistix (>=0.0.11,<0.0.12)",
+    "dynamiqs",
     "pytest>=9.1.1",
 ]
 
 [project.optional-dependencies]
 cuda = [
-    "jax[cuda12] (>=0.4.36,<0.7)",
+    "jax[cuda12] (>=0.4.36)",
 ]
 plot = [
     "matplotlib>=3.10.8",
@@ -41,3 +41,6 @@ develop = [
 [build-system]
 requires = ["uv_build>=0.9.29,<0.10.0"]
 build-backend = "uv_build"
+
+[tool.uv.sources]
+dynamiqs = { git = "https://github.com/dynamiqs/dynamiqs.git" }
