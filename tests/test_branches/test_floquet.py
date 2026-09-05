@@ -5,7 +5,6 @@ import jax
 import numpy as np
 import pytest
 from dynamiqs.method import Tsit5
-from dynamiqs.options import Options
 from jax import numpy as jnp
 from scipy.constants import e, hbar
 
@@ -83,15 +82,14 @@ def build_system(load_test_data):
     drive_pulse = get_cos_pulse(drive_amplitudes, DRIVE_FREQ, DRIVE_PHASE)
 
     method = Tsit5(rtol=1e-8, atol=1e-8, max_steps=1000000)
-    options = Options(progress_meter=True)
 
-    return hamiltonian, drive_pulse, drive_op, DRIVE_PERIOD, method, options, transmon
+    return hamiltonian, drive_pulse, drive_op, DRIVE_PERIOD, method, transmon
 
 
 def test_get_branches(build_system, load_test_data):
     comparison_cutoff = 400
     
-    hamiltonian, drive_pulse, drive_op, DRIVE_PERIOD, method, options, transmon = (
+    hamiltonian, drive_pulse, drive_op, DRIVE_PERIOD, method, transmon = (
         build_system
     )
 
@@ -101,7 +99,7 @@ def test_get_branches(build_system, load_test_data):
         drive_op=drive_op,
         drive_period=DRIVE_PERIOD,
         method=method,
-        options=options,
+        progress_meter=True
     )
 
     number_op = transmon.get_number_op()

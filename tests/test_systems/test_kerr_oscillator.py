@@ -5,7 +5,7 @@ import numpy as np
 import pytest
 
 from blueprint.systems.resonator import Resonator
-from src.blueprint.systems import KerrOscillator
+from blueprint.systems import KerrOscillator
 from tests.test_systems.test_systems import BaseTestSystem
 
 

@@ -4,7 +4,7 @@ import jax
 import numpy as np
 import pytest
 
-from src.blueprint.systems import Transmon
+from blueprint.systems import Transmon
 from tests.test_systems.test_systems import BaseTestSystem
 
 
