@@ -216,16 +216,25 @@ class Transmon(System):
         """
         return self.embed_op(self.transform_op(operator))
 
-    def get_charge_op(self) -> Array:
+    def get_charge_op(self, add_charge_offset: bool = False) -> Array:
         """
         get_charge_op Return the charge operator in the system's current basis.
+
+        Parameters
+        ----------
+        add_charge_offset : bool, optional
+            Whether to subtract the gate charge ``n_g``, giving ``n - n_g`` instead of
+            ``n``. Must be a concrete Python bool, as it is static under ``jit``.
+            Defaults to False.
 
         Returns
         -------
         Array
             Charge operator in current representation.
         """
-        charge_op = charge_ops.get_charge_op(self._ng, self._ncut)
+        charge_op = charge_ops.get_charge_op(
+            self._ncut, self._ng, add_charge_offset=add_charge_offset
+        )
         return self.process_op(charge_op)
 
     def get_cosflux_op(self) -> Array:
@@ -285,7 +294,9 @@ class Transmon(System):
         Array
             Hamiltonian matrix in the charge basis.
         """
-        charge_op = charge_ops.get_charge_op(self._ng, self._ncut)
+        charge_op = charge_ops.get_charge_op(
+            self._ncut, self._ng, add_charge_offset=True
+        )
         cosflux_op = charge_ops.get_cosflux_op(self._ncut)
 
         hamiltonian = 4 * self._ec * charge_op @ charge_op - self._ej * cosflux_op
